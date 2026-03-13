@@ -1,3 +1,5 @@
+<img src="[dinosaur.jpg](https://kazylax.fr/image01.png)" />
+
 # 🚀 KazyPanel — Guide d'installation
 
 <div align="center">
