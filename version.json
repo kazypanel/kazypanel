@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "releaseDate": "2026-03-13",
+  "downloadUrl": "https://github.com/kazypanel/kazypanel/archive/refs/heads/main.zip",
+  "releaseNotes": "Version initiale stable de KazyPanel.",
+  "changelog": [
+    { "type": "new",      "text": "Interface complète de gestion d'hébergement web" },
+    { "type": "new",      "text": "Gestion des domaines, FTP, bases de données et DNS" },
+    { "type": "new",      "text": "Page Crontab utilisateur avec planification visuelle" },
+    { "type": "new",      "text": "Système de templates avec limites par ressource" },
+    { "type": "new",      "text": "Panel de configuration admin (SSH, MOTD, Fail2ban, Fuseau horaire)" },
+    { "type": "new",      "text": "Surveillance en temps réel (CPU, RAM, services)" },
+    { "type": "security", "text": "Authentification JWT avec anti-brute-force" }
+  ]
+}

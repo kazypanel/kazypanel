@@ -1,0 +1,10 @@
+.env
+users.json
+db_configs.json
+panel_config.json
+node_modules/
+backups/
+*.log
+*.bak
+*.tmp
+.npm/
