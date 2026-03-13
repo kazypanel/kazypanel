@@ -6,6 +6,7 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green?style=for-the-badge&logo=node.js)
 ![License](https://img.shields.io/badge/license-Proprietary-red?style=for-the-badge)
 ![OS](https://img.shields.io/badge/OS-Ubuntu%2022.04%2B-orange?style=for-the-badge&logo=ubuntu)
+![OS](https://img.shields.io/badge/OS-Debian%2012-red?style=for-the-badge&logo=debian)
 
 **Panel d'hébergement web complet — Domaines · FTP · BDD · DNS · PHP · SSL**
 
@@ -16,7 +17,6 @@
 ## 📋 Table des matières
 
 - [Prérequis](#-prérequis)
-- [Installation rapide](#-installation-rapide)
 - [Installation manuelle](#-installation-manuelle)
 - [Configuration](#-configuration)
 - [Démarrage](#-démarrage)
@@ -32,7 +32,7 @@
 
 | Composant | Version minimale | Vérification |
 |-----------|-----------------|--------------|
-| **OS** | Ubuntu 22.04 LTS | `lsb_release -a` |
+| **OS** | Ubuntu 22.04 LTS / Debian 12 | `lsb_release -a` |
 | **Node.js** | 18.x ou supérieur | `node --version` |
 | **npm** | 8.x ou supérieur | `npm --version` |
 | **Apache2** | 2.4+ | `apache2 -v` |
@@ -48,16 +48,6 @@
 | **Certbot** | Certificats SSL Let's Encrypt |
 | **MariaDB / MySQL** | Bases de données |
 | **vsftpd / ProFTPd** | Comptes FTP |
-
----
-
-## ⚡ Installation rapide
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/kazypanel/kazypanel/main/install.sh | bash
-```
-
-> ⚠️ Nécessite les droits **root**.
 
 ---
 
@@ -207,11 +197,25 @@ http://VOTRE_IP:8080
 
 ---
 
-## 🔒 Ouvrir le port dans le pare-feu
+## 🔒 Ouvrir les ports dans le pare-feu
+
+> ⚠️ **IMPORTANT — Ouvrir le port SSH avant d'activer UFW, sinon vous perdrez l'accès à votre serveur !**
 
 ```bash
+# 1. Port SSH — OBLIGATOIRE en premier
+ufw allow 22
+
+# 2. Port KazyPanel
 ufw allow 8080
-ufw reload
+
+# 3. Ports web (optionnel)
+ufw allow 80
+ufw allow 443
+
+# 4. Activer UFW
+ufw enable
+
+# 5. Vérifier
 ufw status
 ```
 
@@ -237,14 +241,6 @@ ufw status
 ---
 
 ## 🔄 Mise à jour
-
-### Script automatique (recommandé)
-
-```bash
-bash /opt/kazypanel/update.sh
-```
-
-### Mise à jour manuelle
 
 ```bash
 cd /opt/kazypanel
