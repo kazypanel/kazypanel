@@ -18,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.0.0';
+const KAZYPANEL_VERSION = '1.2.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -404,6 +404,44 @@ app.post('/api/server-config/ssh-port', authMiddleware, adminOnly, async (req, r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/server-config/ssh-allowusers
+app.get('/api/server-config/ssh-allowusers', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const conf = fs.readFileSync('/etc/ssh/sshd_config', 'utf8');
+    const m = conf.match(/^\s*AllowUsers\s+(.+)/m);
+    const allowUsers = m ? m[1].trim().split(/\s+/).filter(Boolean) : [];
+    res.json({ allowUsers });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/server-config/ssh-allowusers
+app.post('/api/server-config/ssh-allowusers', authMiddleware, adminOnly, async (req, res) => {
+  const { users } = req.body;
+  if (!Array.isArray(users)) return res.status(400).json({ error: 'users doit être un tableau' });
+  const safe = users.map(u => String(u).replace(/[^a-zA-Z0-9_-]/g, '')).filter(Boolean);
+  try {
+    let conf = fs.readFileSync('/etc/ssh/sshd_config', 'utf8');
+    if (safe.length === 0) {
+      conf = conf.replace(/^\s*#?\s*# Restriction SSH.*\n?/m, '').replace(/^\s*AllowUsers\s+.+\n?/m, '');
+    } else {
+      const line = `AllowUsers ${safe.join(' ')}`;
+      if (/^\s*AllowUsers\s+/m.test(conf)) {
+        conf = conf.replace(/^\s*AllowUsers\s+.+/m, line);
+      } else {
+        conf = conf.trimEnd() + `\n\n# Restriction SSH — KazyPanel\n${line}\n`;
+      }
+    }
+    const tmpFile = '/tmp/sshd_config_allowusers_test';
+    fs.writeFileSync(tmpFile, conf);
+    try { await runCmd(`sshd -t -f ${tmpFile}`); } finally { try { fs.unlinkSync(tmpFile); } catch {} }
+    fs.writeFileSync('/etc/ssh/sshd_config', conf);
+    await runCmd('systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true');
+    const msg = safe.length ? `SSH restreint à : ${safe.join(', ')}` : 'Restriction SSH supprimée';
+    log('SSH_ALLOWUSERS', msg, 'OK');
+    res.json({ success: true, message: msg, allowUsers: safe });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/server-config/motd — mettre à jour /etc/motd
 app.post('/api/server-config/motd', authMiddleware, adminOnly, (req, res) => {
   const { motd } = req.body;
@@ -574,6 +612,13 @@ app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
     const latest   = remoteData.version || '0.0.0';
     const current  = KAZYPANEL_VERSION;
 
+    // Date d'installation locale (depuis version.json local)
+    let installedDate = null;
+    try {
+      const localVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'version.json'), 'utf8'));
+      installedDate = localVersion.releaseDate || null;
+    } catch {}
+
     // Comparaison semver simple
     const toNum = v => v.split('.').map(Number).reduce((a, n, i) => a + n * Math.pow(1000, 2 - i), 0);
     const hasUpdate = toNum(latest) > toNum(current);
@@ -582,6 +627,7 @@ app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
       current,
       latest,
       hasUpdate,
+      installedDate,
       changelog:    remoteData.changelog    || [],
       releaseDate:  remoteData.releaseDate  || null,
       downloadUrl:  remoteData.downloadUrl  || null,
@@ -599,7 +645,7 @@ app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // ─── ROUTE: VERSION LOCALE ────────────────────────────────────────────────────
-app.get('/api/version', authMiddleware, (req, res) => {
+app.get('/api/version', (req, res) => {
   res.json({ version: KAZYPANEL_VERSION });
 });
 
@@ -695,22 +741,67 @@ app.post('/api/users/:id/template', authMiddleware, adminOnly, (req, res) => {
 // ─── ROUTES: GESTION DES UTILISATEURS (admin seulement) ──────────────────────
 
 // Lister tous les utilisateurs
-app.get('/api/users', authMiddleware, adminOnly, (req, res) => {
-  const users = USERS.map(u => ({
-    id: u.id,
-    username: u.username,
-    role: u.role,
-    createdAt: u.createdAt || null,
-    ftpAccounts: u.ftpAccounts || [],
-    ftpLimit: u.ftpLimit ?? CONFIG.FTP_DEFAULT_LIMIT,
-    dbLimit: u.dbLimit ?? CONFIG.DB_DEFAULT_LIMIT,
-    domainLimit:    u.domainLimit    ?? 0,
-    subdomainLimit: u.subdomainLimit ?? 0,
-    diskLimit:      u.diskLimit      ?? 0,
-    dbStorageLimit: u.dbStorageLimit ?? 0,
-    cronLimit:      u.cronLimit      ?? 10,
-    templateId:   u.templateId   || null,
-    templateName: u.templateName || null
+app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
+  const users = await Promise.all(USERS.map(async u => {
+    // Compter les domaines/sous-domaines
+    let domainCount = 0, subdomainCount = 0;
+    try {
+      if (fs.existsSync(CONFIG.APACHE_SITES_PATH)) {
+        const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
+          .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f));
+        for (const file of files) {
+          const conf    = fs.readFileSync(path.join(CONFIG.APACHE_SITES_PATH, file), 'utf8');
+          const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
+          if (!userOwnsDocRoot(u, docRoot)) continue;
+          file.replace('.conf','').split('.').length > 2 ? subdomainCount++ : domainCount++;
+        }
+      }
+    } catch {}
+
+    // Compter les bases de données
+    let dbCount = 0;
+    try { dbCount = (await getUserDatabases(u.username)).length; } catch {}
+
+    // Taille disque utilisée
+    let diskUsedMb = 0;
+    try {
+      const homeDir = `${CONFIG.FTP_ROOT}/${u.username}`;
+      if (fs.existsSync(homeDir)) {
+        const out = await runCmd(`du -sm "${homeDir}" 2>/dev/null || echo 0`);
+        diskUsedMb = parseInt(out.split('\t')[0]) || 0;
+      }
+    } catch {}
+
+    // Tâches cron actives
+    let cronCount = 0;
+    try {
+      const raw = await runCmd(`crontab -u ${u.username} -l 2>/dev/null || echo ""`);
+      cronCount = raw.split('\n').filter(l => l.trim() && !l.trim().startsWith('#')).length;
+    } catch {}
+
+    return {
+      id: u.id,
+      username: u.username,
+      role: u.role,
+      createdAt: u.createdAt || null,
+      ftpAccounts: u.ftpAccounts || [],
+      ftpLimit:       u.ftpLimit       ?? CONFIG.FTP_DEFAULT_LIMIT,
+      dbLimit:        u.dbLimit        ?? CONFIG.DB_DEFAULT_LIMIT,
+      domainLimit:    u.domainLimit    ?? 0,
+      subdomainLimit: u.subdomainLimit ?? 0,
+      diskLimit:      u.diskLimit      ?? 0,
+      dbStorageLimit: u.dbStorageLimit ?? 0,
+      cronLimit:      u.cronLimit      ?? 10,
+      templateId:     u.templateId     || null,
+      templateName:   u.templateName   || null,
+      // Données d'utilisation réelle
+      ftpCount:       (u.ftpAccounts || []).length,
+      dbCount,
+      domainCount,
+      subdomainCount,
+      diskUsedMb,
+      cronCount
+    };
   }));
   res.json({ users });
 });
@@ -882,6 +973,7 @@ app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
       fs.rmSync(userDir, { recursive: true, force: true });
       log('DIR_DELETE', userDir, 'OK');
     }
+// Supprimer un de mes comptes FTP
   } catch (e) { errors.push(`Dossier ${userDir}: ${e.message}`); }
 
   saveUsers();
@@ -896,20 +988,101 @@ app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
 
 // ─── HELPERS FTP ──────────────────────────────────────────────────────────────
 async function createFtpSystemAccount(ftpUsername, homeDir, password) {
+  // 1. /bin/false doit être dans /etc/shells pour que vsftpd accepte le login
+  const shellsPath = '/etc/shells';
+  if (fs.existsSync(shellsPath)) {
+    const shells = fs.readFileSync(shellsPath, 'utf8').split('\n').map(l => l.trim());
+    if (!shells.includes('/bin/false'))
+      fs.appendFileSync(shellsPath, '/bin/false\n');
+  }
+
+  // 2. Créer ou mettre à jour le compte système
   let exists = false;
-  try { await runCmd(`id ${ftpUsername}`); exists = true; } catch {}
+  try { await runCmd(`id "${ftpUsername}"`); exists = true; } catch {}
   if (!exists) {
     await runCmd(`mkdir -p "${homeDir}"`);
-    await runCmd(`useradd -d "${homeDir}" -s /bin/bash -M ${ftpUsername}`);
-    await runCmd(`chown ${ftpUsername}:${ftpUsername} "${homeDir}"`);
-    await runCmd(`chmod 755 "${homeDir}"`);
+    await runCmd(`useradd -d "${homeDir}" -s /bin/false -M "${ftpUsername}"`);
+  } else {
+    await runCmd(`mkdir -p "${homeDir}"`);
+    await runCmd(`usermod -d "${homeDir}" -s /bin/false "${ftpUsername}"`);
   }
+
+  // 3. Chroot vsftpd : le dossier jail doit appartenir à root (non writable par l'user)
+  await runCmd(`chown root:root "${homeDir}"`);
+  await runCmd(`chmod 755 "${homeDir}"`);
+
+  // 4. Sous-dossier writable par l'user FTP
+  const uploadDir = `${homeDir}/files`;
+  await runCmd(`mkdir -p "${uploadDir}"`);
+  await runCmd(`chown "${ftpUsername}":"${ftpUsername}" "${uploadDir}"`);
+  await runCmd(`chmod 755 "${uploadDir}"`);
+
+  // 5. Mot de passe
   await setSystemPassword(ftpUsername, password);
+
+  // 6. vsftpd.userlist — un user par ligne, sans espaces
   const list = '/etc/vsftpd.userlist';
   if (fs.existsSync(list)) {
-    const lines = fs.readFileSync(list, 'utf8');
-    if (!lines.split('\n').includes(ftpUsername))
-      fs.appendFileSync(list, `\n${ftpUsername}`);
+    const lines = fs.readFileSync(list, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.includes(ftpUsername)) {
+      lines.push(ftpUsername);
+      fs.writeFileSync(list, lines.join('\n') + '\n');
+    }
+  }
+
+  // 7. Appliquer vsftpd.conf + restart
+  await ensureVsftpdChroot();
+}
+
+async function ensureVsftpdChroot() {
+  const confPath = '/etc/vsftpd.conf';
+  if (!fs.existsSync(confPath)) {
+    log('FTP_CONFIG', 'vsftpd.conf introuvable — vsftpd non installé ?', 'WARN');
+    return;
+  }
+
+  let conf = fs.readFileSync(confPath, 'utf8');
+  let changed = false;
+
+  const required = [
+    ['local_enable',           'YES'],
+    ['write_enable',           'YES'],
+    ['chroot_local_user',      'YES'],
+    ['allow_writeable_chroot', 'YES'],
+    ['local_umask',            '022'],
+    ['pam_service_name',       'vsftpd'],
+  ];
+
+  if (fs.existsSync('/etc/vsftpd.userlist')) {
+    required.push(['userlist_enable', 'YES']);
+    required.push(['userlist_deny',   'NO']);
+    required.push(['userlist_file',   '/etc/vsftpd.userlist']);
+  }
+
+  for (const [key, val] of required) {
+    const re = new RegExp(`^#?\\s*${key}\\s*=.*`, 'm');
+    const expected = `${key}=${val}`;
+    if (re.test(conf)) {
+      const current = (conf.match(re) || [''])[0].trim();
+      if (current !== expected) { conf = conf.replace(re, expected); changed = true; }
+    } else {
+      conf += `\n${expected}`;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    fs.writeFileSync(confPath, conf);
+    log('FTP_CONFIG', 'vsftpd.conf mis à jour', 'OK');
+  }
+
+  // Restart uniquement si vsftpd est installé
+  try {
+    await runCmd('which vsftpd || test -f /usr/sbin/vsftpd');
+    await runCmd('systemctl restart vsftpd 2>&1 || true');
+    log('FTP_CONFIG', 'vsftpd redémarré', 'OK');
+  } catch {
+    log('FTP_CONFIG', 'vsftpd non disponible', 'WARN');
   }
 }
 
@@ -1038,7 +1211,7 @@ app.post('/api/me/ftp', authMiddleware, async (req, res) => {
   if (limit > 0 && user.ftpAccounts.length >= limit)
     return res.status(403).json({ error: `Limite atteinte (${limit} compte${limit > 1 ? 's' : ''} FTP maximum)` });
 
-  const { ftpPassword, ftpSuffix } = req.body;
+  const { ftpPassword, ftpSuffix, ftpHomeDir } = req.body;
   if (!ftpPassword) return res.status(400).json({ error: 'Mot de passe FTP requis' });
 
   const check = validatePassword(ftpPassword);
@@ -1051,7 +1224,24 @@ app.post('/api/me/ftp', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Suffixe invalide (lettres/chiffres, 12 car. max)' });
 
   const ftpUsername = suffix ? `${user.username}_${suffix}` : user.username;
-  const homeDir = `${CONFIG.FTP_ROOT}/${user.username}`;
+
+  // Validation du dossier choisi — doit rester dans /FTP_ROOT/username/
+  const baseDir = `${CONFIG.FTP_ROOT}/${user.username}`;
+  let homeDir = baseDir;
+  if (ftpHomeDir && ftpHomeDir.trim()) {
+    // Nettoyage : enlever ../ traversal, garder lettres/chiffres/tiret/underscore/slash
+    const cleanSub = ftpHomeDir.trim()
+      .replace(/\.\./g, '')
+      .replace(/[^a-zA-Z0-9_\-\/]/g, '')
+      .replace(/^\/+/, '');
+    if (cleanSub) {
+      homeDir = path.resolve(baseDir, cleanSub);
+      // Double vérification que le chemin résolu reste bien sous baseDir
+      if (!homeDir.startsWith(baseDir + '/') && homeDir !== baseDir)
+        return res.status(400).json({ error: 'Dossier non autorisé — doit être sous votre répertoire personnel' });
+    }
+  }
+
   const label = suffix ? suffix : 'Compte principal';
 
   if (user.ftpAccounts.find(a => a.ftpUsername === ftpUsername))
@@ -1061,7 +1251,7 @@ app.post('/api/me/ftp', authMiddleware, async (req, res) => {
     await createFtpSystemAccount(ftpUsername, homeDir, ftpPassword);
     user.ftpAccounts.push({ ftpUsername, label, dir: homeDir, createdAt: new Date().toISOString() });
     saveUsers();
-    log('FTP_CREATE_USER', `${user.username} → ${ftpUsername}`, 'OK');
+    log('FTP_CREATE_USER', `${user.username} → ${ftpUsername} (${homeDir})`, 'OK');
     res.status(201).json({ success: true, message: `Compte FTP "${ftpUsername}" créé`, ftpUsername, dir: homeDir });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1085,9 +1275,9 @@ app.put('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Supprimer un de mes comptes FTP
 app.delete('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
   const user = USERS.find(u => u.id == req.user.id);
+    saveUsers();
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const ftpUser = req.params.ftpUser;
   if (!user.ftpAccounts || !user.ftpAccounts.find(a => a.ftpUsername === ftpUser))
@@ -1095,10 +1285,96 @@ app.delete('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
   try {
     await deleteFtpSystemAccount(ftpUser);
     user.ftpAccounts = user.ftpAccounts.filter(a => a.ftpUsername !== ftpUser);
-    saveUsers();
     log('FTP_DELETE_USER', `${user.username} → ${ftpUser}`, 'OK');
     res.json({ success: true, message: `Compte FTP "${ftpUser}" supprimé` });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── ROUTE: DIAGNOSTIC FTP (admin) ───────────────────────────────────────────
+app.get('/api/ftp/diagnostic', authMiddleware, adminOnly, async (req, res) => {
+  const checks = { ok: true, issues: [] };
+
+  // vsftpd installé ?
+  try {
+    await runCmd('which vsftpd || test -f /usr/sbin/vsftpd');
+    checks.vsftpd_installed = true;
+  } catch {
+    checks.vsftpd_installed = false;
+    checks.ok = false;
+    checks.issues.push('vsftpd non installé — apt install vsftpd');
+  }
+
+  // vsftpd actif ? — on utilise || echo pour éviter exit code 1 si inactif
+  try {
+    const out = await runCmd('systemctl is-active vsftpd 2>/dev/null || echo inactive');
+    checks.vsftpd_running = out.trim() === 'active';
+    if (!checks.vsftpd_running) {
+      checks.ok = false;
+      checks.issues.push('vsftpd non actif — systemctl start vsftpd && systemctl enable vsftpd');
+    }
+  } catch {
+    checks.vsftpd_running = false;
+  }
+
+  // /etc/shells contient /bin/false ?
+  try {
+    const shells = fs.readFileSync('/etc/shells', 'utf8').split('\n').map(l => l.trim());
+    checks.binfalse_in_shells = shells.includes('/bin/false');
+    if (!checks.binfalse_in_shells) {
+      checks.ok = false;
+      checks.issues.push('/bin/false absent de /etc/shells — echo "/bin/false" >> /etc/shells');
+    }
+  } catch { checks.binfalse_in_shells = null; }
+
+  // vsftpd.conf — uniquement les directives actives (non commentées)
+  checks.vsftpd_conf = {};
+  const CONF_KEYS = ['local_enable','write_enable','chroot_local_user','allow_writeable_chroot','userlist_enable','userlist_deny','userlist_file','pam_service_name'];
+  const CONF_EXPECTED = { local_enable:'YES', write_enable:'YES', chroot_local_user:'YES', allow_writeable_chroot:'YES', userlist_enable:'YES', userlist_deny:'NO' };
+  try {
+    const conf = fs.readFileSync('/etc/vsftpd.conf', 'utf8');
+    for (const key of CONF_KEYS) {
+      const m = conf.match(new RegExp(`^${key}=(.*)`, 'm')); // ^ = début de ligne, sans #
+      const val = m ? m[1].trim() : null;
+      checks.vsftpd_conf[key] = val ?? 'absent';
+      if (CONF_EXPECTED[key] && val !== CONF_EXPECTED[key]) {
+        checks.ok = false;
+        checks.issues.push(`vsftpd.conf : ${key}=${CONF_EXPECTED[key]} requis (actuel: ${val ?? 'absent/commenté'})`);
+      }
+    }
+  } catch {
+    checks.vsftpd_conf.error = '/etc/vsftpd.conf introuvable';
+    checks.ok = false;
+    checks.issues.push('/etc/vsftpd.conf introuvable');
+  }
+
+  // vsftpd.userlist
+  try {
+    checks.userlist_exists = true;
+    checks.userlist = fs.readFileSync('/etc/vsftpd.userlist', 'utf8')
+      .split('\n').map(l => l.trim()).filter(Boolean);
+  } catch {
+    checks.userlist_exists = false;
+    checks.userlist = null;
+  }
+
+  // Port 21 en écoute — grep retourne exit 1 si rien, on force || echo ""
+  try {
+    const out = await runCmd('ss -tlnp 2>/dev/null | grep ":21" || netstat -tlnp 2>/dev/null | grep ":21" || echo ""');
+    checks.port21_open = out.trim().length > 0;
+    if (!checks.port21_open) checks.issues.push('Port 21 non détecté en écoute');
+  } catch { checks.port21_open = null; }
+
+  // UFW — port 21 autorisé ?
+  try {
+    const ufw = await runCmd('ufw status 2>/dev/null | grep -i "21\\|ftp" || echo "no_rule"');
+    checks.ufw_port21 = ufw.trim();
+    if (!ufw.includes('ALLOW')) {
+      checks.ok = false;
+      checks.issues.push('Port 21 bloqué par UFW — ufw allow 21/tcp && ufw allow 20/tcp');
+    }
+  } catch { checks.ufw_port21 = null; }
+
+  res.json(checks);
 });
 
 // ─── ROUTE: MON PROFIL (utilisateur connecté) ────────────────────────────────
@@ -2053,10 +2329,21 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   try { await runCmd(`systemctl is-active php${CONFIG.PHP_VERSION}-fpm`); s.php = 'running'; } catch { s.php = 'stopped'; }
   try { await runCmd('systemctl is-active vsftpd'); s.vsftpd = 'running'; } catch { s.vsftpd = 'stopped'; }
   try { await runCmd('systemctl is-active mariadb'); s.mariadb = 'running'; } catch { s.mariadb = 'stopped'; }
+  try { const ufwOut = await runCmd('ufw status 2>/dev/null | head -1'); s.ufw = ufwOut.includes('active') ? 'active' : 'inactive'; } catch { s.ufw = 'unknown'; }
+  try { await runCmd('systemctl is-active fail2ban'); s.fail2ban = 'running'; } catch { s.fail2ban = 'stopped'; }
   try { s.uptime = await runCmd('uptime -p'); } catch { s.uptime = 'N/A'; }
-  try { s.memory = await runCmd("free -m | awk 'NR==2{printf \"%d/%d MB (%.0f%%)\", $3,$2,$3*100/$2}'"); } catch { s.memory = 'N/A'; }
-  try { s.disk = await runCmd("df -h / | awk 'NR==2{printf \"%s/%s (%s)\", $3,$2,$5}'"); } catch { s.disk = 'N/A'; }
-  try { s.load = await runCmd("cat /proc/loadavg | awk '{print $1, $2, $3}'"); } catch { s.load = 'N/A'; }
+  try {
+    s.memory = await runCmd("free -m | awk 'NR==2{printf \"%d/%d Mo\", $3,$2}'");
+    s.ramPercent = await runCmd("free | awk 'NR==2{printf \"%.0f\", $3*100/$2}'");
+  } catch { s.memory = 'N/A'; s.ramPercent = 0; }
+  try {
+    s.disk = await runCmd("df -h / | awk 'NR==2{printf \"%s/%s\", $3,$2}'");
+    s.diskPercent = await runCmd("df / | awk 'NR==2{gsub(/%/,\"\",$5); print $5}'");
+  } catch { s.disk = 'N/A'; s.diskPercent = 0; }
+  try {
+    s.load = await runCmd("cat /proc/loadavg | awk '{print $1, $2, $3}'");
+    s.cpuPercent = await runCmd("cat /proc/stat | awk 'NR==1{idle=$5;total=0;for(i=2;i<=NF;i++)total+=$i;print int((1-idle/total)*100)}'");
+  } catch { s.load = 'N/A'; s.cpuPercent = 0; }
   try { s.hostname = await runCmd('hostname'); } catch { s.hostname = 'N/A'; }
   try { s.os = await runCmd('lsb_release -d -s 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d \'"\''); } catch { s.os = 'N/A'; }
   try { s.nodeVersion = process.version; } catch {}
@@ -2069,27 +2356,36 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
 const ALLOWED_SERVICES = {
   apache2:  'Apache',
   vsftpd:   'vsftpd',
-  mariadb:  'MariaDB'
+  mariadb:  'MariaDB',
+  fail2ban: 'Fail2ban',
+  ufw:      'UFW'
 };
-// PHP-FPM est géré dynamiquement selon CONFIG.PHP_VERSION
 const ALLOWED_ACTIONS = ['start', 'stop', 'restart', 'reload'];
 
 app.post('/api/services/:service/:action', authMiddleware, adminOnly, async (req, res) => {
   let { service, action } = req.params;
 
-  // Résoudre le nom du service PHP-FPM
   const phpFpm = `php${CONFIG.PHP_VERSION}-fpm`;
   const allowed = { ...ALLOWED_SERVICES, [phpFpm]: `PHP ${CONFIG.PHP_VERSION}-FPM` };
 
   if (!allowed[service]) return res.status(400).json({ error: 'Service non autorisé' });
   if (!ALLOWED_ACTIONS.includes(action)) return res.status(400).json({ error: 'Action non autorisée' });
 
-  // Empêcher l'arrêt de KazyPanel lui-même via apache/node
   if (service === 'kazypanel') return res.status(403).json({ error: 'Non autorisé' });
 
   try {
+    // UFW utilise ses propres commandes
+    if (service === 'ufw') {
+      if (action === 'start')  await runCmd('ufw --force enable');
+      else if (action === 'stop') await runCmd('ufw disable');
+      else return res.status(400).json({ error: 'UFW : seules les actions start/stop sont supportées' });
+      const ufwOut = await runCmd('ufw status 2>/dev/null | head -1');
+      const newStatus = ufwOut.includes('active') ? 'active' : 'inactive';
+      log('SERVICE_CTRL', `${action} ufw par ${req.user.username}`, 'OK');
+      return res.json({ success: true, message: `UFW : ${action} effectué`, status: newStatus });
+    }
+
     await runCmd(`systemctl ${action} ${service}`);
-    // Récupérer le nouveau statut
     let newStatus = 'stopped';
     try { await runCmd(`systemctl is-active ${service}`); newStatus = 'running'; } catch {}
     log('SERVICE_CTRL', `${action} ${service} par ${req.user.username}`, 'OK');
@@ -2995,15 +3291,25 @@ async function ensureZoneInConf(domain) {
   const content = fs.readFileSync(BIND_CONF_LOCAL, 'utf8');
   if (content.includes(`zone "${domain}"`)) return;
   fs.appendFileSync(BIND_CONF_LOCAL, entry);
-  // Vérifier la config globale (seulement si named-checkconf est installé)
   const checkconfAvailable = await new Promise(r => exec('which named-checkconf', e => r(!e)));
   if (checkconfAvailable) {
-    try { await runCmd('named-checkconf'); } catch (e) {
-      // Annuler l'ajout si invalide
+    let tmpCreated = false;
+    if (!fs.existsSync(file)) {
+      try {
+        if (!fs.existsSync(BIND_ZONES_DIR)) fs.mkdirSync(BIND_ZONES_DIR, { recursive: true });
+        fs.writeFileSync(file, '; placeholder\n');
+        tmpCreated = true;
+      } catch {}
+    }
+    try {
+      await runCmd('named-checkconf');
+    } catch (e) {
       const cleaned = fs.readFileSync(BIND_CONF_LOCAL, 'utf8').replace(entry, '');
       fs.writeFileSync(BIND_CONF_LOCAL, cleaned);
+      if (tmpCreated) try { fs.unlinkSync(file); } catch {}
       throw new Error(`Erreur named.conf : ${e.message}`);
     }
+    if (tmpCreated) try { fs.unlinkSync(file); } catch {}
   }
 }
 
@@ -3045,6 +3351,87 @@ app.put('/api/config/dns', authMiddleware, adminOnly, (req, res) => {
   savePanelConfig();
   log('CONFIG_DNS', JSON.stringify(update), 'OK');
   res.json({ success: true, config: dnsConf() });
+});
+
+// ── Setup HTTPS sous-domaine panel ────────────────────────────────────────────
+app.post('/api/config/setup-https', authMiddleware, adminOnly, async (req, res) => {
+  const { fqdn, port, email } = req.body;
+  if (!fqdn || !port || !email)
+    return res.status(400).json({ error: 'fqdn, port et email requis' });
+
+  if (!/^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}$/.test(fqdn))
+    return res.status(400).json({ error: 'Sous-domaine invalide' });
+
+  const confPath = `/etc/apache2/sites-available/${fqdn}.conf`;
+  const logLines = [];
+  const out = msg => logLines.push(msg);
+
+  try {
+    // 1. Activer les modules Apache nécessaires
+    out('→ Activation des modules proxy Apache…');
+    await runCmd('a2enmod proxy proxy_http headers ssl rewrite 2>&1 || true');
+
+    // 2. Créer le vhost HTTP (port 80) avec redirection HTTPS + ACME challenge
+    out(`→ Création du vhost HTTP pour ${fqdn}…`);
+    const vhostHttp = `<VirtualHost *:80>
+    ServerName ${fqdn}
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
+    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+</VirtualHost>`;
+    fs.writeFileSync(confPath, vhostHttp);
+    await runCmd(`a2ensite ${fqdn}.conf 2>&1`);
+    await runCmd('apache2ctl graceful 2>&1');
+
+    // 3. Obtenir le certificat SSL
+    out(`→ Obtention du certificat Let's Encrypt pour ${fqdn}…`);
+    const certResult = await runCmd(
+      `certbot certonly --apache -d ${fqdn} --email ${email} --agree-tos --non-interactive 2>&1`
+    );
+    out(certResult.trim());
+
+    // 4. Créer le vhost HTTPS avec reverse proxy
+    out('→ Création du vhost HTTPS avec reverse proxy…');
+    const vhostHttps = `<VirtualHost *:80>
+    ServerName ${fqdn}
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
+    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+</VirtualHost>
+
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+    ServerName ${fqdn}
+
+    ProxyPreserveHost On
+    ProxyPass        / http://127.0.0.1:${port}/
+    ProxyPassReverse / http://127.0.0.1:${port}/
+
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    SSLCertificateFile    /etc/letsencrypt/live/${fqdn}/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/${fqdn}/privkey.pem
+    Include /etc/letsencrypt/options-ssl-apache.conf
+</VirtualHost>
+</IfModule>`;
+    fs.writeFileSync(confPath, vhostHttps);
+
+    // 5. Recharger Apache
+    out('→ Rechargement Apache…');
+    await runCmd('apache2ctl configtest 2>&1');
+    await runCmd('systemctl reload apache2 2>&1');
+    out(`✅ Panel accessible sur https://${fqdn}`);
+
+    // Sauvegarder dans panel_config
+    PANEL_CONFIG.panelHttpsUrl = `https://${fqdn}`;
+    savePanelConfig();
+
+    res.json({ success: true, url: `https://${fqdn}`, log: logLines.join('\n') });
+  } catch(e) {
+    out(`❌ ${e.message}`);
+    res.status(500).json({ error: e.message, log: logLines.join('\n') });
+  }
 });
 
 // ── Zones de l'utilisateur ────────────────────────────────────────────────────

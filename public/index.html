@@ -23,8 +23,22 @@
     --mono: 'IBM Plex Mono', monospace;
     --sans: 'Syne', sans-serif;
   }
+  [data-theme="dark"] {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: rgba(255,255,255,.08);
+    --border2: rgba(255,255,255,.05);
+    --accent: #4f6ef7;
+    --accent2: #7c9eff;
+    --green: #22c55e;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --text: #e6edf3;
+    --muted: #8b949e;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; transition: background .2s, color .2s; }
 
   /* ── SUBTLE LIGHT TEXTURE ── */
   body::before {
@@ -40,25 +54,52 @@
     background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,110,247,.12) 0%, transparent 70%);
   }
   .login-card {
-    width: 420px; padding: 48px 40px;
+    width: 440px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 16px;
+    overflow: hidden;
     position: relative;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
   }
   .login-card::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
   }
-  .login-logo { text-align: center; margin-bottom: 36px; }
-  .login-logo .logo-icon {
+  .login-header {
+    padding: 36px 40px 28px;
+    background: linear-gradient(160deg, rgba(79,110,247,.18) 0%, rgba(108,71,255,.10) 60%, transparent 100%);
+    border-bottom: 1px solid rgba(79,110,247,.2);
+    text-align: center;
+  }
+  .login-logo-wrap {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 56px; height: 56px; border-radius: 8px;
-    background: linear-gradient(135deg, var(--accent), #6c47ff);
-    font-size: 24px; margin-bottom: 16px;
+    width: 60px; height: 60px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent) 0%, #6c47ff 100%);
+    font-size: 26px; margin-bottom: 18px;
+    box-shadow: 0 8px 24px rgba(79,110,247,.45);
   }
-  .login-logo h1 { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
-  .login-logo p { color: var(--muted); font-size: 13px; font-family: var(--mono); margin-top: 4px; }
+  .login-title {
+    font-size: 26px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 6px;
+    background: linear-gradient(135deg, #fff 30%, var(--accent2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .login-subtitle { color: #8b9cc8; font-size: 12px; font-family: var(--mono); }
+  .login-version-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(79,110,247,.15); border: 1px solid rgba(79,110,247,.35);
+    border-radius: 20px; padding: 3px 12px;
+    font-family: var(--mono); font-size: 10px; color: var(--accent2);
+    margin-top: 12px; letter-spacing: .04em;
+  }
+  .login-body { padding: 28px 40px 32px; }
+  .login-footer {
+    padding: 14px 40px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    text-align: center;
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+  }
 
   .form-group { margin-bottom: 20px; }
   .form-group label { display: block; font-size: 11px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
@@ -88,55 +129,136 @@
   .error-msg { background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); border-radius: 4px; padding: 10px 14px; font-size: 13px; color: var(--red); font-family: var(--mono); margin-top: 12px; display: none; }
 
   /* ── LAYOUT ── */
-  #app { display: none; height: 100vh; flex-direction: column; }
+  #app { display: none; height: 100vh; flex-direction: column; overflow: hidden; }
 
-  /* TOPBAR */
+  /* ── TOPBAR ── */
   .topbar {
-    height: 56px; background: var(--surface); border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; padding: 0 24px; gap: 20px;
+    height: 52px; flex-shrink: 0;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 20px 0 0; gap: 0;
     position: sticky; top: 0; z-index: 100;
   }
-  .topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; }
-  .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .topbar-brand {
+    width: 220px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 20px; height: 100%;
+    border-right: 1px solid var(--border);
+    font-weight: 800; font-size: 15px; letter-spacing: -.3px;
+  }
+  .brand-icon {
+    width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    box-shadow: 0 2px 8px rgba(79,110,247,.3);
+  }
+  .brand-dot { display: none; }
+  .topbar-section-name {
+    flex: 1; padding: 0 20px;
+    font-size: 13px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topbar-section-name .sep { color: var(--border2); }
   .topbar-spacer { flex: 1; }
   .status-pill {
     display: flex; align-items: center; gap: 6px;
-    background: var(--surface2); border: 1px solid var(--border2);
-    padding: 5px 12px; border-radius: 100px; font-family: var(--mono); font-size: 11px;
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 4px 11px; border-radius: 20px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    margin-left: 8px;
   }
   .dot { width: 6px; height: 6px; border-radius: 50%; }
   .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
   .dot.red { background: var(--red); }
   .dot.yellow { background: var(--yellow); animation: blink 1s infinite; }
   @keyframes blink { 50% { opacity: .3; } }
+
+  .topbar-actions { display: flex; align-items: center; gap: 8px; padding: 0 0 0 12px; }
+  .tb-action-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: none; border: 1px solid var(--border);
+    border-radius: 7px; padding: 6px 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    cursor: pointer; transition: all .15s; position: relative;
+  }
+  .tb-action-btn:hover { border-color: var(--accent); color: var(--accent2); background: rgba(79,110,247,.05); }
+
   .user-chip {
     display: flex; align-items: center; gap: 8px;
-    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 7px; padding: 5px 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--text);
+    margin-left: 4px;
   }
-  .user-chip svg { opacity: .5; }
-  .logout-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-family: var(--mono); font-size: 11px; padding: 5px 10px; border-radius: 4px; transition: color .15s; }
-  .logout-btn:hover { color: var(--red); }
+  .user-chip svg { opacity: .4; }
+  .user-avatar-dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .logout-btn {
+    background: none; border: 1px solid transparent;
+    color: var(--muted); cursor: pointer;
+    font-family: var(--mono); font-size: 11px;
+    padding: 6px 10px; border-radius: 7px; transition: all .15s;
+  }
+  .logout-btn:hover { color: var(--red); border-color: rgba(220,38,38,.25); background: rgba(220,38,38,.05); }
 
-  /* MAIN */
+  /* ── MAIN ── */
   .main { display: flex; flex: 1; overflow: hidden; }
 
-  /* SIDEBAR */
+  /* ── SIDEBAR ── */
   .sidebar {
-    width: 220px; background: var(--surface); border-right: 1px solid var(--border);
-    padding: 20px 0; display: flex; flex-direction: column; gap: 2px;
-    overflow-y: auto;
+    width: 220px; flex-shrink: 0;
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow-y: auto; overflow-x: hidden;
   }
-  .sidebar-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); padding: 8px 20px 6px; }
+  .sidebar-label {
+    font-family: var(--mono); font-size: 9px; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--muted);
+    padding: 14px 16px 5px; margin-top: 4px;
+  }
   .nav-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 20px; cursor: pointer; font-size: 13px; font-weight: 600;
-    color: var(--muted); transition: all .15s; border-left: 2px solid transparent;
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 14px 8px 16px;
+    cursor: pointer; font-size: 12.5px; font-weight: 500;
+    color: var(--muted); transition: all .12s;
+    border-left: 2px solid transparent;
+    border-radius: 0; margin: 1px 0;
+    position: relative;
   }
-  .nav-item:hover { color: var(--text); background: rgba(79,110,247,.06); }
-  .nav-item.active { color: var(--accent2); background: rgba(79,110,247,.1); border-left-color: var(--accent); }
-  .nav-item svg { flex-shrink: 0; }
+  .nav-item:hover { color: var(--text); background: rgba(79,110,247,.05); }
+  .nav-item.active {
+    color: var(--accent2); background: rgba(79,110,247,.08);
+    border-left-color: var(--accent); font-weight: 600;
+  }
+  .nav-item svg { flex-shrink: 0; width: 15px; height: 15px; opacity: .7; }
+  .nav-item.active svg, .nav-item:hover svg { opacity: 1; }
+  .nav-item .nav-badge {
+    margin-left: auto; font-family: var(--mono); font-size: 9px;
+    padding: 1px 6px; border-radius: 10px;
+    background: rgba(79,110,247,.12); color: var(--accent2); border: 1px solid rgba(79,110,247,.2);
+  }
+  .sidebar-footer {
+    margin-top: auto; padding: 14px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .sidebar-footer-user {
+    display: flex; align-items: center; gap: 9px;
+  }
+  .sf-avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff;
+  }
+  .sf-name { font-size: 12px; font-weight: 600; }
+  .sf-role { font-family: var(--mono); font-size: 9px; color: var(--muted); }
 
-  /* CRON PRESETS */
+  /* ── CONTENT ── */
+  .content { flex: 1; overflow-y: auto; padding: 28px 32px; background: var(--bg); }
   .cron-preset {
     padding: 5px 13px; border-radius: 20px; border: 1px solid var(--border2);
     background: var(--surface2); color: var(--muted); font-size: 11px; font-weight: 500;
@@ -144,10 +266,7 @@
   }
   .cron-preset:hover { border-color: var(--accent); color: var(--accent2); background: rgba(79,110,247,.08); }
 
-  /* CONTENT */
-  .content { flex: 1; overflow-y: auto; padding: 28px 32px; }
-
-  /* PAGE HEADER */
+  /* CRON PRESETS */
   .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
   .page-title { font-size: 22px; font-weight: 800; }
   .page-subtitle { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -206,6 +325,165 @@
   .badge-red { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
   .badge-blue { background: rgba(79,110,247,.12); color: var(--accent2); border: 1px solid rgba(79,110,247,.25); }
   .badge-sub { background: rgba(79,110,247,.1); color: var(--accent2); border: 1px solid rgba(79,110,247,.2); }
+
+  /* ── USER CARDS ── */
+  .user-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: box-shadow .2s, border-color .2s, transform .15s;
+    position: relative;
+  }
+  .user-card:hover {
+    border-color: rgba(79,110,247,.3);
+    box-shadow: 0 4px 20px rgba(79,110,247,.08);
+    transform: translateY(-1px);
+  }
+  .user-card-top {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .user-card-top::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), rgba(79,110,247,0));
+    opacity: 0; transition: opacity .2s;
+  }
+  .user-card:hover .user-card-top::before { opacity: 1; }
+
+  .user-avatar {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 16px; color: #fff;
+    flex-shrink: 0; letter-spacing: -.5px;
+  }
+  .avatar-admin { background: linear-gradient(135deg, #f43f5e, #dc2626); }
+  .avatar-user  { background: linear-gradient(135deg, #4f6ef7, #3b5bdb); }
+
+  .user-card-info { flex: 1; min-width: 0; }
+  .user-card-name {
+    font-family: var(--mono); font-weight: 600; font-size: 14px;
+    color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .user-card-meta {
+    display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  }
+  .user-role-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 9px; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px; letter-spacing: .04em;
+  }
+  .role-admin { background: rgba(220,38,38,.1); color: #dc2626; border: 1px solid rgba(220,38,38,.2); }
+  .role-user  { background: rgba(79,110,247,.1); color: var(--accent); border: 1px solid rgba(79,110,247,.2); }
+  .user-card-date { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+  .user-card-tpl {
+    font-family: var(--mono); font-size: 9px; color: var(--muted);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 1px 7px;
+  }
+
+  .user-card-body { padding: 14px 20px; }
+
+  /* Quota row */
+  .qrow { margin-bottom: 9px; }
+  .qrow:last-child { margin-bottom: 0; }
+  .qrow-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .qrow-label {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted2);
+  }
+  .qrow-label svg { opacity: .5; }
+  .qrow-val {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+  }
+  .qrow-val .pct { }
+  .qrow-val .nums { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .qbar-track {
+    height: 4px; background: var(--border); border-radius: 10px; overflow: hidden;
+  }
+  .qbar-fill {
+    height: 100%; border-radius: 10px;
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+  }
+
+  .user-card-ftp {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface2);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ftp-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 10px;
+    color: var(--muted2);
+  }
+  .ftp-none { color: var(--muted); font-style: italic; }
+
+  .user-card-actions {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 7px;
+    flex-wrap: wrap;
+  }
+  .act-spacer { flex: 1; }
+
+  /* ── CONFIG TABS ── */
+  .cfg-tab {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 14px; border-radius: 7px; border: none;
+    font-family: var(--sans); font-size: 12px; font-weight: 500;
+    color: var(--muted); background: none; cursor: pointer;
+    transition: all .15s;
+  }
+  .cfg-tab:hover { color: var(--text); background: var(--bg); }
+  .cfg-tab.active { background: var(--accent); color: #fff; }
+  .cfg-tab svg { opacity: .7; flex-shrink: 0; }
+  .cfg-tab.active svg { opacity: 1; }
+
+  .cfg-tab-content { animation: fade-in-up .2s ease; }
+  @keyframes fade-in-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* ── CONFIG CARDS ── */
+  .cfg-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .cfg-card-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+  }
+  .cfg-card-icon {
+    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cfg-card-title { font-size: 13px; font-weight: 700; }
+  .cfg-card-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .cfg-card-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+
+  .cfg-warn {
+    display: flex; gap: 8px; align-items: flex-start;
+    background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.2);
+    border-radius: 8px; padding: 10px 12px;
+    font-size: 11px; color: var(--muted); line-height: 1.5;
+  }
+
+  .backup-file {
+    display: flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 10px;
+    padding: 2px 0;
+  }
+  .backup-file::before { font-size: 9px; }
+  .backup-file.inc { color: var(--text); }
+  .backup-file.inc::before { content: '✓'; color: #6ee7b7; }
+  .backup-file.exc { color: var(--muted); }
+  .backup-file.exc::before { content: '✕'; color: #f87171; }
 
   /* PHP TABS */
   .php-tab {
@@ -353,24 +631,47 @@
 <!-- ── LOGIN PAGE ── -->
 <div id="loginPage">
   <div class="login-card">
-    <div class="login-logo">
-      <div class="logo-icon">⚡</div>
-      <h1>KazyPanel</h1>
-      <p>Apache · PHP 8.4 · Manager</p>
-      <p style="margin-top:6px;font-size:11px;color:var(--border2)">© kazylax.fr — Tous droits réservés</p>
+
+    <!-- Header -->
+    <div class="login-header">
+      <div class="login-logo-wrap">⚡</div>
+      <div class="login-title">KazyPanel</div>
+      <div class="login-subtitle">Apache · PHP 8.4 · Manager</div>
+      <div class="login-version-badge">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        v<span id="loginVersion">…</span>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Identifiant</label>
-      <input type="text" id="loginUsername" placeholder="admin" autocomplete="username">
+
+    <!-- Formulaire -->
+    <div class="login-body">
+      <div class="form-group">
+        <label>Identifiant</label>
+        <input type="text" id="loginUsername" placeholder="admin" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Mot de passe</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="doLogin()">
+        <span id="loginBtnText">Se connecter</span>
+      </button>
+      <div class="error-msg" id="loginError"></div>
     </div>
-    <div class="form-group">
-      <label>Mot de passe</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+
+    <!-- Footer -->
+    <div class="login-footer">
+      KazyPanel © kazylax.fr — Tous droits réservés
+      <div style="margin-top:6px">
+        <a href="https://github.com/kazypanel/kazypanel" target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:5px;color:var(--accent2);text-decoration:none;font-size:10px;opacity:.7;transition:opacity .15s"
+           onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='.7'">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 013-.4c1.02.005 2.04.14 3 .4 2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.57 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          Source — github.com/kazypanel/kazypanel
+        </a>
+      </div>
     </div>
-    <button class="btn btn-primary btn-full" onclick="doLogin()">
-      <span id="loginBtnText">Se connecter</span>
-    </button>
-    <div class="error-msg" id="loginError"></div>
+
   </div>
 </div>
 
@@ -379,9 +680,11 @@
   <!-- Topbar -->
   <div class="topbar">
     <div class="topbar-brand">
-      <div class="brand-dot"></div>
+      <div class="brand-icon">⚡</div>
       KazyPanel
-      <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;margin-left:2px">by kazylax.fr</span>
+    </div>
+    <div class="topbar-section-name">
+      <span id="topbarSectionName" style="color:var(--muted)">Tableau de bord</span>
     </div>
     <div class="status-pill">
       <div class="dot" id="apacheDot" style="background:var(--muted)"></div>
@@ -392,31 +695,39 @@
       <span id="phpStatus">PHP 8.4</span>
     </div>
     <div class="status-pill" id="memStatus" style="display:none">
-      <span style="color:var(--muted)">RAM:</span>
+      <span style="color:var(--muted)">RAM</span>
       <span id="memValue">—</span>
     </div>
     <div class="topbar-spacer"></div>
-    <!-- Bouton Mise à jour (admin) -->
-    <button id="topbarUpdateBtn" onclick="openUpdateModal()" class="admin-only" style="display:none;align-items:center;gap:7px;position:relative;background:none;border:1px solid var(--border2);color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 13px;border-radius:20px;transition:all .15s;margin-right:6px" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor=document.getElementById('updateBadge').style.display!=='none'?'rgba(245,158,11,.4)':'var(--border2)';this.style.color=document.getElementById('updateBadge').style.display!=='none'?'#fcd34d':'var(--muted)'">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-      Mise à jour
-      <span id="updateBadge" style="display:none;position:absolute;top:-4px;right:-4px;width:8px;height:8px;border-radius:50%;background:#f59e0b;border:2px solid var(--bg);animation:pulse 2s infinite"></span>
-    </button>
-    <button id="topbarConfigBtn" onclick="openConfigPage()" class="admin-only" style="display:none;align-items:center;gap:7px;background:none;border:1px solid var(--border2);color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:11px;padding:5px 13px;border-radius:20px;transition:all .15s" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      Configuration
-    </button>
-    <div class="user-chip">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
-      <span id="topbarUser">admin</span>
+    <div class="topbar-actions">
+      <button id="topbarUpdateBtn" onclick="openUpdateModal()" class="admin-only tb-action-btn" style="display:none;position:relative">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        Mise à jour
+        <span id="updateBadge" style="display:none;position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:#f59e0b;border:2px solid var(--surface);animation:pulse 2s infinite"></span>
+      </button>
+      <button id="themeToggleBtn" onclick="togglePanelTheme()" class="tb-action-btn" title="Changer le thème" style="width:34px;height:34px;padding:0;justify-content:center;font-size:15px">🌙</button>
+      <div class="user-chip">
+        <div class="user-avatar-dot" id="topbarAvatarDot">A</div>
+        <span id="topbarUser">admin</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
     </div>
-    <button class="logout-btn" onclick="doLogout()">Déconnexion</button>
   </div>
 
   <div class="main">
     <!-- Sidebar -->
-    <div class="sidebar">
-      <div class="sidebar-label">Navigation</div>
+    <div class="sidebar" style="padding-top:8px">
+
+      <!-- ═══ ADMIN ═══ -->
+      <div class="sidebar-label admin-only">Tableau de bord</div>
+      <div class="nav-item admin-only" id="navStatus" onclick="showStatusSection()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><polyline points="7 10 10 7 13 10 17 6"/></svg>
+        Statut serveur
+      </div>
+
+      <div class="sidebar-label admin-only" style="margin-top:10px">Hébergement</div>
       <div class="nav-item admin-only active" id="navDomains" onclick="showSection('domains')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
         Domaines
@@ -425,11 +736,41 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
         Sous-domaines
       </div>
+
+      <div class="sidebar-label admin-only" style="margin-top:10px">Administration</div>
+      <div class="nav-item admin-only" id="navUsers" onclick="showUsersSection()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Utilisateurs
+      </div>
+      <div class="nav-item admin-only" id="navTemplates" onclick="showTemplatesSection()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Templates
+      </div>
+
+      <div class="sidebar-label admin-only" style="margin-top:10px">Outils</div>
+      <div class="nav-item admin-only" id="navConfig" onclick="openConfigPage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Configuration
+      </div>
+      <div class="nav-item admin-only" id="navDns" onclick="showDnsPage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18M12 3v18"/></svg>
+        Config DNS
+      </div>
+      <div class="nav-item admin-only" id="navUfw" onclick="showUfwPage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Pare-feu (UFW)
+      </div>
+      <div class="nav-item admin-only" id="navFail2ban" onclick="showFail2banPage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        Fail2ban
+      </div>
+
+      <!-- ═══ UTILISATEUR ═══ -->
       <div class="nav-item" id="navProfile" style="display:none" onclick="showUserProfile()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
         Mon profil
       </div>
-      <div class="sidebar-label user-only" id="navLabelRessources" style="display:none;margin-top:12px">Mes ressources</div>
+      <div class="sidebar-label user-only" id="navLabelRessources" style="display:none;margin-top:10px">Mes ressources</div>
       <div class="nav-item user-only" id="navUserDomains" style="display:none" onclick="showUserDomainsSection()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
         Mes domaines
@@ -440,11 +781,11 @@
       </div>
       <div class="nav-item user-only" id="navUserDb" style="display:none" onclick="showUserDbSection()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-        Mes bases de données
+        Bases de données
       </div>
       <div class="nav-item user-only" id="navUserDns" style="display:none" onclick="showUserDnsSection()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18M12 3v18"/></svg>
-        DNS (BIND9)
+        DNS
       </div>
       <div class="nav-item user-only" id="navUserLogs" style="display:none" onclick="showUserLogsSection()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -454,43 +795,14 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/></svg>
         Crontab
       </div>
-      <div class="sidebar-label admin-only" style="margin-top:12px">Administration</div>
-      <div class="nav-item admin-only" id="navUsers" onclick="showUsersSection()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-        Utilisateurs
-      </div>
-      <div class="nav-item admin-only" id="navTemplates" onclick="showTemplatesSection()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        Templates
-      </div>
-      <div class="sidebar-label admin-only" style="margin-top:12px">Serveur</div>
-      <div class="nav-item admin-only" id="navStatus" onclick="showStatusSection()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-        Statut serveur
-      </div>
-      <div class="nav-item admin-only" onclick="doBackup()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Sauvegarder panel
-      </div>
-      <div class="nav-item admin-only" onclick="openPmaConfigModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-        Config phpMyAdmin
-      </div>
-      <div class="nav-item admin-only" onclick="openDnsConfigModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18M12 3v18"/></svg>
-        Config DNS (BIND9)
-      </div>
-      <div class="nav-item admin-only" onclick="openUfwModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Pare-feu (UFW)
-      </div>
-      <div class="nav-item admin-only" onclick="openFail2banModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-        Fail2ban
-      </div>
-      <div style="margin-top:auto;padding:16px 20px 12px;border-top:1px solid var(--border);margin-top:24px">
-        <div style="font-family:var(--mono);font-size:10px;color:var(--border2);line-height:1.7">
-          © kazylax.fr<br>Tous droits réservés
+
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-user">
+          <div class="sf-avatar" id="sfAvatar">A</div>
+          <div>
+            <div class="sf-name" id="sfName">admin</div>
+            <div class="sf-role" id="sfRole">Administrateur</div>
+          </div>
         </div>
       </div>
     </div>
@@ -908,25 +1220,205 @@
             Nouvel utilisateur
           </button>
         </div>
-        <div class="table-container">
-          <div class="table-header">
-            <div class="table-title">Comptes actifs</div>
+
+        <!-- Barre de recherche + compteur -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div style="position:relative">
+            <svg style="position:absolute;left:11px;top:50%;transform:translateY(-50%);opacity:.4" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="userSearch" class="search-input" style="padding-left:32px;width:240px" placeholder="Rechercher un utilisateur…" oninput="filterUsers(this.value)">
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Identifiant</th>
-                <th>Rôle</th>
-                <th>Compte FTP</th>
-                <th>Quotas</th>
-                <th>Créé le</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="usersTable">
-              <tr><td colspan="6"><div class="empty-state"><div class="spinner" style="margin:0 auto 12px"></div></div></td></tr>
-            </tbody>
-          </table>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="userCount"></div>
+        </div>
+
+        <!-- Grille de cartes utilisateurs -->
+        <div id="usersGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">
+          <div style="grid-column:1/-1;padding:48px;text-align:center">
+            <div class="spinner" style="margin:0 auto 12px"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ══ DNS PAGE SECTION ══ -->
+      <div id="dnsPageSection" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Configuration DNS — BIND9</div>
+            <div class="page-subtitle">Paramètres globaux appliqués à toutes les zones gérées par KazyPanel</div>
+          </div>
+          <button class="btn btn-primary" id="dnsConfigSaveBtn" onclick="saveDnsConfig()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Enregistrer
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+          <!-- Serveurs de noms -->
+          <div class="cfg-card">
+            <div class="cfg-card-head">
+              <div class="cfg-card-icon" style="background:linear-gradient(135deg,#4f6ef7,#6c47ff)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18M12 3v18"/></svg>
+              </div>
+              <div>
+                <div class="cfg-card-title">Serveurs de noms</div>
+                <div class="cfg-card-sub">NS primaire (MNAME SOA) et secondaire</div>
+              </div>
+            </div>
+            <div class="cfg-card-body">
+              <div class="form-group">
+                <label class="form-label" style="display:flex;align-items:center;gap:6px">
+                  NS Primaire
+                  <span style="font-size:9px;background:rgba(239,68,68,.12);color:#f87171;border-radius:4px;padding:1px 6px;font-weight:600">MNAME SOA</span>
+                </label>
+                <div style="position:relative">
+                  <input class="form-input" id="dnsNs1Input" placeholder="ns1.exemple.com" style="font-family:var(--mono);font-size:12px;padding-left:32px">
+                  <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;pointer-events:none">NS</span>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-top:4px">Serveur de noms maître — référencé dans le SOA et les enregistrements NS</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="display:flex;align-items:center;gap:6px">
+                  NS Secondaire
+                  <span style="font-size:9px;background:rgba(100,116,139,.1);color:var(--muted);border-radius:4px;padding:1px 6px">Optionnel</span>
+                </label>
+                <div style="position:relative">
+                  <input class="form-input" id="dnsNs2Input" placeholder="ns2.exemple.com" style="font-family:var(--mono);font-size:12px;padding-left:32px">
+                  <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;pointer-events:none">NS</span>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-top:4px">Serveur secondaire pour la redondance</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Identité serveur -->
+          <div class="cfg-card">
+            <div class="cfg-card-head">
+              <div class="cfg-card-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+              </div>
+              <div>
+                <div class="cfg-card-title">Identité du serveur</div>
+                <div class="cfg-card-sub">IP et email de contact SOA</div>
+              </div>
+            </div>
+            <div class="cfg-card-body">
+              <div class="form-group">
+                <label class="form-label">Adresse IP du serveur</label>
+                <div style="position:relative">
+                  <input class="form-input" id="dnsServerIpInput" placeholder="85.215.73.237" style="font-family:var(--mono);font-size:12px;padding-left:40px">
+                  <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:9px;pointer-events:none">IPv4</span>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-top:4px">Utilisée pour les glue records A de ns1 et ns2</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email de contact SOA</label>
+                <div style="position:relative">
+                  <input class="form-input" id="dnsEmailInput" placeholder="admin.exemple.com" style="font-family:var(--mono);font-size:12px;padding-left:28px">
+                  <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;pointer-events:none">@</span>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-top:4px">Format pointé — ex : <code style="color:var(--accent2)">admin.kazylax.fr</code> (= <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2f4e4b4246416f444e5556434e5701495d">[email&#160;protected]</a>)</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Paramètres SOA -->
+        <div class="cfg-card">
+          <div class="cfg-card-head">
+            <div class="cfg-card-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div style="flex:1">
+              <div class="cfg-card-title">Paramètres SOA</div>
+              <div class="cfg-card-sub">Valeurs en secondes — appliquées à toutes les nouvelles zones</div>
+            </div>
+            <div style="background:rgba(79,110,247,.06);border:1px solid rgba(79,110,247,.15);border-radius:8px;padding:8px 14px;text-align:center;flex-shrink:0">
+              <div style="font-size:10px;color:var(--accent2);font-weight:600;margin-bottom:2px">BIND9 standard</div>
+              <div style="font-size:10px;color:var(--muted)">TTL 7j · Refresh 7j · Retry 1j · Expire 28j</div>
+            </div>
+          </div>
+          <div class="cfg-card-body">
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">$TTL défaut</label>
+                <input class="form-input" id="dnsTtlInput" type="number" min="60" placeholder="604800" style="font-family:var(--mono);font-size:12px">
+                <div style="font-size:10px;color:var(--muted);margin-top:3px">Cache enregistrements</div>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Refresh</label>
+                <input class="form-input" id="dnsRefreshInput" type="number" min="60" placeholder="604800" style="font-family:var(--mono);font-size:12px">
+                <div style="font-size:10px;color:var(--muted);margin-top:3px">Synchro NS secondaires</div>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Retry</label>
+                <input class="form-input" id="dnsRetryInput" type="number" min="60" placeholder="86400" style="font-family:var(--mono);font-size:12px">
+                <div style="font-size:10px;color:var(--muted);margin-top:3px">Délai si Refresh échoue</div>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Expire</label>
+                <input class="form-input" id="dnsExpireInput" type="number" min="60" placeholder="2419200" style="font-family:var(--mono);font-size:12px">
+                <div style="font-size:10px;color:var(--muted);margin-top:3px">Abandon NS secondaire</div>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Negative TTL</label>
+                <input class="form-input" id="dnsMinimumInput" type="number" min="0" placeholder="604800" style="font-family:var(--mono);font-size:12px">
+                <div style="font-size:10px;color:var(--muted);margin-top:3px">Cache NXDOMAIN (RFC 2308)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;padding:10px 14px;background:rgba(79,110,247,.05);border:1px solid rgba(79,110,247,.12);border-radius:8px;display:flex;align-items:center;gap:8px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div style="font-size:11px;color:var(--muted)">Modifications appliquées aux nouvelles zones uniquement. Les zones existantes restent inchangées jusqu'à un rechargement manuel.</div>
+        </div>
+      </div>
+
+      <!-- ══ UFW PAGE SECTION ══ -->
+      <div id="ufwPageSection" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Pare-feu — UFW</div>
+            <div class="page-subtitle">Gestion des règles de filtrage réseau du serveur</div>
+          </div>
+          <button class="btn btn-ghost" onclick="loadUfwStatus()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            Actualiser
+          </button>
+        </div>
+        <div id="ufwBody">
+          <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto 12px"></div></div>
+        </div>
+      </div>
+
+      <!-- ══ FAIL2BAN PAGE SECTION ══ -->
+      <div id="fail2banPageSection" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Fail2ban</div>
+            <div class="page-subtitle">Protection anti brute-force — surveillance et configuration de <code style="font-size:11px">/etc/fail2ban/jail.local</code></div>
+          </div>
+        </div>
+
+        <!-- Onglets Fail2ban -->
+        <div style="display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:22px;width:fit-content">
+          <button id="f2bTab_surveillance" onclick="f2bSwitchTab('surveillance')" class="cfg-tab active">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
+            Surveillance
+          </button>
+          <button id="f2bTab_jaillocal" onclick="f2bSwitchTab('jaillocal')" class="cfg-tab">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            jail.local
+          </button>
+        </div>
+
+        <div id="f2bPane_surveillance">
+          <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+        <div id="f2bPane_jaillocal" style="display:none">
+          <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto"></div></div>
         </div>
       </div>
 
@@ -1042,17 +1534,45 @@
           </div>
         </div>
 
+        <!-- Ressources système -->
+        <div id="statusResourceRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+          <div class="stat-card" style="padding:14px 16px">
+            <div class="stat-label" style="margin-bottom:6px">CPU</div>
+            <div id="resCpu" style="font-size:15px;font-weight:700;font-family:var(--mono)">—</div>
+            <div style="margin-top:8px;height:4px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--accent);border-radius:4px;width:0%;transition:width .8s ease" id="resCpuFill"></div></div>
+          </div>
+          <div class="stat-card" style="padding:14px 16px">
+            <div class="stat-label" style="margin-bottom:6px">RAM</div>
+            <div id="resRam" style="font-size:15px;font-weight:700;font-family:var(--mono)">—</div>
+            <div style="margin-top:8px;height:4px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);border-radius:4px;width:0%;transition:width .8s ease" id="resRamFill"></div></div>
+          </div>
+          <div class="stat-card" style="padding:14px 16px">
+            <div class="stat-label" style="margin-bottom:6px">Disque</div>
+            <div id="resDisk" style="font-size:15px;font-weight:700;font-family:var(--mono)">—</div>
+            <div style="margin-top:8px;height:4px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--yellow);border-radius:4px;width:0%;transition:width .8s ease" id="resDiskFill"></div></div>
+          </div>
+          <div class="stat-card" style="padding:14px 16px">
+            <div class="stat-label" style="margin-bottom:6px">Charge</div>
+            <div id="resLoad" style="font-size:15px;font-weight:700;font-family:var(--mono)">—</div>
+            <div style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--muted)" id="resUptime">uptime —</div>
+          </div>
+        </div>
+
         <!-- Services -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px" id="statusCards">
-          <div class="stat-card"><div class="stat-label">Apache</div><div class="spinner" style="margin:0"></div></div>
+        <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Services</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted)" id="statusSvcCount">—</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:20px" id="statusCards">
+          <div class="stat-card"><div class="stat-label">Chargement…</div><div class="spinner" style="margin:4px 0 0"></div></div>
         </div>
 
         <!-- Infos système -->
-        <div class="table-container" style="max-width:700px">
-          <div class="table-header"><div class="table-title">Informations système</div></div>
-          <table>
+        <div style="margin-bottom:8px;font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Informations système</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse">
             <tbody id="statusInfoTable">
-              <tr><td colspan="2"><div class="empty-state"><div class="spinner" style="margin:0 auto"></div></div></td></tr>
+              <tr><td colspan="2" style="padding:24px;text-align:center"><div class="spinner" style="margin:0 auto"></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1063,177 +1583,443 @@
         <div class="page-header">
           <div>
             <div class="page-title">Configuration</div>
-            <div class="page-subtitle">Paramètres du panel et du serveur — accès administrateur</div>
+            <div class="page-subtitle">Paramètres du panel, sauvegardes et outils — accès administrateur</div>
           </div>
         </div>
 
-        <!-- Grille 2 colonnes -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <!-- Onglets -->
+        <div style="display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:22px;width:fit-content">
+          <button class="cfg-tab active" data-tab="general"    onclick="switchCfgTab('general')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            Général
+          </button>
+          <button class="cfg-tab" data-tab="server"     onclick="switchCfgTab('server')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Serveur
+          </button>
+          <button class="cfg-tab" data-tab="backups"    onclick="switchCfgTab('backups')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Sauvegardes
+          </button>
+          <button class="cfg-tab" data-tab="pma"        onclick="switchCfgTab('pma')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            phpMyAdmin
+          </button>
+          <button class="cfg-tab" data-tab="system"     onclick="switchCfgTab('system')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Système
+          </button>
+          <button class="cfg-tab" data-tab="https"      onclick="switchCfgTab('https')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><polyline points="9 16 12 13 15 16"/></svg>
+            HTTPS
+          </button>
+        </div>
 
-          <!-- ── Mot de passe admin ── -->
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
-            <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-              <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#4f6ef7,#6c47ff);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              </div>
-              <div>
-                <div style="font-size:13px;font-weight:700;color:var(--text)">Mot de passe admin</div>
-                <div style="font-size:11px;color:var(--muted)">Compte administrateur KazyPanel</div>
-              </div>
-            </div>
-            <div style="padding:18px 20px;display:flex;flex-direction:column;gap:10px">
-              <div>
-                <label class="form-label">Mot de passe actuel</label>
-                <input class="form-input" type="password" id="cfgPwdCurrent" autocomplete="current-password">
-              </div>
-              <div>
-                <label class="form-label">Nouveau mot de passe</label>
-                <input class="form-input" type="password" id="cfgPwdNew" autocomplete="new-password">
-              </div>
-              <div>
-                <label class="form-label">Confirmer</label>
-                <input class="form-input" type="password" id="cfgPwdConfirm" autocomplete="new-password">
-              </div>
-              <button class="btn btn-primary" onclick="cfgChangePassword()" style="margin-top:4px">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                Changer le mot de passe
-              </button>
-            </div>
-          </div>
+        <!-- ═══ ONGLET : GÉNÉRAL ═══ -->
+        <div id="cfgTab-general" class="cfg-tab-content">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
-          <!-- ── Port SSH ── -->
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
-            <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-              <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-              </div>
-              <div>
-                <div style="font-size:13px;font-weight:700;color:var(--text)">Port SSH</div>
-                <div style="font-size:11px;color:var(--muted)">Appliqué immédiatement via <code style="font-size:10px">sshd reload</code></div>
-              </div>
-            </div>
-            <div style="padding:18px 20px;display:flex;flex-direction:column;gap:10px">
-              <div>
-                <label class="form-label">Port actuel</label>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <input class="form-input" type="number" id="cfgSshPort" min="1024" max="65535" placeholder="22" style="font-family:var(--mono)">
-                  <div id="cfgSshPortBadge" style="font-size:11px;color:var(--muted);white-space:nowrap"></div>
+            <!-- Mot de passe admin -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#4f6ef7,#6c47ff)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                 </div>
-                <div style="font-size:10px;color:var(--muted);margin-top:5px">Plage autorisée : 1024 – 65535</div>
+                <div>
+                  <div class="cfg-card-title">Mot de passe admin</div>
+                  <div class="cfg-card-sub">Compte administrateur KazyPanel</div>
+                </div>
               </div>
-              <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px;display:flex;gap:8px">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <div style="font-size:11px;color:var(--muted);line-height:1.5">Reconnectez-vous via SSH sur le <strong style="color:var(--text)">nouveau port</strong> immédiatement après la modification. N'oubliez pas d'ouvrir le port dans UFW avant.</div>
+              <div class="cfg-card-body">
+                <div class="form-group"><label class="form-label">Mot de passe actuel</label><input class="form-input" type="password" id="cfgPwdCurrent" autocomplete="current-password"></div>
+                <div class="form-group"><label class="form-label">Nouveau mot de passe</label><input class="form-input" type="password" id="cfgPwdNew" autocomplete="new-password"></div>
+                <div class="form-group"><label class="form-label">Confirmer</label><input class="form-input" type="password" id="cfgPwdConfirm" autocomplete="new-password"></div>
+                <button class="btn btn-primary" onclick="cfgChangePassword()" style="width:100%;justify-content:center;margin-top:4px">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  Changer le mot de passe
+                </button>
               </div>
-              <button class="btn btn-primary" onclick="cfgSaveSshPort()" style="margin-top:4px;background:linear-gradient(135deg,#f59e0b,#d97706)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                Appliquer le port SSH
-              </button>
             </div>
-          </div>
 
-          <!-- ── MOTD ── -->
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
-            <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-              <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <!-- Bannière maintenance -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Bannière maintenance</div>
+                  <div class="cfg-card-sub">Avertissement visible dans le panel</div>
+                </div>
               </div>
-              <div>
-                <div style="font-size:13px;font-weight:700;color:var(--text)">Message MOTD</div>
-                <div style="font-size:11px;color:var(--muted)">Affiché à la connexion SSH — <code style="font-size:10px">/etc/motd</code></div>
+              <div class="cfg-card-body">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px">
+                  <span style="font-size:13px;font-weight:500">Activer la bannière</span>
+                  <label style="position:relative;width:40px;height:22px;cursor:pointer">
+                    <input type="checkbox" id="cfgMaintenanceEnabled" style="opacity:0;width:0;height:0" onchange="cfgToggleMaintenance()">
+                    <span id="cfgMaintenanceToggle" style="position:absolute;inset:0;border-radius:11px;background:var(--border2);transition:background .2s"></span>
+                    <span id="cfgMaintenanceKnob" style="position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s"></span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Message affiché</label>
+                  <textarea id="cfgMaintenanceMsg" rows="4" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text);resize:vertical;outline:none" placeholder="Maintenance en cours…"></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveMaintenance()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#8b5cf6,#7c3aed)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Appliquer
+                </button>
               </div>
             </div>
-            <div style="padding:18px 20px;display:flex;flex-direction:column;gap:10px">
-              <textarea id="cfgMotd" rows="6" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:12px;color:var(--text);resize:vertical;outline:none" placeholder="Bienvenue sur ce serveur KazyPanel&#10;Accès réservé aux personnes autorisées."></textarea>
-              <button class="btn btn-primary" onclick="cfgSaveMotd()" style="background:linear-gradient(135deg,#10b981,#059669)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                Enregistrer le MOTD
-              </button>
-            </div>
-          </div>
 
-          <!-- ── Bannière maintenance ── -->
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
-            <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-              <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <!-- MOTD (pleine largeur) -->
+            <div class="cfg-card" style="grid-column:1/-1">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Message MOTD</div>
+                  <div class="cfg-card-sub">Affiché à la connexion SSH — <code style="font-size:10px">/etc/motd</code></div>
+                </div>
               </div>
-              <div>
-                <div style="font-size:13px;font-weight:700;color:var(--text)">Bannière maintenance</div>
-                <div style="font-size:11px;color:var(--muted)">Affiche un avertissement visible dans le panel</div>
+              <div class="cfg-card-body">
+                <div style="display:flex;gap:12px;align-items:flex-start">
+                  <textarea id="cfgMotd" rows="5" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:12px;color:var(--text);resize:vertical;outline:none" placeholder="Bienvenue sur ce serveur KazyPanel&#10;Accès réservé aux personnes autorisées."></textarea>
+                  <button class="btn btn-primary" onclick="cfgSaveMotd()" style="flex-shrink:0;background:linear-gradient(135deg,#10b981,#059669)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Enregistrer
+                  </button>
+                </div>
               </div>
             </div>
-            <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-              <div style="display:flex;align-items:center;justify-content:space-between">
-                <label style="font-size:13px;color:var(--text);font-weight:500">Activer la bannière</label>
-                <label style="position:relative;width:40px;height:22px;cursor:pointer">
-                  <input type="checkbox" id="cfgMaintenanceEnabled" style="opacity:0;width:0;height:0" onchange="cfgToggleMaintenance()">
-                  <span id="cfgMaintenanceToggle" style="position:absolute;inset:0;border-radius:11px;background:var(--border2);transition:background .2s"></span>
-                  <span id="cfgMaintenanceKnob" style="position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s"></span>
-                </label>
-              </div>
-              <div>
-                <label class="form-label">Message affiché</label>
-                <textarea id="cfgMaintenanceMsg" rows="3" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text);resize:vertical;outline:none" placeholder="Maintenance en cours — certaines fonctionnalités peuvent être indisponibles."></textarea>
-              </div>
-              <button class="btn btn-primary" onclick="cfgSaveMaintenance()" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                Appliquer
-              </button>
-            </div>
-          </div>
 
-        </div>
-
-        <!-- ── Fuseau horaire ── -->
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px">
-          <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-            <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#0ea5e9,#0284c7);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <div>
-              <div style="font-size:13px;font-weight:700;color:var(--text)">Fuseau horaire</div>
-              <div style="font-size:11px;color:var(--muted)">Utilisé par Apache, PHP et les journaux du panel</div>
-            </div>
-          </div>
-          <div style="padding:18px 20px;display:flex;align-items:flex-end;gap:12px">
-            <div style="flex:1">
-              <label class="form-label">Fuseau horaire (<code style="font-size:10px">timedatectl</code>)</label>
-              <input class="form-input" id="cfgTimezone" placeholder="Europe/Paris" style="font-family:var(--mono)">
-              <div style="font-size:10px;color:var(--muted);margin-top:5px">Exemples : <code>Europe/Paris</code> · <code>America/New_York</code> · <code>UTC</code> · <code>Asia/Tokyo</code></div>
-            </div>
-            <button class="btn btn-primary" onclick="cfgSaveTimezone()" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);flex-shrink:0">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              Appliquer
-            </button>
           </div>
         </div>
 
-        <!-- ── Consommation du panel ── -->
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px">
-          <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-            <div style="display:flex;align-items:center;gap:10px">
-              <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <!-- ═══ ONGLET : SERVEUR ═══ -->
+        <div id="cfgTab-server" class="cfg-tab-content" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+            <!-- Port SSH -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Port SSH</div>
+                  <div class="cfg-card-sub">Appliqué via <code style="font-size:10px">sshd reload</code></div>
+                </div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label class="form-label">Numéro de port</label>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input class="form-input" type="number" id="cfgSshPort" min="1024" max="65535" placeholder="22" style="font-family:var(--mono)">
+                    <div id="cfgSshPortBadge" style="font-size:11px;color:var(--muted);white-space:nowrap"></div>
+                  </div>
+                  <div style="font-size:10px;color:var(--muted);margin-top:5px">Plage : 1024 – 65535</div>
+                </div>
+                <div class="cfg-warn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <div>Reconnectez-vous sur le <strong style="color:var(--text)">nouveau port</strong> immédiatement. Ouvrez le port UFW avant.</div>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveSshPort()" style="width:100%;justify-content:center;margin-top:8px;background:linear-gradient(135deg,#f59e0b,#d97706)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  Appliquer
+                </button>
+              </div>
+            </div>
+
+            <!-- Fuseau horaire -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Fuseau horaire</div>
+                  <div class="cfg-card-sub">Apache, PHP et journaux du panel</div>
+                </div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label class="form-label">Fuseau (<code style="font-size:10px">timedatectl</code>)</label>
+                  <input class="form-input" id="cfgTimezone" placeholder="Europe/Paris" style="font-family:var(--mono)">
+                  <div style="font-size:10px;color:var(--muted);margin-top:5px">Ex : <code>Europe/Paris</code> · <code>UTC</code> · <code>Asia/Tokyo</code></div>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveTimezone()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#0ea5e9,#0284c7)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Appliquer
+                </button>
+              </div>
+            </div>
+
+            <!-- Accès SSH utilisateurs -->
+            <div class="cfg-card" style="grid-column:1/-1">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#ef4444,#b91c1c)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div class="cfg-card-title">Accès SSH — utilisateurs</div>
+                  <div class="cfg-card-sub">Restreindre SSH via <code style="font-size:10px">AllowUsers</code> dans <code style="font-size:10px">sshd_config</code></div>
+                </div>
+                <div id="sshAccessStatus" style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);flex-shrink:0">Chargement…</div>
+              </div>
+              <div class="cfg-card-body">
+                <div style="display:flex;gap:16px;align-items:flex-start">
+                  <div style="flex:1">
+                    <label class="form-label">Utilisateurs autorisés (séparés par des espaces)</label>
+                    <input class="form-input" id="sshAllowUsers" placeholder="root" style="font-family:var(--mono)">
+                    <div style="font-size:10px;color:var(--muted);margin-top:5px">Ex : <code>root</code> · <code>root deploy</code> · Vider = supprimer la restriction</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;padding-top:20px">
+                    <button class="btn btn-primary" onclick="cfgSaveSshAllowUsers()" style="background:linear-gradient(135deg,#ef4444,#b91c1c)">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                      Appliquer
+                    </button>
+                    <button class="btn btn-ghost" onclick="cfgLoadSshAllowUsers()" style="font-size:11px">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                      Actualiser
+                    </button>
+                  </div>
+                </div>
+                <div class="cfg-warn" style="margin-top:12px">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <div>Incluez toujours <strong style="color:var(--text)">root</strong> pour ne pas vous bloquer. Les utilisateurs FTP du panel ne pourront plus se connecter en SSH.</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ═══ ONGLET : SAUVEGARDES ═══ -->
+        <div id="cfgTab-backups" class="cfg-tab-content" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+            <!-- Créer une sauvegarde -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#059669,#047857)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Créer une sauvegarde</div>
+                  <div class="cfg-card-sub">Archive tar.gz horodatée dans <code style="font-size:10px">backups/</code></div>
+                </div>
+              </div>
+              <div class="cfg-card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+                  <div>
+                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#6ee7b7;margin-bottom:8px">✅ Inclus</div>
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <div class="backup-file inc">server.js</div>
+                      <div class="backup-file inc">public/index.html</div>
+                      <div class="backup-file inc">package.json</div>
+                      <div class="backup-file inc">version.json</div>
+                      <div class="backup-file inc">templates.json</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#f87171;margin-bottom:8px">❌ Exclus</div>
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <div class="backup-file exc">.env</div>
+                      <div class="backup-file exc">users.json</div>
+                      <div class="backup-file exc">db_configs.json</div>
+                      <div class="backup-file exc">node_modules/</div>
+                      <div class="backup-file exc">backups/ · *.log</div>
+                    </div>
+                  </div>
+                </div>
+                <button class="btn btn-primary" id="backupCreateBtn" onclick="createBackup()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#059669,#047857)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Lancer la sauvegarde
+                </button>
+              </div>
+            </div>
+
+            <!-- Liste des sauvegardes -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div class="cfg-card-title">Sauvegardes existantes</div>
+                  <div class="cfg-card-sub">Télécharger ou supprimer</div>
+                </div>
+                <button onclick="loadBackups()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                </button>
+              </div>
+              <div class="cfg-card-body" style="padding-top:0">
+                <div id="backupList" style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
+                  <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px"><div class="spinner" style="margin:0 auto 8px"></div>Chargement…</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ═══ ONGLET : PHPMYADMIN ═══ -->
+        <div id="cfgTab-pma" class="cfg-tab-content" style="display:none">
+          <div style="max-width:600px">
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">URL phpMyAdmin</div>
+                  <div class="cfg-card-sub">Accès rapide depuis le panel via le bouton dans les bases de données</div>
+                </div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label class="form-label">URL complète</label>
+                  <input type="url" class="form-input" id="pmaUrlInput" placeholder="http://monserveur/phpmyadmin" oninput="cfgPmaPreview(this.value)">
+                  <div style="font-size:11px;color:var(--muted);margin-top:4px">Ex : <code>http://localhost/phpmyadmin</code> ou <code>https://pma.mondomaine.fr</code></div>
+                </div>
+                <div id="cfgPmaPreview" style="display:none;margin-bottom:12px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px">
+                  <span style="color:var(--muted)">Lien : </span><a id="cfgPmaPreviewLink" href="#" target="_blank" style="color:var(--accent)"></a>
+                </div>
+                <div style="display:flex;gap:10px">
+                  <button class="btn btn-primary" onclick="cfgSavePmaUrl()" style="flex:1;justify-content:center">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Enregistrer
+                  </button>
+                  <a id="cfgPmaOpenBtn" href="#" target="_blank" class="btn btn-ghost" style="flex:1;justify-content:center">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    Ouvrir phpMyAdmin
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ ONGLET : SYSTÈME ═══ -->
+        <div id="cfgTab-system" class="cfg-tab-content" style="display:none">
+          <div class="cfg-card">
+            <div class="cfg-card-head">
+              <div class="cfg-card-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               </div>
-              <div>
-                <div style="font-size:13px;font-weight:700;color:var(--text)">Consommation du panel</div>
-                <div style="font-size:11px;color:var(--muted)">Ressources utilisées par le process Node.js KazyPanel (PID <span id="usagePid">—</span>)</div>
+              <div style="flex:1">
+                <div class="cfg-card-title">Consommation du panel</div>
+                <div class="cfg-card-sub">Ressources Node.js KazyPanel — PID <span id="usagePid">—</span></div>
+              </div>
+              <button onclick="loadPanelUsage()" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                Actualiser
+              </button>
+            </div>
+            <div id="usageBody" style="padding:20px">
+              <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ ONGLET : HTTPS ═══ -->
+        <div id="cfgTab-https" class="cfg-tab-content" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+            <!-- Configuration sous-domaine -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#059669,#047857)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Sous-domaine + HTTPS</div>
+                  <div class="cfg-card-sub">Accéder au panel via <code style="font-size:10px">https://panel.mondomaine.fr</code></div>
+                </div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label class="form-label">Sous-domaine</label>
+                  <div style="display:flex;align-items:center;gap:0">
+                    <input class="form-input" id="httpsSubdomain" placeholder="panel" style="font-family:var(--mono);border-radius:8px 0 0 8px;border-right:none" oninput="updateHttpsPreview()">
+                    <span style="background:var(--surface2);border:1px solid var(--border);padding:0 12px;height:40px;display:flex;align-items:center;font-family:var(--mono);font-size:12px;color:var(--muted);border-radius:0 8px 8px 0;white-space:nowrap">.<span id="httpsBaseDomain">mondomaine.fr</span></span>
+                  </div>
+                  <div style="font-size:10px;color:var(--muted);margin-top:4px">Ex : <code>panel</code> → <code>panel.kazylax.fr</code></div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Port interne du panel</label>
+                  <input class="form-input" id="httpsPort" type="number" value="8080" min="1024" max="65535" style="font-family:var(--mono)" oninput="updateHttpsPreview()">
+                  <div style="font-size:10px;color:var(--muted);margin-top:4px">Le port sur lequel tourne KazyPanel (défaut : 8080)</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Email Let's Encrypt</label>
+                  <input class="form-input" id="httpsEmail" type="email" placeholder="admin@kazylax.fr" style="font-family:var(--mono)">
+                  <div style="font-size:10px;color:var(--muted);margin-top:4px">Utilisé pour les alertes d'expiration SSL</div>
+                </div>
+
+                <!-- Prévisualisation -->
+                <div id="httpsPreview" style="background:rgba(5,150,105,.07);border:1px solid rgba(5,150,105,.2);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  <div style="font-family:var(--mono);font-size:11px;color:#059669">
+                    <span id="httpsPreviewUrl">https://panel.kazylax.fr</span>
+                    <span style="color:var(--muted);margin-left:6px">→ localhost:<span id="httpsPreviewPort">8080</span></span>
+                  </div>
+                </div>
+
+                <button class="btn btn-primary" id="httpsSetupBtn" onclick="setupHttpsSubdomain()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#059669,#047857);margin-top:4px">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Créer le vhost + SSL automatiquement
+                </button>
               </div>
             </div>
-            <button onclick="loadPanelUsage()" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-              Actualiser
-            </button>
-          </div>
-          <div id="usageBody" style="padding:20px">
-            <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+
+            <!-- Statut + infos -->
+            <div style="display:flex;flex-direction:column;gap:12px">
+
+              <div class="cfg-card">
+                <div class="cfg-card-head">
+                  <div class="cfg-card-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  <div><div class="cfg-card-title">Ce que ça fait</div></div>
+                </div>
+                <div class="cfg-card-body" style="gap:8px">
+                  <div style="display:flex;align-items:flex-start;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text2)">
+                    <span style="color:var(--green);flex-shrink:0">①</span>
+                    Crée un VirtualHost Apache pour le sous-domaine
+                  </div>
+                  <div style="display:flex;align-items:flex-start;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text2)">
+                    <span style="color:var(--green);flex-shrink:0">②</span>
+                    Configure un reverse proxy vers <code>localhost:PORT</code>
+                  </div>
+                  <div style="display:flex;align-items:flex-start;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text2)">
+                    <span style="color:var(--green);flex-shrink:0">③</span>
+                    Lance Certbot pour obtenir le certificat SSL
+                  </div>
+                  <div style="display:flex;align-items:flex-start;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text2)">
+                    <span style="color:var(--green);flex-shrink:0">④</span>
+                    Recharge Apache automatiquement
+                  </div>
+                </div>
+              </div>
+
+              <div class="cfg-warn" style="margin:0">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div style="font-size:11px;line-height:1.6">
+                  Le sous-domaine doit pointer sur l'IP du serveur avant de lancer. Ajoute un <strong>enregistrement A</strong> chez ton registrar ou dans la page DNS de KazyPanel.
+                </div>
+              </div>
+
+              <!-- Log de sortie -->
+              <div id="httpsLog" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+
+            </div>
           </div>
         </div>
 
       </div>
-
-      <!-- DOMAINS SECTION -->
       <div id="domainsSection">
         <div class="page-header">
           <div>
@@ -1496,28 +2282,55 @@
 <!-- ── DOMAIN CONFIG MODAL ── -->
 <!-- ── MY FTP CREATE MODAL ── -->
 <div class="modal-overlay" id="myFtpModal">
-  <div class="modal" style="width:440px">
+  <div class="modal" style="width:460px">
     <div class="modal-header">
       <div class="modal-title">📂 Nouveau compte FTP</div>
       <button class="modal-close" onclick="closeMyFtpModal()">✕</button>
     </div>
     <div class="modal-body">
+
+      <!-- Suffixe -->
       <div class="form-group">
-        <label>Suffixe (optionnel)</label>
-        <input type="text" id="myFtpSuffix" placeholder="ex: backup, site2 — vide = compte principal">
-        <div class="form-hint">Votre login FTP sera : <span style="font-family:var(--mono)">votrelogin_suffixe</span></div>
+        <label>Suffixe du login (optionnel)</label>
+        <input type="text" id="myFtpSuffix" placeholder="ex: backup, site2 — vide = compte principal" oninput="updateMyFtpPreview()">
+        <div class="form-hint">Login FTP : <span id="myFtpLoginPreview" style="font-family:var(--mono);color:var(--accent2)">votrelogin</span></div>
       </div>
+
+      <!-- Dossier d'atterrissage -->
       <div class="form-group">
+        <label>Dossier d'atterrissage FTP</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap" id="myFtpBasePath">/var/www/…/</span>
+          <input type="text" id="myFtpHomeDir" placeholder="public_html" oninput="updateMyFtpPreview()"
+            style="font-family:var(--mono);font-size:12px">
+        </div>
+        <div class="form-hint" style="margin-top:6px">
+          Chemin complet : <span id="myFtpFullPath" style="font-family:var(--mono);font-size:11px;color:var(--accent2)">—</span>
+        </div>
+      </div>
+
+      <!-- Info chroot -->
+      <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.18);border-radius:8px;padding:10px 14px;margin-bottom:4px;display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:14px;flex-shrink:0">🔒</span>
+        <div style="font-size:11px;color:var(--muted);line-height:1.6">
+          L'utilisateur FTP sera <strong style="color:#6ee7b7">isolé dans ce dossier</strong> — il ne pourra pas remonter dans les répertoires parents.<br>
+          Un sous-dossier <span style="font-family:var(--mono);color:var(--accent2)">files/</span> est créé automatiquement pour l'accès en écriture.
+        </div>
+      </div>
+
+      <!-- Mot de passe -->
+      <div class="form-group" style="margin-top:16px">
         <label>Mot de passe FTP</label>
         <div class="pw-input-wrap">
           <input type="password" id="myFtpPassword" placeholder="••••••••">
           <button class="pw-toggle-btn" type="button" onclick="togglePwVis('myFtpPassword', this)">👁</button>
         </div>
       </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeMyFtpModal()">Annuler</button>
-      <button class="btn btn-primary" id="myFtpSaveBtn" onclick="doCreateMyFtp()">Créer</button>
+      <button class="btn btn-primary" id="myFtpSaveBtn" onclick="doCreateMyFtp()">Créer le compte</button>
     </div>
   </div>
 </div>
@@ -1576,7 +2389,7 @@
   </div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ── DOMAIN CONFIG VIEWER ──────────────────────────────────────
 async function viewDomainConfig(name, scope) {
   document.getElementById('domainConfigModal').classList.add('open');
@@ -1919,86 +2732,6 @@ function copyDomainConfig() {
   </div>
 </div>
 
-<!-- MODAL : config phpMyAdmin URL (admin) -->
-<div class="modal-overlay" id="pmaConfigModal">
-  <div class="modal" style="max-width:440px">
-    <div class="modal-header">
-      <div class="modal-title">🐬 URL phpMyAdmin</div>
-      <button class="modal-close" onclick="document.getElementById('pmaConfigModal').classList.remove('open')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label>URL complète de phpMyAdmin</label>
-        <input type="url" id="pmaUrlInput" placeholder="http://monserveur/phpmyadmin">
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">Ex : <code>http://localhost/phpmyadmin</code> ou <code>https://pma.mondomaine.fr</code></div>
-      </div>
-      <div id="pmaUrlPreview" style="display:none;margin-top:8px;font-size:12px;padding:8px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
-        Aperçu : <a id="pmaUrlPreviewLink" href="#" target="_blank" style="color:var(--accent)"></a>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="document.getElementById('pmaConfigModal').classList.remove('open')">Annuler</button>
-      <button class="btn btn-primary" onclick="savePmaUrl()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL : sauvegarde panel -->
-<div class="modal-overlay" id="backupModal">
-  <div class="modal" style="max-width:520px">
-    <div class="modal-header">
-      <div class="modal-title">💾 Sauvegardes du panel</div>
-      <button class="modal-close" onclick="document.getElementById('backupModal').classList.remove('open')">✕</button>
-    </div>
-    <div class="modal-body">
-
-      <!-- Action créer -->
-      <div style="padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <div style="font-size:13px;font-weight:600">Créer une sauvegarde</div>
-          <button class="btn btn-primary btn-sm" id="backupCreateBtn" onclick="createBackup()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Sauvegarder
-          </button>
-        </div>
-        <!-- Fichiers inclus / exclus -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div>
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6ee7b7;margin-bottom:6px">✅ Inclus</div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--text)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>server.js</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--text)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>public/index.html</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--text)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>package.json</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--text)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>version.json</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--text)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>templates.json</div>
-            </div>
-          </div>
-          <div>
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#f87171;margin-bottom:6px">❌ Exclus</div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>.env</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>users.json</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>db_configs.json</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>panel_config.json</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>node_modules/</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>backups/</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>*.log / *.bak / *.tmp</div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>.git/</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Liste des sauvegardes -->
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Sauvegardes existantes</div>
-      <div id="backupList" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto">
-        <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px"><div class="spinner" style="margin:0 auto 8px"></div>Chargement…</div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
 <!-- MODAL : PHP config par domaine -->
 <div class="modal-overlay" id="phpConfigModal">
   <div class="modal" style="max-width:660px">
@@ -2129,6 +2862,16 @@ async function doLogin() {
     localStorage.setItem('hp_token', token);
     localStorage.setItem('hp_role', currentRole);
     document.getElementById('topbarUser').textContent = data.username;
+    // Dashboard UI
+    const initials = (data.username||'?').slice(0,2).toUpperCase();
+    const avatarDot = document.getElementById('topbarAvatarDot');
+    if (avatarDot) avatarDot.textContent = initials;
+    const sfAvatar = document.getElementById('sfAvatar');
+    if (sfAvatar) sfAvatar.textContent = initials;
+    const sfName = document.getElementById('sfName');
+    if (sfName) sfName.textContent = data.username;
+    const sfRole = document.getElementById('sfRole');
+    if (sfRole) sfRole.textContent = data.role === 'admin' ? 'Administrateur' : 'Utilisateur';
     showApp();
   } catch (e) {
     showLoginError(e.message);
@@ -2143,6 +2886,27 @@ function showLoginError(msg) {
   err.textContent = '⚠ ' + msg;
   err.style.display = 'block';
 }
+
+// ── Thème sombre / clair ──────────────────────────────────────────────────────
+function togglePanelTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  document.getElementById('themeToggleBtn').textContent = isDark ? '🌙' : '☀️';
+  localStorage.setItem('kazy-panel-theme', newTheme);
+}
+// Appliquer le thème sauvegardé au chargement
+(function() {
+  const saved = localStorage.getItem('kazy-panel-theme');
+  if (saved === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    // Le bouton sera mis à jour une fois le DOM chargé
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) btn.textContent = '☀️';
+    });
+  }
+})();
 
 function doLogout() {
   token = '';
@@ -2160,10 +2924,12 @@ function applyRoleUI() {
   // Sections visibles uniquement pour l'admin
   const adminOnlyEls = document.querySelectorAll('.admin-only');
   adminOnlyEls.forEach(el => {
-    if (el.tagName === 'BUTTON' && el.id === 'topbarConfigBtn') {
-      el.style.display = isAdmin ? 'flex' : 'none';
+    if (!isAdmin) { el.style.display = 'none'; return; }
+    // Les boutons de la topbar doivent être flex
+    if (el.tagName === 'BUTTON' || el.tagName === 'A') {
+      el.style.display = 'flex';
     } else {
-      el.style.display = isAdmin ? '' : 'none';
+      el.style.display = '';
     }
   });
 
@@ -2435,18 +3201,25 @@ function showToast(msg, type = 'success') {
 
 let _currentDomainFilter = 'domains'; // 'domains' | 'subdomains'
 
+function setTopbarSection(name) {
+  const el = document.getElementById('topbarSectionName');
+  if (el) el.textContent = name;
+}
+
+// ── Helper : masque toutes les sections principales ──────────────────────────
+function hideAllMainSections() {
+  ['domainsSection','ipSection','usersSection','statusSection','templatesSection',
+   'configSection','userCrontabSection','dnsPageSection','ufwPageSection','fail2banPageSection']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+}
+
 function showSection(s) {
   _currentDomainFilter = s;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById(s === 'domains' ? 'navDomains' : 'navSubdomains').classList.add('active');
-  document.getElementById('ipSection').style.display = 'none';
-  document.getElementById('usersSection').style.display = 'none';
-  document.getElementById('statusSection').style.display = 'none';
-  document.getElementById('templatesSection').style.display = 'none';
-  document.getElementById('configSection').style.display = 'none';
-  document.getElementById('userCrontabSection').style.display = 'none';
+  hideAllMainSections();
   document.getElementById('domainsSection').style.display = 'block';
-
+  setTopbarSection(s === 'domains' ? 'Domaines' : 'Sous-domaines');
   const titleEl = document.getElementById('domainsSectionTitle');
   if (titleEl) titleEl.textContent = s === 'domains' ? 'Domaines' : 'Sous-domaines';
   const filtered = allDomains.filter(d => s === 'subdomains' ? d.isSubdomain : !d.isSubdomain);
@@ -2456,13 +3229,9 @@ function showSection(s) {
 async function showStatusSection() {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('navStatus').classList.add('active');
-  document.getElementById('domainsSection').style.display = 'none';
-  document.getElementById('usersSection').style.display = 'none';
-  document.getElementById('ipSection').style.display = 'none';
-  document.getElementById('templatesSection').style.display = 'none';
-  document.getElementById('configSection').style.display = 'none';
-  document.getElementById('userCrontabSection').style.display = 'none';
+  hideAllMainSections();
   document.getElementById('statusSection').style.display = 'block';
+  setTopbarSection('Statut serveur');
   await loadStatusSection();
 }
 
@@ -2472,54 +3241,96 @@ async function loadStatusSection() {
     const res = await fetch(`${API}/api/status`, { headers: { Authorization: 'Bearer ' + token } });
     const d = await res.json();
 
-    // ─ Cartes services ─
+    // ─ Ressources ─
+    const cpuPct  = parseFloat(d.cpuPercent) || 0;
+    const ramPct  = parseFloat(d.ramPercent) || 0;
+    const diskPct = parseFloat(d.diskPercent) || 0;
+
+    document.getElementById('resCpu').textContent   = d.cpuPercent  ? d.cpuPercent + '%'  : (d.load || '—');
+    document.getElementById('resRam').textContent   = d.memory || '—';
+    document.getElementById('resDisk').textContent  = d.disk || '—';
+    document.getElementById('resLoad').textContent  = d.load || '—';
+    document.getElementById('resUptime').textContent= d.uptime ? 'up ' + d.uptime : '—';
+
+    const cpuColor  = cpuPct  > 80 ? 'var(--red)' : cpuPct  > 60 ? 'var(--yellow)' : 'var(--accent)';
+    const ramColor  = ramPct  > 80 ? 'var(--red)' : ramPct  > 60 ? 'var(--yellow)' : 'var(--green)';
+    const diskColor = diskPct > 85 ? 'var(--red)' : diskPct > 65 ? 'var(--yellow)' : '#f59e0b';
+    document.getElementById('resCpuFill').style.cssText  = `height:100%;border-radius:4px;width:${cpuPct}%;background:${cpuColor};transition:width .8s ease`;
+    document.getElementById('resRamFill').style.cssText  = `height:100%;border-radius:4px;width:${ramPct}%;background:${ramColor};transition:width .8s ease`;
+    document.getElementById('resDiskFill').style.cssText = `height:100%;border-radius:4px;width:${diskPct}%;background:${diskColor};transition:width .8s ease`;
+
+    // ─ Services ─
     const services = [
-      { key: 'apache',  svc: 'apache2',                          label: 'Apache',           icon: '🌐' },
-      { key: 'php',     svc: `php${d.phpVersion || '8.4'}-fpm`,  label: `PHP ${d.phpVersion || '8.4'}-FPM`, icon: '🐘' },
-      { key: 'vsftpd',  svc: 'vsftpd',                           label: 'vsftpd (FTP)',      icon: '📂' },
-      { key: 'mariadb', svc: 'mariadb',                          label: 'MariaDB',            icon: '🗄️' },
+      { key: 'apache',   svc: 'apache2',                         label: 'Apache',          icon: '🌐', ver: d.apacheVersion },
+      { key: 'php',      svc: `php${d.phpVersion||'8.4'}-fpm`,   label: `PHP ${d.phpVersion||'8.4'}`, icon: '🐘', ver: d.phpVersion },
+      { key: 'vsftpd',   svc: 'vsftpd',                          label: 'vsftpd (FTP)',    icon: '📂' },
+      { key: 'mariadb',  svc: 'mariadb',                         label: 'MariaDB',         icon: '🗄️', ver: d.mariadbVersion },
+      { key: 'ufw',      svc: 'ufw',                             label: 'UFW',             icon: '🛡️', noRestart: true },
+      { key: 'fail2ban', svc: 'fail2ban',                        label: 'Fail2ban',        icon: '🚫' },
     ];
-    document.getElementById('statusCards').innerHTML = services.map(sv => {
-      const running = d[sv.key] === 'running';
-      return `<div class="stat-card" style="cursor:default" id="svc-card-${sv.svc}">
+
+    let running = 0;
+    const cards = services.map(sv => {
+      const st = d[sv.key];
+      const on = st === 'running' || st === 'active' || st === 'enabled';
+      const unknown = !st || st === 'unknown';
+      if (on) running++;
+
+      const badgeCls = unknown ? '' : (on ? 'badge-green' : '');
+      const badgeSt  = unknown
+        ? 'background:rgba(100,116,139,.08);color:var(--muted);border-color:var(--border)'
+        : on ? '' : 'background:rgba(220,38,38,.1);color:var(--red);border-color:rgba(220,38,38,.2)';
+      const badgeTxt = unknown ? '—' : (on ? '● Actif' : '● Arrêté');
+      const dotColor = unknown ? 'var(--muted)' : (on ? 'var(--green)' : 'var(--red)');
+
+      const btns = sv.noRestart
+        ? `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','start')">Enable</button>
+           <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','stop')">Disable</button>`
+        : `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','start')">Start</button>
+           <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','stop')">Stop</button>
+           <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','restart')">Restart</button>`;
+
+      return `<div class="stat-card" style="padding:14px 16px;cursor:default" id="svc-card-${sv.svc}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:18px">${sv.icon}</span>
-            <span style="font-weight:700;font-size:13px">${sv.label}</span>
+            <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};box-shadow:${on ? `0 0 6px ${dotColor}` : 'none'};flex-shrink:0"></div>
+            <span style="font-size:12px">${sv.icon}</span>
+            <div>
+              <div style="font-weight:700;font-size:12px;line-height:1.2">${sv.label}</div>
+              ${sv.ver ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px">${sv.ver}</div>` : ''}
+            </div>
           </div>
-          <span id="svc-badge-${sv.svc}" class="badge ${running ? 'badge-green' : ''}" style="${!running ? 'background:rgba(220,38,38,.1);color:var(--red);border-color:rgba(220,38,38,.2)' : ''}">${running ? '● Actif' : '● Arrêté'}</span>
+          <span id="svc-badge-${sv.svc}" class="badge ${badgeCls}" style="${badgeSt};font-size:9px">${badgeTxt}</span>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.3);flex:1" onclick="serviceAction('${sv.svc}','start')">▶ Start</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.3);flex:1" onclick="serviceAction('${sv.svc}','stop')">■ Stop</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.3);flex:1" onclick="serviceAction('${sv.svc}','restart')">↺ Restart</button>
-        </div>
+        <div style="display:flex;gap:5px">${btns}</div>
       </div>`;
-    }).join('');
+    });
 
-    // ─ Tableau infos ─
+    document.getElementById('statusCards').innerHTML = cards.join('');
+    document.getElementById('statusSvcCount').textContent = `${running}/${services.length} actifs`;
+
+    // ─ Infos système ─
     const rows = [
-      ['🖥️ Hostname',   d.hostname   || '—'],
-      ['🐧 OS',          d.os         || '—'],
-      ['⏱️ Uptime',      d.uptime     || '—'],
-      ['💾 RAM',         d.memory     || '—'],
-      ['💿 Disque (/)', d.disk       || '—'],
-      ['⚙️ Charge',      d.load       || '—'],
-      ['📦 Node.js',     d.nodeVersion || '—'],
-      ['🌐 Domaines',    `${d.domains ?? 0} configurés`],
+      ['🖥️ Hostname',    d.hostname    || '—'],
+      ['🐧 OS',           d.os          || '—'],
+      ['⏱️ Uptime',       d.uptime      || '—'],
+      ['💾 RAM',          d.memory      || '—'],
+      ['💿 Disque (/)',   d.disk        || '—'],
+      ['⚙️ Charge',       d.load        || '—'],
+      ['📦 Node.js',      d.nodeVersion || '—'],
+      ['🌐 Domaines',     `${d.domains ?? 0} configurés`],
       ['👤 Utilisateurs', `${d.users ?? 0} comptes`],
     ];
-    document.getElementById('statusInfoTable').innerHTML = rows.map(([k, v]) =>
-      `<tr>
-        <td style="width:180px;color:var(--muted);font-size:12px">${k}</td>
-        <td style="font-family:var(--mono);font-size:12px">${v}</td>
+    document.getElementById('statusInfoTable').innerHTML = rows.map(([k, v], i) =>
+      `<tr style="${i < rows.length-1 ? 'border-bottom:1px solid var(--border)' : ''}">
+        <td style="width:180px;color:var(--muted);font-size:12px;padding:10px 16px">${k}</td>
+        <td style="font-family:var(--mono);font-size:12px;padding:10px 16px;color:var(--text)">${v}</td>
       </tr>`
     ).join('');
 
     document.getElementById('statusLastUpdate').textContent =
       `Dernière mise à jour : ${new Date().toLocaleTimeString('fr-FR')}`;
 
-    // Mettre à jour aussi les dots de la topbar
     refreshStatus(d);
   } catch(e) {
     document.getElementById('statusLastUpdate').textContent = 'Erreur : ' + e.message;
@@ -3009,6 +3820,16 @@ function closeUserDomainModal() {
   document.getElementById('userDomainModal').classList.remove('open');
 }
 
+// Charger la version sur la page de login
+(async function loadLoginVersion() {
+  try {
+    const res = await fetch(`${API}/api/version`);
+    const data = await res.json();
+    const el = document.getElementById('loginVersion');
+    if (el && data.version) el.textContent = data.version;
+  } catch {}
+})();
+
 // Prévisualiser le répertoire en temps réel
 document.addEventListener('DOMContentLoaded', () => {
   const inp = document.getElementById('userDomainName');
@@ -3102,6 +3923,7 @@ function showUserProfile() {
   hideAllUserSections();
   document.getElementById('navProfile').classList.add('active');
   document.getElementById('userProfileSection').style.display = 'block';
+  setTopbarSection('Mon profil');
   loadUserProfile();
 }
 
@@ -3109,6 +3931,7 @@ function showUserFtpSection() {
   hideAllUserSections();
   document.getElementById('navUserFtp').classList.add('active');
   document.getElementById('userFtpSection').style.display = 'block';
+  setTopbarSection('Accès FTP');
   loadUserFtpSection();
 }
 
@@ -3116,6 +3939,7 @@ function showUserDbSection() {
   hideAllUserSections();
   document.getElementById('navUserDb').classList.add('active');
   document.getElementById('userDbSection').style.display = 'block';
+  setTopbarSection('Bases de données');
   if (userFtpDir) {
     loadUserDatabases(_currentUsername);
     loadUserDiskUsage();
@@ -3126,6 +3950,7 @@ function showUserDomainsSection() {
   hideAllUserSections();
   document.getElementById('navUserDomains').classList.add('active');
   document.getElementById('userDomainsSection').style.display = 'block';
+  setTopbarSection('Mes domaines');
   if (userFtpDir) {
     loadUserDomains();
   }
@@ -3135,6 +3960,7 @@ function showUserDnsSection() {
   hideAllUserSections();
   document.getElementById('navUserDns').classList.add('active');
   document.getElementById('userDnsSection').style.display = 'block';
+  setTopbarSection('DNS');
   loadUserDns();
 }
 
@@ -3147,6 +3973,7 @@ let _allLogLines      = [];        // cache pour le filtre live
 function showUserLogsSection() {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('navUserLogs').classList.add('active');
+  setTopbarSection('Journaux Apache');
   openLogsModal();
 }
 
@@ -3160,6 +3987,7 @@ function showUserCrontabSection() {
     const el = document.getElementById(id); if (el) el.style.display = 'none';
   });
   document.getElementById('userCrontabSection').style.display = 'block';
+  setTopbarSection('Crontab');
   loadCrontabList();
 }
 
@@ -3753,22 +4581,56 @@ async function deleteDnsZone(domain) {
 }
 
 // ── Config DNS (admin) ────────────────────────────────────────────────────────
+async function showDnsPage() {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('navDns').classList.add('active');
+  hideAllMainSections();
+  document.getElementById('dnsPageSection').style.display = 'block';
+  setTopbarSection('Config DNS');
+  await openDnsConfigModal();
+}
+
+async function showUfwPage() {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('navUfw').classList.add('active');
+  hideAllMainSections();
+  document.getElementById('ufwPageSection').style.display = 'block';
+  setTopbarSection('Pare-feu (UFW)');
+  await loadUfwStatus();
+}
+
+async function showFail2banPage() {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('navFail2ban').classList.add('active');
+  hideAllMainSections();
+  document.getElementById('fail2banPageSection').style.display = 'block';
+  setTopbarSection('Fail2ban');
+  _f2bActiveTab = 'surveillance';
+  await f2bSwitchTab('surveillance');
+}
+
+// Rewire: les appels depuis d'autres endroits restent fonctionnels
 async function openDnsConfigModal() {
   try {
     const res  = await fetch(`${API}/api/config/dns`, { headers: { Authorization: 'Bearer ' + token } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    document.getElementById('dnsNs1Input').value     = data.ns1     || '';
-    document.getElementById('dnsNs2Input').value     = data.ns2     || '';
-    document.getElementById('dnsServerIpInput').value= data.serverIp|| '';
-    document.getElementById('dnsEmailInput').value   = data.email   || '';
-    document.getElementById('dnsTtlInput').value     = data.ttl     || 3600;
-    document.getElementById('dnsRefreshInput').value = data.refresh || 3600;
-    document.getElementById('dnsRetryInput').value   = data.retry   || 900;
-    document.getElementById('dnsExpireInput').value  = data.expire  || 604800;
-    document.getElementById('dnsMinimumInput').value = data.minimum || 300;
-  } catch (e) { showToast('Erreur chargement config DNS : ' + e.message, 'error'); return; }
-  document.getElementById('dnsConfigModal').classList.add('open');
+    document.getElementById('dnsNs1Input').value     = data.ns1       || '';
+    document.getElementById('dnsNs2Input').value     = data.ns2       || '';
+    document.getElementById('dnsServerIpInput').value= data.serverIp  || '';
+    document.getElementById('dnsEmailInput').value   = data.email     || '';
+    document.getElementById('dnsTtlInput').value     = data.ttl       || '604800';
+    document.getElementById('dnsRefreshInput').value = data.refresh   || '604800';
+    document.getElementById('dnsRetryInput').value   = data.retry     || '86400';
+    document.getElementById('dnsExpireInput').value  = data.expire    || '2419200';
+    document.getElementById('dnsMinimumInput').value = data.minimum   || '604800';
+  } catch(e) { showToast('Erreur chargement config DNS : ' + e.message, 'error'); }
+}
+
+async function openUfwModal() { await loadUfwStatus(); }
+async function openFail2banModal() {
+  _f2bActiveTab = 'surveillance';
+  await f2bSwitchTab('surveillance');
 }
 
 async function saveDnsConfig() {
@@ -3794,7 +4656,6 @@ async function saveDnsConfig() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     showToast('Configuration DNS enregistrée', 'success');
-    document.getElementById('dnsConfigModal').classList.remove('open');
   } catch (e) {
     showToast(e.message, 'error');
   } finally {
@@ -3869,40 +4730,12 @@ function openPma(db, e) {
   window.open(`${_pmaUrl}/index.php?db=${encodeURIComponent(db)}`, '_blank');
 }
 
-function openPmaConfigModal() {
-  document.getElementById('pmaUrlInput').value = _pmaUrl;
-  const preview = document.getElementById('pmaUrlPreview');
-  const link    = document.getElementById('pmaUrlPreviewLink');
-  if (_pmaUrl) {
-    preview.style.display = 'block';
-    link.href = _pmaUrl; link.textContent = _pmaUrl;
-  } else {
-    preview.style.display = 'none';
-  }
-  document.getElementById('pmaUrlInput').oninput = function() {
-    const v = this.value.trim();
-    if (v) { preview.style.display='block'; link.href=v; link.textContent=v; }
-    else    { preview.style.display='none'; }
-  };
-  document.getElementById('pmaConfigModal').classList.add('open');
-}
+// Redirige vers l'onglet phpMyAdmin de la page Configuration
+function openPmaConfigModal() { openConfigPage().then(() => switchCfgTab('pma')); }
+async function savePmaUrl() { await cfgSavePmaUrl(); }
 
-async function savePmaUrl() {
-  const url = document.getElementById('pmaUrlInput').value.trim().replace(/\/$/, '');
-  try {
-    const res = await fetch(`${API}/api/config/pma`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ pmaUrl: url })
-    });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error);
-    _pmaUrl = url;
-    const pmaLink = document.getElementById('pmaLink');
-    if (pmaLink) pmaLink.href = url || '#';
-    showToast('URL phpMyAdmin enregistrée', 'success');
-    document.getElementById('pmaConfigModal').classList.remove('open');
-  } catch(e) { showToast(e.message, 'error'); }
-}
+// Redirige vers l'onglet Sauvegardes
+async function doBackup_legacy() { openConfigPage().then(() => switchCfgTab('backups')); }
 
 // ── SSL LET'S ENCRYPT ─────────────────────────────────────────
 let _sslDomainName = null;
@@ -4319,8 +5152,8 @@ async function renewAllSSL() {
 }
 
 async function doBackup() {
-  document.getElementById('backupModal').classList.add('open');
-  await loadBackups();
+  await openConfigPage();
+  switchCfgTab('backups');
 }
 
 async function loadBackups() {
@@ -4409,13 +5242,9 @@ async function deleteBackup(name) {
 async function showUsersSection() {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('navUsers').classList.add('active');
-  document.getElementById('domainsSection').style.display = 'none';
-  document.getElementById('ipSection').style.display = 'none';
-  document.getElementById('statusSection').style.display = 'none';
-  document.getElementById('templatesSection').style.display = 'none';
-  document.getElementById('configSection').style.display = 'none';
-  document.getElementById('userCrontabSection').style.display = 'none';
+  hideAllMainSections();
   document.getElementById('usersSection').style.display = 'block';
+  setTopbarSection('Utilisateurs');
   await loadUsers();
 }
 
@@ -4425,13 +5254,9 @@ let _templatesCache = [];
 async function showTemplatesSection() {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('navTemplates').classList.add('active');
-  document.getElementById('domainsSection').style.display = 'none';
-  document.getElementById('usersSection').style.display = 'none';
-  document.getElementById('statusSection').style.display = 'none';
-  document.getElementById('ipSection').style.display = 'none';
-  document.getElementById('configSection').style.display = 'none';
-  document.getElementById('userCrontabSection').style.display = 'none';
+  hideAllMainSections();
   document.getElementById('templatesSection').style.display = 'block';
+  setTopbarSection('Templates');
   await loadTemplates();
 }
 
@@ -4649,63 +5474,161 @@ async function loadUsers() {
   }
 }
 
+function filterUsers(q) {
+  const cards = document.querySelectorAll('#usersGrid .user-card');
+  const s = q.toLowerCase();
+  let visible = 0;
+  cards.forEach(c => {
+    const name = c.dataset.username || '';
+    const show = !s || name.includes(s);
+    c.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const el = document.getElementById('userCount');
+  if (el) el.textContent = `${visible} utilisateur${visible > 1 ? 's' : ''}`;
+}
+
 function renderUsers(users) {
-  const tbody = document.getElementById('usersTable');
-  if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">👤</div><div class="empty-text">Aucun utilisateur</div></div></td></tr>`;
-    return;
-  }
+  const grid = document.getElementById('usersGrid');
+  const countEl = document.getElementById('userCount');
   window._usersCache = {};
   users.forEach(u => { window._usersCache[u.id] = u; });
 
-  const lim  = v => v === 0 ? '<span style="color:var(--muted)">∞</span>' : v;
-  const chip = (color, label, val) =>
-    `<span style="font-size:10px;padding:2px 7px;border-radius:12px;background:rgba(${color},.1);border:1px solid rgba(${color},.22);color:rgba(${color},1);font-family:var(--mono)">${label} ${val}</span>`;
+  if (!users.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:56px;text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">👤</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">Aucun utilisateur</div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--muted)">Créez le premier compte avec le bouton ci-dessus</div>
+    </div>`;
+    if (countEl) countEl.textContent = '0 utilisateur';
+    return;
+  }
 
-  tbody.innerHTML = users.map(u => {
-    const quotaChips = u.role === 'admin'
-      ? `<span style="font-size:11px;color:var(--muted);font-style:italic">Accès complet</span>`
-      : `<div style="display:flex;flex-wrap:wrap;gap:4px">
-          ${chip('16,185,129', 'FTP',  lim(u.ftpLimit  ?? 1))}
-          ${chip('14,165,233', 'BDD',  lim(u.dbLimit   ?? 0))}
-          ${chip('167,139,250','Dom',  lim(u.domainLimit ?? 0))}
-          ${chip('245,158,11', 'Disk', u.diskLimit ? fmtDisk(u.diskLimit) : '<span style="color:var(--muted)">∞</span>')}
-          ${chip('99,102,241', 'Cron', lim(u.cronLimit ?? 10))}
+  if (countEl) countEl.textContent = `${users.length} utilisateur${users.length > 1 ? 's' : ''}`;
+
+  // Barre de quota
+  const qbar = (used, limit, color) => {
+    if (limit === 0) return '';
+    const pct = Math.min(100, Math.round((used / limit) * 100));
+    return `<div class="qbar-track"><div class="qbar-fill" style="width:${pct}%;background:${color}"></div></div>`;
+  };
+
+  // Valeur affichée
+  const qval = (used, limit, color) => {
+    if (limit === 0) return `<span class="qrow-val" style="color:var(--muted)">${used} <span style="opacity:.5">/ ∞</span></span>`;
+    const pct = Math.min(100, Math.round((used / limit) * 100));
+    return `<span class="qrow-val" style="color:${color}">${pct}%<span class="nums">(${used}/${limit})</span></span>`;
+  };
+
+  // Couleur selon usage
+  const qcolor = (used, limit) => {
+    if (limit === 0) return '#94a3b8';
+    const pct = (used / limit) * 100;
+    return pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#059669';
+  };
+
+  // Icône SVG inline
+  const ico = (path, size=11) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${path}</svg>`;
+  const icoFtp  = ico('<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>');
+  const icoBdd  = ico('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>');
+  const icoDom  = ico('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20"/>');
+  const icoDisk = ico('<path d="M22 12H2"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>');
+
+  grid.innerHTML = users.map(u => {
+    const initials = u.username.slice(0,2).toUpperCase();
+    const isAdmin  = u.role === 'admin';
+    const ftpUsed  = u.ftpCount    ?? (u.ftpAccounts||[]).length;
+    const ftpLim   = u.ftpLimit    ?? 1;
+    const dbUsed   = u.dbCount     ?? 0;
+    const dbLim    = u.dbLimit     ?? 0;
+    const domUsed  = u.domainCount ?? 0;
+    const domLim   = u.domainLimit ?? 0;
+    const diskUsed = u.diskUsedMb  ?? 0;
+    const diskLim  = u.diskLimit   ?? 0;
+    const created  = u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+
+    const quotaSection = isAdmin
+      ? `<div style="padding:14px 20px;text-align:center">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.12);border-radius:8px;padding:10px 16px">
+            ⚡ Accès administrateur complet — aucune limite appliquée
+          </div>
+        </div>`
+      : `<div class="user-card-body">
+          <div class="qrow">
+            <div class="qrow-head">
+              <span class="qrow-label">${icoFtp} Comptes FTP</span>
+              ${qval(ftpUsed, ftpLim, qcolor(ftpUsed, ftpLim))}
+            </div>
+            ${qbar(ftpUsed, ftpLim, qcolor(ftpUsed, ftpLim))}
+          </div>
+          <div class="qrow">
+            <div class="qrow-head">
+              <span class="qrow-label">${icoBdd} Bases de données</span>
+              ${qval(dbUsed, dbLim, qcolor(dbUsed, dbLim))}
+            </div>
+            ${qbar(dbUsed, dbLim, qcolor(dbUsed, dbLim))}
+          </div>
+          <div class="qrow">
+            <div class="qrow-head">
+              <span class="qrow-label">${icoDom} Domaines</span>
+              ${qval(domUsed, domLim, qcolor(domUsed, domLim))}
+            </div>
+            ${qbar(domUsed, domLim, qcolor(domUsed, domLim))}
+          </div>
+          <div class="qrow">
+            <div class="qrow-head">
+              <span class="qrow-label">${icoDisk} Disque</span>
+              ${diskLim > 0
+                ? qval(diskUsed, diskLim, qcolor(diskUsed, diskLim))
+                : `<span class="qrow-val" style="color:var(--muted)">${diskUsed >= 1024 ? (diskUsed/1024).toFixed(1)+' Go' : diskUsed+' Mo'} <span style="opacity:.5">/ ∞</span></span>`}
+            </div>
+            ${diskLim > 0 ? qbar(diskUsed, diskLim, qcolor(diskUsed, diskLim)) : ''}
+          </div>
         </div>`;
-    return `
-    <tr>
-      <td>
-        <span class="domain-name">${u.username}</span>
-        ${u.username === 'admin' ? '<span class="badge badge-blue" style="margin-left:8px">Compte principal</span>' : ''}
-        ${u.templateName ? `<div style="font-size:10px;color:var(--muted);margin-top:3px">📋 <span style="font-family:var(--mono)">${u.templateName}</span></div>` : ''}
-      </td>
-      <td>
-        <span class="badge ${u.role === 'admin' ? 'badge-red' : 'badge-green'}">
-          ${u.role === 'admin' ? '⚡ Admin' : '👤 Utilisateur'}
-        </span>
-      </td>
-      <td>
-        ${u.ftpAccounts && u.ftpAccounts.length
-          ? `<span class="badge badge-green">✓ ${u.ftpAccounts.length} compte${u.ftpAccounts.length > 1 ? 's' : ''}</span>
-             <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:6px">${(u.ftpAccounts[0] || {}).dir || ''}</span>`
-          : `<span class="badge" style="background:rgba(100,116,139,.1);color:var(--muted);border:1px solid var(--border2)">— Aucun</span>`}
-      </td>
-      <td>${quotaChips}</td>
-      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">
-        ${u.createdAt ? new Date(u.createdAt).toLocaleString('fr-FR') : '—'}
-      </td>
-      <td>
-        <div class="actions">
-          ${u.username !== 'admin' ? `
-            <button class="btn btn-ghost btn-sm" onclick="openEditUserModal(${u.id}, '${u.username}', '${u.role}')">Modifier</button>
-            <button class="btn btn-ghost btn-sm" style="color:#f59e0b;border-color:rgba(245,158,11,.3)" onclick="openApplyTemplateModal(${u.id}, '${u.username}')">
-              📋 Template${u.templateName ? `<span style="font-family:var(--mono);font-size:9px;margin-left:3px;opacity:.7">${u.templateName}</span>` : ''}
-            </button>
-            <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id}, '${u.username}')">Supprimer</button>
-          ` : '<span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Protégé</span>'}
+
+    const ftpSection = !isAdmin ? `
+      <div class="user-card-ftp">
+        ${(u.ftpAccounts||[]).length
+          ? `<span style="font-size:11px">📂</span>
+             <span class="ftp-badge">${(u.ftpAccounts||[]).map(a=>`<code style="font-family:var(--mono);font-size:10px;background:rgba(79,110,247,.08);padding:1px 6px;border-radius:4px;color:var(--accent2)">${a.ftpUsername}</code>`).join('')}</span>`
+          : `<span class="ftp-badge ftp-none">Aucun compte FTP configuré</span>`}
+      </div>` : '';
+
+    const actions = u.username === 'admin'
+      ? `<span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Compte protégé</span>`
+      : `<button class="btn btn-ghost btn-sm" onclick="openEditUserModal(${u.id},'${u.username}','${u.role}')">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+           Modifier
+         </button>
+         <button class="btn btn-ghost btn-sm" style="color:var(--yellow);border-color:rgba(217,119,6,.25)" onclick="openApplyTemplateModal(${u.id},'${u.username}')">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+           ${u.templateName ? `<span style="font-family:var(--mono);font-size:9px;opacity:.8">${u.templateName}</span>` : 'Template'}
+         </button>
+         <div class="act-spacer"></div>
+         <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.username}')">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+           Supprimer
+         </button>`;
+
+    return `<div class="user-card" data-username="${u.username}">
+      <div class="user-card-top">
+        <div class="user-avatar ${isAdmin ? 'avatar-admin' : 'avatar-user'}">${initials}</div>
+        <div class="user-card-info">
+          <div class="user-card-name">${u.username}</div>
+          <div class="user-card-meta">
+            <span class="user-role-chip ${isAdmin ? 'role-admin' : 'role-user'}">${isAdmin ? '⚡ Admin' : '👤 Utilisateur'}</span>
+            ${u.templateName ? `<span class="user-card-tpl">📋 ${u.templateName}</span>` : ''}
+          </div>
         </div>
-      </td>
-    </tr>`;
+        <div style="text-align:right;flex-shrink:0">
+          <div class="user-card-date" style="font-size:10px;color:var(--muted)">Depuis</div>
+          <div class="user-card-date">${created}</div>
+        </div>
+      </div>
+      ${quotaSection}
+      ${ftpSection}
+      <div class="user-card-actions">${actions}</div>
+    </div>`;
   }).join('');
 }
 
@@ -4951,13 +5874,30 @@ async function saveFtpLimit(userId) {
 function openMyFtpCreateModal() {
   document.getElementById('myFtpSuffix').value = '';
   document.getElementById('myFtpPassword').value = '';
+  document.getElementById('myFtpHomeDir').value = 'public_html';
+  const base = userFtpDir || `/var/www/${_currentUsername || '…'}`;
+  document.getElementById('myFtpBasePath').textContent = base + '/';
+  updateMyFtpPreview();
   document.getElementById('myFtpModal').classList.add('open');
 }
 function closeMyFtpModal() { document.getElementById('myFtpModal').classList.remove('open'); }
 
+function updateMyFtpPreview() {
+  const suffix = (document.getElementById('myFtpSuffix')?.value || '').trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  const base = userFtpDir || `/var/www/${_currentUsername || '…'}`;
+  const sub = (document.getElementById('myFtpHomeDir')?.value || '').trim().replace(/\.\./g, '').replace(/[^a-zA-Z0-9_\-\/]/g, '').replace(/^\/+/, '');
+  const login = suffix ? `${_currentUsername || 'login'}_${suffix}` : (_currentUsername || 'login');
+  const fullPath = sub ? `${base}/${sub}` : base;
+  const loginEl = document.getElementById('myFtpLoginPreview');
+  const pathEl  = document.getElementById('myFtpFullPath');
+  if (loginEl) loginEl.textContent = login;
+  if (pathEl)  pathEl.textContent  = fullPath;
+}
+
 async function doCreateMyFtp() {
   const ftpPassword = document.getElementById('myFtpPassword').value;
-  const ftpSuffix = document.getElementById('myFtpSuffix').value.trim();
+  const ftpSuffix   = document.getElementById('myFtpSuffix').value.trim();
+  const ftpHomeDir  = document.getElementById('myFtpHomeDir').value.trim();
   const btn = document.getElementById('myFtpSaveBtn');
   if (!ftpPassword) { showToast('Le mot de passe est requis', 'error'); return; }
   btn.innerHTML = '<div class="spinner"></div>'; btn.disabled = true;
@@ -4965,7 +5905,7 @@ async function doCreateMyFtp() {
     const res = await fetch(`${API}/api/me/ftp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ ftpPassword, ftpSuffix: ftpSuffix || undefined })
+      body: JSON.stringify({ ftpPassword, ftpSuffix: ftpSuffix || undefined, ftpHomeDir: ftpHomeDir || undefined })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.rules ? data.rules[0] : data.error);
@@ -4975,7 +5915,7 @@ async function doCreateMyFtp() {
   } catch (e) {
     showToast(e.message, 'error');
   } finally {
-    btn.textContent = 'Créer'; btn.disabled = false;
+    btn.textContent = 'Créer le compte'; btn.disabled = false;
   }
 }
 
@@ -5319,11 +6259,6 @@ setInterval(async () => {
 // isV6 est désormais calculé côté backend — on l'utilise directement.
 function isIPv6Rule(r) { return !!r.isV6; }
 
-async function openUfwModal() {
-  document.getElementById('ufwModal').classList.add('open');
-  await loadUfwStatus();
-}
-
 async function loadUfwStatus() {
   document.getElementById('ufwBody').innerHTML =
     '<div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto 10px"></div>Chargement…</div>';
@@ -5618,10 +6553,118 @@ bantime  = 7200
 
 async function openConfigPage() {
   if (currentRole !== 'admin') return;
-  document.querySelectorAll('.content-section, [id$="Section"]').forEach(el => el.style.display = 'none');
+  hideAllMainSections();
   document.getElementById('configSection').style.display = 'block';
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const navConfig = document.getElementById('navConfig');
+  if (navConfig) navConfig.classList.add('active');
+  setTopbarSection('Configuration');
+  const pmaInput = document.getElementById('pmaUrlInput');
+  if (pmaInput && _pmaUrl) { pmaInput.value = _pmaUrl; cfgPmaPreview(_pmaUrl); }
   await loadConfigPage();
+}
+
+function switchCfgTab(tab) {
+  document.querySelectorAll('.cfg-tab').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.cfg-tab[data-tab="${tab}"]`).classList.add('active');
+  document.querySelectorAll('.cfg-tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById(`cfgTab-${tab}`).style.display = '';
+  if (tab === 'backups') loadBackups();
+  if (tab === 'system')  loadPanelUsage();
+  if (tab === 'https')   loadHttpsStatus();
+  if (tab === 'server')  cfgLoadSshAllowUsers();
+}
+
+// ── HTTPS / Sous-domaine panel ────────────────────────────────────────────────
+function updateHttpsPreview() {
+  const sub   = (document.getElementById('httpsSubdomain').value || 'panel').trim();
+  const port  = (document.getElementById('httpsPort').value || '8080').trim();
+  const base  = document.getElementById('httpsBaseDomain').textContent;
+  document.getElementById('httpsPreviewUrl').textContent  = `https://${sub}.${base}`;
+  document.getElementById('httpsPreviewPort').textContent = port;
+}
+
+async function loadHttpsStatus() {
+  // Pré-remplir avec le premier domaine connu
+  try {
+    const res  = await fetch(`${API}/api/server-config`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    // Tenter de déduire le domaine de base depuis les domaines existants
+    if (allDomains && allDomains.length > 0) {
+      const first = allDomains.find(d => !d.isSubdomain);
+      if (first) document.getElementById('httpsBaseDomain').textContent = first.domain;
+    }
+  } catch(e) {}
+  updateHttpsPreview();
+}
+
+async function setupHttpsSubdomain() {
+  const sub   = document.getElementById('httpsSubdomain').value.trim();
+  const port  = document.getElementById('httpsPort').value.trim() || '8080';
+  const email = document.getElementById('httpsEmail').value.trim();
+  const base  = document.getElementById('httpsBaseDomain').textContent;
+
+  if (!sub)   { showToast('Entrez un sous-domaine', 'error'); return; }
+  if (!email) { showToast('Entrez un email Let\'s Encrypt', 'error'); return; }
+
+  const fqdn = `${sub}.${base}`;
+  const btn  = document.getElementById('httpsSetupBtn');
+  const log  = document.getElementById('httpsLog');
+
+  btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Configuration en cours…';
+  btn.disabled = true;
+  log.style.display = 'block';
+  log.textContent   = `→ Création du vhost Apache pour ${fqdn}…\n`;
+
+  try {
+    const res  = await fetch(`${API}/api/config/setup-https`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body:    JSON.stringify({ subdomain: sub, domain: base, port, email, fqdn })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    log.textContent += data.log || '';
+    log.textContent += `\n✅ Terminé ! Accédez au panel via : https://${fqdn}`;
+    showToast(`✅ HTTPS configuré — https://${fqdn}`, 'success');
+  } catch(e) {
+    log.textContent += `\n❌ Erreur : ${e.message}`;
+    showToast(e.message, 'error');
+  } finally {
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Créer le vhost + SSL automatiquement';
+    btn.disabled = false;
+  }
+}
+
+function cfgPmaPreview(val) {
+  const prev = document.getElementById('cfgPmaPreview');
+  const link = document.getElementById('cfgPmaPreviewLink');
+  const openBtn = document.getElementById('cfgPmaOpenBtn');
+  if (val && val.trim()) {
+    prev.style.display = 'block';
+    link.href = val.trim(); link.textContent = val.trim();
+    if (openBtn) openBtn.href = val.trim();
+  } else {
+    prev.style.display = 'none';
+    if (openBtn) openBtn.href = '#';
+  }
+}
+
+async function cfgSavePmaUrl() {
+  const url = document.getElementById('pmaUrlInput').value.trim().replace(/\/$/, '');
+  try {
+    const res = await fetch(`${API}/api/config/pma`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ pmaUrl: url })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error);
+    _pmaUrl = url;
+    const pmaLink = document.getElementById('pmaLink');
+    if (pmaLink) pmaLink.href = url || '#';
+    showToast('URL phpMyAdmin enregistrée', 'success');
+  } catch(e) { showToast(e.message, 'error'); }
 }
 
 async function loadConfigPage() {
@@ -5803,6 +6846,45 @@ async function cfgSaveSshPort() {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
+async function cfgLoadSshAllowUsers() {
+  try {
+    const res  = await fetch(`${API}/api/server-config/ssh-allowusers`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    document.getElementById('sshAllowUsers').value = (data.allowUsers || []).join(' ');
+    const badge = document.getElementById('sshAccessStatus');
+    if (data.allowUsers && data.allowUsers.length > 0) {
+      badge.textContent = '🔒 Restreint';
+      badge.style.color = '#f59e0b';
+      badge.style.borderColor = 'rgba(245,158,11,.3)';
+    } else {
+      badge.textContent = '🔓 Non restreint';
+      badge.style.color = 'var(--muted)';
+      badge.style.borderColor = 'var(--border)';
+    }
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function cfgSaveSshAllowUsers() {
+  const val   = document.getElementById('sshAllowUsers').value.trim();
+  const users = val ? val.split(/\s+/).filter(Boolean) : [];
+  const msg   = users.length
+    ? `Restreindre SSH aux utilisateurs : ${users.join(', ')} ?\n\nTout autre compte sera bloqué en SSH.`
+    : 'Supprimer la restriction SSH (AllowUsers) ?\n\nTous les utilisateurs système pourront se connecter.';
+  if (!confirm(msg)) return;
+  try {
+    const res  = await fetch(`${API}/api/server-config/ssh-allowusers`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+    cfgLoadSshAllowUsers();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
 async function cfgSaveMotd() {
   const motd = document.getElementById('cfgMotd').value;
   try {
@@ -5908,28 +6990,16 @@ async function cfgSaveTimezone() {
 let _f2bActiveTab = 'surveillance'; // 'surveillance' | 'jaillocal'
 let _f2bJailLocalContent = '';      // cache du contenu jail.local
 
-async function openFail2banModal() {
-  document.getElementById('fail2banModal').classList.add('open');
-  _f2bActiveTab = 'surveillance';
-  await f2bSwitchTab('surveillance');
-}
-
 // ── Onglets ──────────────────────────────────────────────────────────────────
 function f2bSwitchTab(tab) {
   _f2bActiveTab = tab;
-
   ['surveillance','jaillocal'].forEach(t => {
-    const btn = document.getElementById(`f2bTab_${t}`);
+    const btn  = document.getElementById(`f2bTab_${t}`);
     const pane = document.getElementById(`f2bPane_${t}`);
     const active = t === tab;
-    if (btn) {
-      btn.style.color      = active ? 'var(--text)'  : 'var(--muted)';
-      btn.style.borderBottom = active ? '2px solid var(--accent)' : '2px solid transparent';
-      btn.style.fontWeight = active ? '700' : '400';
-    }
+    if (btn)  { btn.classList.toggle('active', active); }
     if (pane) pane.style.display = active ? 'block' : 'none';
   });
-
   if (tab === 'surveillance') return loadFail2banStatus();
   if (tab === 'jaillocal')    return loadJailLocal();
 }
@@ -6287,160 +7357,25 @@ async function fail2banFlush(jail) {
     await loadFail2banStatus();
   } catch(e) { showToast(e.message, 'error'); }
 }
+
+// ══════════════════════════════════════════════════════
+//  MISE À JOUR
+// ══════════════════════════════════════════════════════
+
+let _updateCache = null;
+
+function openUpdateModal() {
+  document.getElementById('updateModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  if (!_updateCache) checkUpdate();
+  else renderUpdateModal(_updateCache);
+}
+
+function closeUpdateModal() {
+  document.getElementById('updateModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
 </script>
-<!-- ══════════════ MODAL UFW ══════════════ -->
-<div class="modal-overlay" id="ufwModal">
-  <div class="modal" style="max-width:800px">
-    <div class="modal-header">
-      <div class="modal-title">🛡️ Pare-feu — UFW</div>
-      <button class="modal-close" onclick="document.getElementById('ufwModal').classList.remove('open')">✕</button>
-    </div>
-    <div class="modal-body" id="ufwBody" style="max-height:76vh;overflow-y:auto">
-      <div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></div>
-    </div>
-  </div>
-</div>
-<!-- ══════════════ MODAL CONFIG DNS (admin) ══════════════ -->
-<div class="modal-overlay" id="dnsConfigModal">
-  <div class="modal" style="max-width:680px;width:100%">
-
-    <!-- En-tête -->
-    <div class="modal-header" style="padding:20px 24px 16px;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#4f6ef7,#6c47ff);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18M12 3v18"/></svg>
-        </div>
-        <div>
-          <div class="modal-title" style="font-size:15px;font-weight:700;letter-spacing:-.2px">Configuration DNS — BIND9</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:1px">Paramètres globaux appliqués à toutes les zones gérées par KazyPanel</div>
-        </div>
-      </div>
-      <button class="modal-close" onclick="document.getElementById('dnsConfigModal').classList.remove('open')">✕</button>
-    </div>
-
-    <div class="modal-body" style="padding:0;overflow-y:auto;max-height:calc(90vh - 140px)">
-
-      <!-- ── Section 1 : Serveurs de noms ── -->
-      <div style="padding:20px 24px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent2)">01</span>
-          <span style="font-size:13px;font-weight:600;color:var(--text)">Serveurs de noms</span>
-          <div style="flex:1;height:1px;background:var(--border);margin-left:4px"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-          <div>
-            <label class="form-label" style="display:flex;align-items:center;gap:6px">
-              NS Primaire <span style="font-size:10px;background:rgba(239,68,68,.12);color:#f87171;border-radius:4px;padding:1px 6px;font-weight:600">MNAME SOA</span>
-            </label>
-            <div style="position:relative">
-              <input class="form-input" id="dnsNs1Input" placeholder="ns1.exemple.com" style="font-family:var(--mono);font-size:12px;padding-left:32px">
-              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;pointer-events:none">NS</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Serveur de noms maître — référencé dans le SOA et les enregistrements NS</div>
-          </div>
-          <div>
-            <label class="form-label" style="display:flex;align-items:center;gap:6px">
-              NS Secondaire <span style="font-size:10px;background:rgba(100,116,139,.12);color:#94a3b8;border-radius:4px;padding:1px 6px;font-weight:600">Optionnel</span>
-            </label>
-            <div style="position:relative">
-              <input class="form-input" id="dnsNs2Input" placeholder="ns2.exemple.com" style="font-family:var(--mono);font-size:12px;padding-left:32px">
-              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;pointer-events:none">NS</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Serveur de noms secondaire pour la redondance</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Section 2 : Identité du serveur ── -->
-      <div style="padding:20px 24px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent2)">02</span>
-          <span style="font-size:13px;font-weight:600;color:var(--text)">Identité du serveur</span>
-          <div style="flex:1;height:1px;background:var(--border);margin-left:4px"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-          <div>
-            <label class="form-label">Adresse IP du serveur</label>
-            <div style="position:relative">
-              <input class="form-input" id="dnsServerIpInput" placeholder="85.215.73.237" style="font-family:var(--mono);font-size:12px;padding-left:32px">
-              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:10px;pointer-events:none">IPv4</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Utilisée pour les glue records A de ns1 et ns2 si dans la même zone</div>
-          </div>
-          <div>
-            <label class="form-label">Email de contact SOA</label>
-            <div style="position:relative">
-              <input class="form-input" id="dnsEmailInput" placeholder="admin.exemple.com" style="font-family:var(--mono);font-size:12px;padding-left:32px">
-              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;pointer-events:none">@</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Format pointé — ex : <code style="font-size:10px;color:var(--accent2)">admin.kazylax.fr</code> (= <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b7d6d3daded9f7dcd6cdcedbd6cf99d1c5">[email&#160;protected]</a>)</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Section 3 : Paramètres SOA ── -->
-      <div style="padding:20px 24px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent2)">03</span>
-          <span style="font-size:13px;font-weight:600;color:var(--text)">Paramètres SOA</span>
-          <div style="flex:1;height:1px;background:var(--border);margin-left:4px"></div>
-          <span style="font-size:10px;color:var(--muted)">Valeurs en secondes</span>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
-          <div>
-            <label class="form-label">$TTL par défaut</label>
-            <input class="form-input" id="dnsTtlInput" type="number" min="60" placeholder="604800" style="font-family:var(--mono);font-size:12px">
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Durée de cache des enregistrements</div>
-          </div>
-          <div>
-            <label class="form-label">Refresh</label>
-            <input class="form-input" id="dnsRefreshInput" type="number" min="60" placeholder="604800" style="font-family:var(--mono);font-size:12px">
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Intervalle de synchronisation NS secondaires</div>
-          </div>
-          <div>
-            <label class="form-label">Retry</label>
-            <input class="form-input" id="dnsRetryInput" type="number" min="60" placeholder="86400" style="font-family:var(--mono);font-size:12px">
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Délai de nouvel essai si Refresh échoue</div>
-          </div>
-          <div>
-            <label class="form-label">Expire</label>
-            <input class="form-input" id="dnsExpireInput" type="number" min="60" placeholder="2419200" style="font-family:var(--mono);font-size:12px">
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Durée avant abandon par un NS secondaire</div>
-          </div>
-          <div>
-            <label class="form-label">Minimum / Negative TTL</label>
-            <input class="form-input" id="dnsMinimumInput" type="number" min="0" placeholder="604800" style="font-family:var(--mono);font-size:12px">
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">Cache des réponses NXDOMAIN (RFC 2308)</div>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:center">
-            <div style="background:rgba(79,110,247,.06);border:1px solid rgba(79,110,247,.15);border-radius:10px;padding:12px;text-align:center">
-              <div style="font-size:10px;color:var(--accent2);font-weight:600;margin-bottom:4px">BIND9 standard</div>
-              <div style="font-size:10px;color:var(--muted);line-height:1.5">TTL 7j · Refresh 7j<br>Retry 1j · Expire 28j</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Pied de modale -->
-    <div class="modal-footer" style="padding:14px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Modifications appliquées aux nouvelles zones uniquement. Les zones existantes restent inchangées jusqu'à un rechargement manuel.
-      </div>
-      <div style="display:flex;gap:8px;flex-shrink:0">
-        <button class="btn btn-ghost" onclick="document.getElementById('dnsConfigModal').classList.remove('open')">Annuler</button>
-        <button class="btn btn-primary" id="dnsConfigSaveBtn" onclick="saveDnsConfig()" style="min-width:120px">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Enregistrer
-        </button>
-      </div>
-    </div>
-
-  </div>
-</div>
-
 <!-- ══════════════ MODAL CRÉATION ZONE DNS ══════════════ -->
 <div class="modal-overlay" id="addZoneModal">
   <div class="modal" style="max-width:440px">
@@ -6503,58 +7438,8 @@ async function fail2banFlush(jail) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="document.getElementById('addRecordModal').classList.remove('open')">Annuler</button>
-      <button class="btn btn-primary" id="addZoneBtn" onclick="createRecordInZone()">➕ Ajouter</button>
+      <button class="btn btn-primary" id="addRecordSaveBtn" onclick="saveRecord()">➕ Ajouter</button>
     </div>
-  </div>
-</div>
-
-<!-- ══════════════ MODAL FAIL2BAN ══════════════ -->
-<div class="modal-overlay" id="fail2banModal">
-  <div class="modal" style="max-width:720px;width:100%">
-
-    <!-- En-tête -->
-    <div class="modal-header" style="padding:18px 24px 0;border-bottom:none">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-        </div>
-        <div>
-          <div class="modal-title" style="font-size:15px;font-weight:700;letter-spacing:-.2px">Fail2ban — Protection anti brute-force</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:1px">Surveillance en temps réel · édition de <code style="font-size:10px">/etc/fail2ban/jail.local</code></div>
-        </div>
-      </div>
-      <button class="modal-close" onclick="document.getElementById('fail2banModal').classList.remove('open')">✕</button>
-    </div>
-
-    <!-- Onglets -->
-    <div style="display:flex;gap:0;padding:0 24px;border-bottom:1px solid var(--border);margin-top:14px">
-      <button id="f2bTab_surveillance" onclick="f2bSwitchTab('surveillance')"
-        style="padding:8px 18px;background:none;border:none;border-bottom:2px solid var(--accent);font-size:13px;font-weight:700;color:var(--text);cursor:pointer;margin-bottom:-1px;transition:all .15s;display:flex;align-items:center;gap:7px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
-        Surveillance
-      </button>
-      <button id="f2bTab_jaillocal" onclick="f2bSwitchTab('jaillocal')"
-        style="padding:8px 18px;background:none;border:none;border-bottom:2px solid transparent;font-size:13px;font-weight:400;color:var(--muted);cursor:pointer;margin-bottom:-1px;transition:all .15s;display:flex;align-items:center;gap:7px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        jail.local
-      </button>
-    </div>
-
-    <!-- Contenu des onglets -->
-    <div style="max-height:calc(90vh - 160px);overflow-y:auto">
-      <div id="f2bPane_surveillance">
-        <div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>
-      </div>
-      <div id="f2bPane_jaillocal" style="display:none">
-        <div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>
-      </div>
-    </div>
-
-    <!-- Pied -->
-    <div style="padding:10px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
-      <button class="btn btn-ghost" onclick="document.getElementById('fail2banModal').classList.remove('open')">Fermer</button>
-    </div>
-
   </div>
 </div>
 
@@ -6579,24 +7464,6 @@ async function fail2banFlush(jail) {
 </div>
 
 <script>
-// ══════════════════════════════════════════════════════
-//  MISE À JOUR
-// ══════════════════════════════════════════════════════
-
-let _updateCache = null;
-
-function openUpdateModal() {
-  document.getElementById('updateModal').classList.add('open');
-  document.body.style.overflow = 'hidden';
-  if (!_updateCache) checkUpdate();
-  else renderUpdateModal(_updateCache);
-}
-
-function closeUpdateModal() {
-  document.getElementById('updateModal').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
 async function checkUpdate(force = false) {
   if (force) _updateCache = null;
   const body = document.getElementById('updateModalBody');
@@ -6673,15 +7540,19 @@ function renderUpdateModal(data) {
   }
 
   // Versions côte à côte
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' }) : null;
+
   const versionsHtml = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">Version installée</div>
         ${fmtVer(data.current)}
+        ${data.installedDate ? `<div style="font-size:10px;color:var(--muted);margin-top:6px">📅 ${fmtDate(data.installedDate)}</div>` : ''}
       </div>
       <div style="background:var(--surface2);border:1px solid ${data.hasUpdate ? 'rgba(245,158,11,.3)' : 'var(--border)'};border-radius:10px;padding:14px 16px;text-align:center">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">Dernière version</div>
         ${data.latest ? fmtVer(data.latest) : '<span style="color:var(--muted);font-size:12px">Inconnue</span>'}
+        ${data.releaseDate ? `<div style="font-size:10px;color:var(--muted);margin-top:6px">📅 ${fmtDate(data.releaseDate)}</div>` : ''}
       </div>
     </div>`;
 
@@ -6704,22 +7575,55 @@ function renderUpdateModal(data) {
       </div>`;
   }
 
-  // Notes de mise à jour + bouton téléchargement
+  // Instructions de mise à jour (sans bouton téléchargement)
   let actionsHtml = '';
   if (data.hasUpdate) {
     actionsHtml = `
-      <div style="background:rgba(79,110,247,.05);border:1px solid rgba(79,110,247,.15);border-radius:10px;padding:14px 16px">
-        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">📥 Comment mettre à jour ?</div>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--mono);font-size:11px;color:#a5b4fc;line-height:1.8">
-          cd /opt/kazypanel<br>
-          git pull origin main<br>
-          npm install<br>
-          pm2 restart kazypanel
+      <div style="background:rgba(79,110,247,.05);border:1px solid rgba(79,110,247,.15);border-radius:10px;padding:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:14px">🔄 Comment mettre à jour ?</div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:rgba(79,110,247,.2);color:var(--accent2);font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px">1</span>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Se connecter au serveur en SSH</div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:#a5b4fc">
+                ssh root@votre-ip
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:rgba(79,110,247,.2);color:var(--accent2);font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px">2</span>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Télécharger la nouvelle version</div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:#a5b4fc;line-height:1.9">
+                cd /opt/kazypanel<br>
+                git pull origin main
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:rgba(79,110,247,.2);color:var(--accent2);font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px">3</span>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Mettre à jour les dépendances</div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:#a5b4fc">
+                npm install
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:rgba(79,110,247,.2);color:var(--accent2);font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px">4</span>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Redémarrer le panel</div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:#a5b4fc">
+                systemctl restart kazypanel
+              </div>
+            </div>
+          </div>
         </div>
-        ${data.downloadUrl ? `<a href="${data.downloadUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:8px 18px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-size:12px;font-weight:600;text-decoration:none">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Télécharger la version ${data.latest}
-        </a>` : ''}
       </div>`;
   }
 
@@ -6733,14 +7637,16 @@ async function checkUpdateSilent() {
     const data = await res.json();
     _updateCache = data;
     const badge = document.getElementById('updateBadge');
+    const btn   = document.getElementById('topbarUpdateBtn');
     if (badge && data.hasUpdate) {
       badge.style.display = 'block';
-      const updateBtn = document.getElementById('topbarUpdateBtn');
-      if (updateBtn) {
-        updateBtn.style.borderColor = 'rgba(245,158,11,.4)';
-        updateBtn.style.color = '#fcd34d';
+      if (btn) {
+        btn.style.borderColor = 'rgba(245,158,11,.4)';
+        btn.style.color       = '#fcd34d';
       }
     }
-  } catch {}
+  } catch (e) { /* silencieux */ }
 }
 </script>
+</body>
+</html>
