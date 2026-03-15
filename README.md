@@ -1,363 +1,227 @@
-# 🚀 KazyPanel — Guide d'installation
+# KazyPanel
 
-<div align="center">
+Panel d'hébergement web auto-hébergé en **Node.js**, conçu pour gérer un serveur Linux (Debian/Ubuntu) avec Apache, PHP 8.4, MariaDB et vsftpd.
 
-![Version](https://img.shields.io/badge/version-1.0.0-4f6ef7?style=for-the-badge)
-![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green?style=for-the-badge&logo=node.js)
-![License](https://img.shields.io/badge/license-Proprietary-red?style=for-the-badge)
-![OS](https://img.shields.io/badge/OS-Ubuntu%2022.04%2B-orange?style=for-the-badge&logo=ubuntu)
-![OS](https://img.shields.io/badge/OS-Debian%2012-red?style=for-the-badge&logo=debian)
-
-**Panel d'hébergement web complet — Domaines · FTP · BDD · DNS · PHP · SSL**
-
-</div>
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Node](https://img.shields.io/badge/node-%3E%3D18.0-green)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
-## 📋 Table des matières
+## Fonctionnalités
 
-- [Prérequis](#-prérequis)
-- [Installation manuelle](#-installation-manuelle)
-- [Configuration](#-configuration)
-- [Démarrage](#-démarrage)
-- [Services requis](#-services-requis)
-- [Structure des fichiers](#-structure-des-fichiers)
-- [Mise à jour](#-mise-à-jour)
-- [Désinstallation](#-désinstallation)
-- [Dépannage](#-dépannage)
-
----
-
-## ✅ Prérequis
-
-| Composant | Version minimale | Vérification |
-|-----------|-----------------|--------------|
-| **OS** | Ubuntu 22.04 LTS / Debian 12 | `lsb_release -a` |
-| **Node.js** | 18.x ou supérieur | `node --version` |
-| **npm** | 8.x ou supérieur | `npm --version` |
-| **Apache2** | 2.4+ | `apache2 -v` |
-| **RAM** | 512 Mo minimum | `free -h` |
-| **Disque** | 1 Go minimum | `df -h` |
-
-### Services optionnels
-
-| Service | Utilisation |
-|---------|------------|
-| **BIND9** | Gestion DNS |
-| **Fail2ban** | Protection anti-brute-force |
-| **Certbot** | Certificats SSL Let's Encrypt |
-| **MariaDB / MySQL** | Bases de données |
-| **vsftpd / ProFTPd** | Comptes FTP |
+- 🌐 **Domaines & sous-domaines** — VirtualHosts Apache, SSL Let's Encrypt automatique
+- 🗄️ **Bases de données** — MariaDB, quotas par utilisateur, lien phpMyAdmin
+- 📁 **FTP** — vsftpd, comptes multiples par utilisateur, chroot
+- 🔒 **DNS** — Zones BIND9, enregistrements A/AAAA/CNAME/MX/TXT/NS/CAA
+- ⏰ **Crontab** — Tâches planifiées par utilisateur
+- 🛡️ **Sécurité** — UFW, Fail2ban, restriction SSH AllowUsers
+- 👥 **Multi-utilisateurs** — Rôles admin/user, templates de quotas
+- 💾 **Sauvegardes** — Archives tar.gz horodatées
 
 ---
 
-## 🔧 Installation manuelle
+## Stack technique
 
-### 1. Installer Node.js 20
+| Composant | Détail |
+|-----------|--------|
+| Runtime | Node.js ≥ 18 |
+| Framework | Express 4 |
+| Auth | JWT (8h) + bcrypt x12 |
+| Anti brute-force | 5 tentatives → blocage 15 min |
+| Serveur web | Apache2 |
+| PHP | PHP 8.4-FPM |
+| BDD | MariaDB |
+| FTP | vsftpd |
+| DNS | BIND9 |
+| SSL | Let's Encrypt (Certbot) |
+
+---
+
+## Installation rapide
+
+### Prérequis
+
+- Debian 12 ou Ubuntu 22.04+
+- Accès root
+- Node.js ≥ 18
+
+### 1. Installer les dépendances système
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
-node --version   # → v20.x.x
+apt update && apt upgrade -y
+apt install -y apache2 php8.4 php8.4-fpm mariadb-server vsftpd certbot python3-certbot-apache nodejs curl ufw fail2ban
+
+a2enmod rewrite ssl proxy proxy_http headers proxy_fcgi setenvif
+a2enconf php8.4-fpm
 ```
 
-### 2. Installer Apache2
+### 2. Déployer KazyPanel
 
 ```bash
-apt install -y apache2
-systemctl enable --now apache2
-```
-
-### 3. Cloner le dépôt
-
-```bash
-git clone https://github.com/kazypanel/kazypanel.git /opt/kazypanel
+mkdir -p /opt/kazypanel/public
 cd /opt/kazypanel
-```
 
-### 4. Installer les dépendances
-
-```bash
+# Copier server.js et public/index.html
+# Créer package.json puis installer les dépendances
 npm install
 ```
 
-### 5. Installer les services optionnels
+### 3. Configurer l'environnement
 
 ```bash
-# BIND9 (DNS)
-apt install -y bind9 bind9utils
-
-# Fail2ban
-apt install -y fail2ban
-
-# Certbot (SSL)
-apt install -y certbot python3-certbot-apache
-
-# MariaDB
-apt install -y mariadb-server
-
-# Cron (requis pour la page Crontab)
-apt install -y cron
-systemctl enable --now cron
-```
-
----
-
-## ⚙️ Configuration
-
-### Créer le fichier `.env`
-
-```bash
-cp .env.example .env   # si disponible
-# ou créer manuellement :
-nano /opt/kazypanel/.env
-```
-
-Contenu du fichier `.env` :
-
-```env
-# Port d'écoute du panel (défaut : 8080)
+cat > /opt/kazypanel/.env << 'EOF'
+JWT_SECRET=changez_cette_cle_par_une_longue_chaine_aleatoire
+ADMIN_PASSWORD=MonMotDePasse@2024!
+DB_ROOT_PASS=votre_mot_de_passe_mariadb
 PORT=8080
-
-# Clé secrète JWT — OBLIGATOIRE, changer en production !
-JWT_SECRET=CHANGEZ_CE_SECRET_EN_PRODUCTION
-
-# URL phpMyAdmin (optionnel)
-PMA_URL=http://localhost/phpmyadmin
+EOF
 ```
 
-> 🔐 **Ne jamais commiter le fichier `.env` sur GitHub.**
-
----
-
-## 🚀 Démarrage
-
-### Avec systemd (recommandé)
-
-Créer le service :
+### 4. Créer le service systemd
 
 ```bash
 cat > /etc/systemd/system/kazypanel.service << 'EOF'
 [Unit]
 Description=KazyPanel - Gestionnaire Apache/PHP
-After=network.target apache2.service
+After=network.target mariadb.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/kazypanel
 EnvironmentFile=/opt/kazypanel/.env
-ExecStart=/usr/bin/node server.js
+ExecStart=/usr/bin/node /opt/kazypanel/server.js
 Restart=always
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 EOF
-```
 
-Démarrer et activer au boot :
-
-```bash
 systemctl daemon-reload
 systemctl enable --now kazypanel
-systemctl status kazypanel
 ```
 
-### Avec PM2 (alternative)
+### 5. Ouvrir les ports UFW
 
 ```bash
-npm install -g pm2
-cd /opt/kazypanel
-pm2 start server.js --name kazypanel
-pm2 save
-pm2 startup
+ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp
+ufw allow 8080/tcp && ufw allow 21/tcp && ufw allow 20/tcp
+ufw allow 40000:50000/tcp
+ufw --force enable
 ```
+
+### 6. Accéder au panel
+
+```
+http://IP_SERVEUR:8080
+```
+
+Identifiants par défaut : `admin` / valeur de `ADMIN_PASSWORD` dans `.env`
 
 ---
 
-## 🌐 Accès au panel
-
-Une fois démarré, accéder au panel via :
-
-```
-http://VOTRE_IP:8080
-```
-
-### Identifiants par défaut
-
-| Champ | Valeur |
-|-------|--------|
-| **Utilisateur** | `admin` |
-| **Mot de passe** | `admin123` |
-
-> ⚠️ **Changer le mot de passe immédiatement après la première connexion.**
-
----
-
-## 🔒 Ouvrir les ports dans le pare-feu
-
-> ⚠️ **IMPORTANT — Ouvrir le port SSH avant d'activer UFW, sinon vous perdrez l'accès à votre serveur !**
-
-```bash
-# 1. Port SSH — OBLIGATOIRE en premier
-ufw allow 22
-
-# 2. Port KazyPanel
-ufw allow 8080
-
-# 3. Ports web (optionnel)
-ufw allow 80
-ufw allow 443
-
-# 4. Activer UFW
-ufw enable
-
-# 5. Vérifier
-ufw status
-```
-
----
-
-## 📁 Structure des fichiers
+## Structure des fichiers
 
 ```
 /opt/kazypanel/
-├── server.js              ← Serveur principal (Node.js/Express)
-├── package.json           ← Dépendances npm
-├── version.json           ← Version du panel
-├── .env                   ← Configuration (secrets) — non versionné
-├── users.json             ← Utilisateurs — non versionné
-├── templates.json         ← Templates de ressources — non versionné
-├── db_configs.json        ← Configurations BDD — non versionné
-├── panel_config.json      ← Configuration panel — non versionné
-├── backups/               ← Sauvegardes générées — non versionné
-└── public/
-    └── index.html         ← Interface web
+├── server.js            # Backend API (~3600 lignes)
+├── public/
+│   └── index.html       # Frontend SPA (~7600 lignes)
+├── .env                 # Configuration (secrets) — ne pas versionner
+├── users.json           # Comptes (hashés bcrypt) — ne pas versionner
+├── templates.json       # Templates de quotas
+├── panel_config.json    # Config PMA, DNS, maintenance
+└── backups/             # Archives tar.gz
 ```
+
+> ⚠️ `.env` et `users.json` ne doivent **jamais** être committés.
 
 ---
 
-## 🔄 Mise à jour
+## Configuration avancée
+
+### Variables d'environnement
+
+| Variable | Défaut | Description |
+|----------|--------|-------------|
+| `JWT_SECRET` | aléatoire | Clé de signature des tokens JWT |
+| `ADMIN_PASSWORD` | `Admin@1234!` | Mot de passe du compte admin |
+| `DB_ROOT_PASS` | _(vide)_ | Mot de passe root MariaDB |
+| `PORT` | `8080` | Port d'écoute du panel |
+| `PHP_VERSION` | `8.4` | Version PHP-FPM utilisée |
+| `PMA_URL` | _(vide)_ | URL phpMyAdmin (ex: `https://pma.domain.fr`) |
+
+### Sécuriser le panel en HTTPS
+
+Dans KazyPanel → **Configuration → HTTPS**, renseignez le sous-domaine souhaité (ex: `panel`) et cliquez sur *Activer HTTPS*. Certbot configurera Apache automatiquement.
+
+### Restriction SSH utilisateurs
+
+Dans KazyPanel → **Configuration → Serveur → Accès SSH**, saisissez les utilisateurs autorisés (ex: `root`) pour bloquer l'accès SSH aux comptes FTP du panel.
+
+---
+
+## Règles de mot de passe
+
+Tous les mots de passe (admin, utilisateurs, FTP) doivent respecter :
+
+- Minimum 5 caractères
+- Au moins une majuscule (A-Z)
+- Au moins une minuscule (a-z)
+- Au moins un chiffre (0-9)
+- Au moins un caractère spécial (`!@#$%^&*...`)
+
+---
+
+## Commandes utiles
 
 ```bash
-cd /opt/kazypanel
+# Gestion du service
+systemctl restart kazypanel
+journalctl -u kazypanel -f
 
-# Récupérer les nouveaux fichiers
-git pull origin main
-
-# Reinstaller les dépendances si besoin
-npm install
-
-# Redémarrer le panel
+# Réinitialiser le mot de passe admin
+node -e 'const b=require("bcryptjs"); b.hash("NouveauMdp@123!", 12).then(h => {
+  const fs=require("fs");
+  const u=JSON.parse(fs.readFileSync("users.json"));
+  u.find(x=>x.username==="admin").password=h;
+  fs.writeFileSync("users.json",JSON.stringify(u,null,2));
+  console.log("Done");
+})'
 systemctl restart kazypanel
 ```
 
 ---
 
-## 🗑️ Désinstallation
+## Dépannage
 
-```bash
-# Arrêter et désactiver le service
-systemctl stop kazypanel
-systemctl disable kazypanel
-
-# Supprimer le service
-rm /etc/systemd/system/kazypanel.service
-systemctl daemon-reload
-
-# Supprimer les fichiers du panel
-rm -rf /opt/kazypanel
-```
+| Problème | Solution |
+|----------|----------|
+| Port 8080 déjà utilisé (`EADDRINUSE`) | `pkill node && systemctl start kazypanel` |
+| Impossible de se connecter | Vérifiez `ADMIN_PASSWORD` dans `.env` et redémarrez |
+| CPU élevé | Vérifiez que `top -bn1` n'est pas présent dans `server.js` (remplacer par `/proc/stat`) |
+| Erreur `named.conf` | `named-checkconf -p \| head -5` |
+| `www.` ne fonctionne pas en SSL | `certbot --apache -d domain.fr -d www.domain.fr --cert-name domain.fr` |
+| Login bloqué (brute-force) | Redémarrer le service vide la map en mémoire |
 
 ---
 
-## 🛠️ Dépannage
+## Ports requis
 
-### Le panel ne démarre pas
-
-```bash
-# Voir les logs
-journalctl -u kazypanel -n 50 --no-pager
-
-# Tester manuellement
-cd /opt/kazypanel
-node server.js
-```
-
-### Port 8080 déjà utilisé
-
-```bash
-# Identifier le processus
-lsof -i :8080
-
-# Libérer le port
-fuser -k 8080/tcp
-
-# Changer le port dans .env
-PORT=3000
-```
-
-### Erreur `named-checkconf`
-
-BIND9 n'est pas installé. Installer avec :
-
-```bash
-apt install -y bind9 bind9utils
-systemctl enable --now named
-```
-
-### Erreur `EACCES` sur les crontabs
-
-```bash
-# Installer cron
-apt install -y cron
-systemctl enable --now cron
-
-# Vérifier les permissions
-ls -la /var/spool/cron/crontabs/
-```
-
-### Réinitialiser le mot de passe admin
-
-```bash
-# Editer users.json et supprimer l'entrée admin
-# Redémarrer le panel — le compte admin par défaut sera recréé
-nano /opt/kazypanel/users.json
-systemctl restart kazypanel
-```
+| Port | Protocole | Service |
+|------|-----------|---------|
+| 22 | TCP | SSH |
+| 80 | TCP | HTTP / ACME challenge |
+| 443 | TCP | HTTPS |
+| 8080 | TCP | KazyPanel |
+| 20-21 | TCP | FTP |
+| 40000-50000 | TCP | FTP passif |
+| 53 | TCP/UDP | DNS (BIND9, optionnel) |
 
 ---
 
-## 📦 Fonctionnalités
+## Licence
 
-| Module | Description |
-|--------|-------------|
-| 🌐 **Domaines** | Création et gestion de VirtualHosts Apache |
-| 📁 **FTP** | Comptes FTP avec répertoires isolés |
-| 🗄️ **Bases de données** | Création BDD MariaDB/MySQL + phpMyAdmin |
-| 🔒 **SSL** | Certificats Let's Encrypt via Certbot |
-| 🌍 **DNS** | Zones DNS avec BIND9 |
-| 🐘 **PHP** | Configuration php.ini par domaine |
-| ⏰ **Crontab** | Planification de tâches par utilisateur |
-| 💾 **Sauvegardes** | Sauvegarde et restauration du panel |
-| 🛡️ **Fail2ban** | Gestion des jails et bans IP |
-| 🔥 **UFW** | Gestion du pare-feu |
-| 📊 **Monitoring** | CPU, RAM, services en temps réel |
-| 🔄 **Mises à jour** | Vérification automatique des nouvelles versions |
-
----
-
-## 📄 Licence
-
-Logiciel propriétaire — © 2026 [kazylax.fr](https://www.kazylax.fr)
-
-Toute reproduction, distribution ou utilisation non autorisée est interdite.
-
----
-
-<div align="center">
-  <sub>Développé avec ❤️ par <a href="https://www.kazylax.fr">kazylax.fr</a></sub>
-</div>
+MIT — Libre d'utilisation, modification et distribution.
