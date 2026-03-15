@@ -18,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.3.0';
+const KAZYPANEL_VERSION = '1.0.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
