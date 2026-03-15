@@ -1,14 +1,7 @@
 {
-  "version": "1.2.0",
-  "releaseDate": "2026-03-15",
+  "version": "1.3.0",
+  "releaseDate": "2026-03-16",
   "downloadUrl": "https://github.com/kazypanel/kazypanel/archive/refs/heads/main.zip",
   "changelog": [
-    { "type": "new", "text": "Restriction SSH AllowUsers depuis le panel (Configuration → Serveur)" },
-    { "type": "fix", "text": "ensureZoneInConf : fichier placeholder créé avant named-checkconf pour éviter l'erreur sur fichier de zone manquant" },
-    { "type": "fix", "text": "Certificat SSL www. : vhost HTTPS pointait sur le mauvais certificat orphelin" },
-    { "type": "fix", "text": "users.json : resynchronisation du mot de passe admin depuis .env au démarrage" },
-    { "type": "security", "text": "Sécurité — JWT_SECRET aléatoire à chaque démarrage remplacé par valeur fixe obligatoire dans .env" },
-    { "type": "break", "text": "top -bn1 remplacé par lecture /proc/stat pour le calcul CPU (supprime la charge CPU excessive toutes les 30s)" },
-    { "type": "new", "text": "Nouveau — Mise en place HTTPS panel via sous-domaine (reverse proxy Apache + Certbot)" }
   ]
 }
