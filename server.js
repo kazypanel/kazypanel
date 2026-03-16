@@ -18,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.1.0';
+const KAZYPANEL_VERSION = '1.2.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -220,7 +220,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 function log(action, detail, status = 'OK') {
   const entry = `[${new Date().toISOString()}] [${status}] ${action}: ${detail}`;
   console.log(entry);
-  try { fs.appendFileSync(CONFIG.LOG_FILE, entry + '\n'); } catch {}
+  try {
+    try { if (fs.statSync(CONFIG.LOG_FILE).size > 10*1024*1024) fs.renameSync(CONFIG.LOG_FILE, CONFIG.LOG_FILE+'.bak'); } catch {}
+    fs.appendFileSync(CONFIG.LOG_FILE, entry + '\n');
+  } catch {}
 }
 
 function authMiddleware(req, res, next) {
@@ -310,7 +313,7 @@ app.post('/api/login', async (req, res) => {
 // ─── ROUTE: CHANGER LE MOT DE PASSE ──────────────────────────────────────────
 app.post('/api/change-password', authMiddleware, async (req, res) => {
   const { currentPassword, newPassword, confirmPassword } = req.body;
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (!currentPassword || !newPassword || !confirmPassword)
     return res.status(400).json({ error: 'Tous les champs sont requis' });
@@ -1192,7 +1195,7 @@ app.put('/api/users/:id/ftplimit', authMiddleware, adminOnly, async (req, res) =
 
 // Lister mes comptes FTP
 app.get('/api/me/ftp', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json({
     ftpAccounts: user.ftpAccounts || [],
@@ -1203,7 +1206,7 @@ app.get('/api/me/ftp', authMiddleware, (req, res) => {
 
 // Créer un de mes comptes FTP
 app.post('/api/me/ftp', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const limit = user.ftpLimit ?? CONFIG.FTP_DEFAULT_LIMIT;
@@ -1258,7 +1261,7 @@ app.post('/api/me/ftp', authMiddleware, async (req, res) => {
 
 // Changer le mot de passe d'un de mes comptes FTP
 app.put('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const ftpUser = req.params.ftpUser;
   // Vérifier que le compte appartient bien à cet utilisateur
@@ -1276,7 +1279,7 @@ app.put('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
 });
 
 app.delete('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
     saveUsers();
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const ftpUser = req.params.ftpUser;
@@ -1379,7 +1382,7 @@ app.get('/api/ftp/diagnostic', authMiddleware, adminOnly, async (req, res) => {
 
 // ─── ROUTE: MON PROFIL (utilisateur connecté) ────────────────────────────────
 app.get('/api/me', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   // Uptime serveur en secondes (via /proc/uptime, plus fiable que la commande uptime)
@@ -1439,7 +1442,7 @@ app.get('/api/me', authMiddleware, async (req, res) => {
 
 // Lister les bases de l'utilisateur connecté
 app.get('/api/me/databases', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const databases = await getUserDatabases(user.username);
   const limit = user.dbLimit ?? CONFIG.DB_DEFAULT_LIMIT;
@@ -1448,7 +1451,7 @@ app.get('/api/me/databases', authMiddleware, async (req, res) => {
 
 // Créer une base de données
 app.post('/api/me/databases', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const { dbName, dbPassword } = req.body;
@@ -1496,7 +1499,7 @@ app.post('/api/me/databases', authMiddleware, async (req, res) => {
 
 // Supprimer une base de données
 app.delete('/api/me/databases/:name', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const safeName = req.params.name.replace(/[^a-zA-Z0-9_]/g, '');
@@ -1574,6 +1577,7 @@ app.get('/api/users/:id/diskusage', authMiddleware, adminOnly, async (req, res) 
 // Usage disque — route utilisateur (profil)
 app.get('/api/me/diskusage', authMiddleware, async (req, res) => {
   const user = USERS.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const userDir = `${CONFIG.FTP_ROOT}/${user.username}`;
   let usedMb = 0;
   try {
@@ -1777,7 +1781,7 @@ function getPrimaryFtpDir(user) {
 
 // Lister les domaines de l'utilisateur connecté
 app.get('/api/me/domains', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (!user.ftpAccounts || !user.ftpAccounts.length)
     return res.status(403).json({ error: 'Aucun compte FTP configuré. Contactez l\'administrateur.' });
@@ -1822,7 +1826,7 @@ app.get('/api/me/domains', authMiddleware, (req, res) => {
 
 // Créer un domaine/sous-domaine dans le répertoire FTP de l'utilisateur
 app.post('/api/me/domains', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (!user.ftpAccounts || !user.ftpAccounts.length)
     return res.status(403).json({ error: 'Aucun compte FTP configuré. Contactez l\'administrateur.' });
@@ -1914,7 +1918,7 @@ app.post('/api/me/domains', authMiddleware, async (req, res) => {
 
 // Voir la configuration Apache d'un domaine (utilisateur)
 app.get('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user || !user.ftpAccounts || !user.ftpAccounts.length) return res.status(403).json({ error: 'Accès refusé' });
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
   const confFile = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
@@ -1927,7 +1931,7 @@ app.get('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
 
 // Supprimer un domaine de l'utilisateur
 app.delete('/api/me/domains/:name', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user || !user.ftpAccounts || !user.ftpAccounts.length)
     return res.status(403).json({ error: 'Aucun compte FTP configuré.' });
 
@@ -1957,7 +1961,7 @@ app.delete('/api/me/domains/:name', authMiddleware, async (req, res) => {
 // ─── ROUTE: JOURNAUX APACHE D'UN DOMAINE UTILISATEUR ─────────────────────────
 // GET /api/me/domains/:name/logs?type=error|access&lines=100
 app.get('/api/me/domains/:name/logs', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user || !user.ftpAccounts || !user.ftpAccounts.length)
     return res.status(403).json({ error: 'Accès refusé' });
 
@@ -1996,8 +2000,7 @@ app.get('/api/me/domains/:name/logs', authMiddleware, (req, res) => {
     return res.json({ file: resolved, lines: [], empty: true, message: 'Fichier journal vide ou inexistant — aucune entrée pour ce domaine.' });
 
   try {
-    const { execSync } = require('child_process');
-    const raw = execSync(`tail -n ${lines} "${resolved}" 2>/dev/null`, { timeout: 5000 }).toString();
+    const raw = require('child_process').execSync(`tail -n ${lines} "${resolved}" 2>/dev/null`, { timeout: 5000 }).toString();
     const logLines = raw.split('\n').filter(l => l.trim());
     log('USER_VIEW_LOG', `${user.username} → ${resolved} (${lines} lignes)`, 'OK');
     res.json({ file: resolved, lines: logLines, total: logLines.length, type });
@@ -3438,7 +3441,7 @@ app.post('/api/config/setup-https', authMiddleware, adminOnly, async (req, res) 
 
 // Lister les zones DNS de l'utilisateur
 app.get('/api/me/dns', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const zones = [];
@@ -3455,7 +3458,7 @@ app.get('/api/me/dns', authMiddleware, (req, res) => {
 
 // Créer une zone DNS pour un domaine de l'utilisateur
 app.post('/api/me/dns', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const { domain } = req.body;
@@ -3514,7 +3517,7 @@ app.post('/api/me/dns', authMiddleware, async (req, res) => {
 
 // Lire les records d'une zone utilisateur
 app.get('/api/me/dns/:domain', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
 
@@ -3528,7 +3531,7 @@ app.get('/api/me/dns/:domain', authMiddleware, (req, res) => {
 
 // Ajouter un record dans une zone
 app.post('/api/me/dns/:domain/records', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
   if (!userOwnsDnsZone(user, domain)) return res.status(403).json({ error: 'Accès refusé' });
@@ -3553,7 +3556,7 @@ app.post('/api/me/dns/:domain/records', authMiddleware, async (req, res) => {
 
 // Supprimer un record d'une zone
 app.delete('/api/me/dns/:domain/records/:id', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
   if (!userOwnsDnsZone(user, domain)) return res.status(403).json({ error: 'Accès refusé' });
@@ -3568,7 +3571,7 @@ app.delete('/api/me/dns/:domain/records/:id', authMiddleware, async (req, res) =
 
 // Appliquer les NS par défaut (remplace les NS dans le fichier de zone et recharge)
 app.post('/api/me/dns/:domain/apply-ns', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
   if (!userOwnsDnsZone(user, domain)) return res.status(403).json({ error: 'Accès refusé' });
@@ -3585,7 +3588,7 @@ app.post('/api/me/dns/:domain/apply-ns', authMiddleware, async (req, res) => {
 
 // Supprimer une zone entière
 app.delete('/api/me/dns/:domain', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id == req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
   if (!userOwnsDnsZone(user, domain)) return res.status(403).json({ error: 'Accès refusé' });

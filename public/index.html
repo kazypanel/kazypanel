@@ -1317,7 +1317,7 @@
                   <input class="form-input" id="dnsEmailInput" placeholder="admin.exemple.com" style="font-family:var(--mono);font-size:12px;padding-left:28px">
                   <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;pointer-events:none">@</span>
                 </div>
-                <div style="font-size:10px;color:var(--muted);margin-top:4px">Format pointé — ex : <code style="color:var(--accent2)">admin.kazylax.fr</code> (= <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2f4e4b4246416f444e5556434e5701495d">[email&#160;protected]</a>)</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:4px">Format pointé — ex : <code style="color:var(--accent2)">admin.kazylax.fr</code> (= admin@kazylax.fr)</div>
               </div>
             </div>
           </div>
@@ -2389,46 +2389,7 @@
   </div>
 </div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-// ── DOMAIN CONFIG VIEWER ──────────────────────────────────────
-async function viewDomainConfig(name, scope) {
-  document.getElementById('domainConfigModal').classList.add('open');
-  document.getElementById('domainConfigName').textContent = name;
-  document.getElementById('domainConfigFilename').textContent = `/etc/apache2/sites-available/${name}.conf`;
-  document.getElementById('domainConfigContent').innerHTML = '<div class="spinner" style="margin:40px auto"></div>';
 
-  try {
-    const url = scope === 'admin'
-      ? `${API}/api/domains/${name}/config`
-      : `${API}/api/me/domains/${name}/config`;
-    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-
-    // Coloration syntaxique légère
-    const html = data.config
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/(#[^\n]*)/g, '<span style="color:var(--muted);font-style:italic">$1</span>')
-      .replace(/(&lt;\/?VirtualHost[^&]*&gt;)/g, '<span style="color:var(--accent);font-weight:700">$1</span>')
-      .replace(/(&lt;\/?Directory[^&]*&gt;|&lt;\/?FilesMatch[^&]*&gt;)/g, '<span style="color:#7c9ff8">$1</span>')
-      .replace(/^(\s*)(ServerName|ServerAlias|DocumentRoot|ErrorLog|CustomLog|SetHandler|AllowOverride|Require|Options|Header)(\s)/gm,
-        '$1<span style="color:var(--green);font-weight:600">$2</span>$3');
-
-    document.getElementById('domainConfigContent').innerHTML = html;
-  } catch (e) {
-    document.getElementById('domainConfigContent').textContent = `Erreur : ${e.message}`;
-  }
-}
-
-function closeDomainConfigModal() {
-  document.getElementById('domainConfigModal').classList.remove('open');
-}
-
-function copyDomainConfig() {
-  const text = document.getElementById('domainConfigContent').innerText;
-  navigator.clipboard.writeText(text).then(() => showToast('Configuration copiée', 'success'));
-}
-</script>
 <div class="modal-overlay" id="userDomainModal">
   <div class="modal" style="width:460px">
     <div class="modal-header">
@@ -2819,9 +2780,9 @@ function copyDomainConfig() {
 
 <script>
 const API = '';
-let token = localStorage.getItem('hp_token') || '';
+let token = sessionStorage.getItem('hp_token') || '';
 let _pmaUrl = '';
-let currentRole = localStorage.getItem('hp_role') || '';
+let currentRole = sessionStorage.getItem('hp_role') || '';
 let allDomains = [];
 let deleteTarget = null;
 let _currentUsername = '';
@@ -2859,8 +2820,8 @@ async function doLogin() {
     }
     token = data.token;
     currentRole = data.role;
-    localStorage.setItem('hp_token', token);
-    localStorage.setItem('hp_role', currentRole);
+    sessionStorage.setItem('hp_token', token);
+    sessionStorage.setItem('hp_role', currentRole);
     document.getElementById('topbarUser').textContent = data.username;
     // Dashboard UI
     const initials = (data.username||'?').slice(0,2).toUpperCase();
@@ -2911,8 +2872,8 @@ function togglePanelTheme() {
 function doLogout() {
   token = '';
   currentRole = '';
-  localStorage.removeItem('hp_token');
-  localStorage.removeItem('hp_role');
+  sessionStorage.removeItem('hp_token');
+  sessionStorage.removeItem('hp_role');
   document.getElementById('app').style.display = 'none';
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('loginPassword').value = '';
@@ -6226,15 +6187,15 @@ if (token) {
     .then(async r => {
       if (r.ok) {
         const data = await r.json();
-        currentRole = data.role || localStorage.getItem('hp_role') || '';
-        localStorage.setItem('hp_role', currentRole);
+        currentRole = data.role || sessionStorage.getItem('hp_role') || '';
+        sessionStorage.setItem('hp_role', currentRole);
         document.getElementById('topbarUser').textContent = data.username || '';
         showApp();
       } else {
         token = '';
         currentRole = '';
-        localStorage.removeItem('hp_token');
-        localStorage.removeItem('hp_role');
+        sessionStorage.removeItem('hp_token');
+        sessionStorage.removeItem('hp_role');
       }
     })
     .catch(() => {});
