@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 17/03/2026 15:14
+ * Dernière modification : 18/03/2026 00:25
  */
 
 const express = require('express');
@@ -17,6 +17,7 @@ const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
 const KAZYPANEL_VERSION = '1.1.0';
@@ -1021,6 +1022,7 @@ app.post('/api/users', authMiddleware, adminOnly, async (req, res) => {
   const ftpStatus = ftpInfo ? ` — Compte FTP créé dans ${homeDir}` : ' — ⚠️ Compte FTP non créé (vérifiez les logs)';
   res.status(201).json({
     success: true,
+    id: newUser.id,
     message: `Utilisateur ${username} créé avec succès${ftpStatus}`,
     ftp: ftpInfo
   });
@@ -2551,7 +2553,20 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   try { await runCmd('systemctl is-active mariadb'); s.mariadb = 'running'; } catch { s.mariadb = 'stopped'; }
   try { const ufwOut = await runCmd('ufw status 2>/dev/null | head -1'); s.ufw = ufwOut.includes('active') ? 'active' : 'inactive'; } catch { s.ufw = 'unknown'; }
   try { await runCmd('systemctl is-active fail2ban'); s.fail2ban = 'running'; } catch { s.fail2ban = 'stopped'; }
-  try { s.uptime = await runCmd('uptime -p'); } catch { s.uptime = 'N/A'; }
+  try {
+    let sec = Math.floor(parseFloat(fs.readFileSync('/proc/uptime', 'utf8').split(' ')[0]));
+    const months  = Math.floor(sec / 2592000); sec %= 2592000;
+    const days    = Math.floor(sec / 86400);   sec %= 86400;
+    const hours   = Math.floor(sec / 3600);    sec %= 3600;
+    const minutes = Math.floor(sec / 60);
+    const parts = [];
+    if (months)  parts.push(`${months} mois`);
+    if (days)    parts.push(`${days} j`);
+    if (hours)   parts.push(`${hours} h`);
+    parts.push(`${minutes} min`);
+    s.uptime = parts.join(' ');
+    s.uptimeSeconds = Math.floor(parseFloat(fs.readFileSync('/proc/uptime', 'utf8').split(' ')[0]));
+  } catch { s.uptime = 'N/A'; }
   try {
     s.memory = await runCmd("free -m | awk 'NR==2{printf \"%d/%d Mo\", $3,$2}'");
     s.ramPercent = await runCmd("free | awk 'NR==2{printf \"%.0f\", $3*100/$2}'");

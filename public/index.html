@@ -37,7 +37,79 @@
     --text: #e6edf3;
     --muted: #8b949e;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [data-theme="classic"] {
+    --bg: #d4d0c8; --surface: #ece9d8; --surface2: #ddd9cc;
+    --border: #a0a0a0; --border2: #808080;
+    --accent: #315ea8; --accent2: #1f3f7a;
+    --green: #007700; --red: #cc0000; --yellow: #cc7700;
+    --text: #000000; --muted: #444444;
+    --mono: 'IBM Plex Mono', monospace; --sans: Tahoma, 'MS Sans Serif', Arial, sans-serif;
+  }
+  [data-theme="classic"] body { font-size: 12px; }
+  [data-theme="classic"] .topbar { background: linear-gradient(180deg,#3a6ea5 0%,#245899 50%,#1f4f8f 100%); border-bottom: 2px solid #0a246a; }
+  [data-theme="classic"] .topbar-brand { background: linear-gradient(180deg,#4a7ec0 0%,#2a5ea0 100%); border-right: 1px solid #0a246a; color:#fff; text-shadow:1px 1px 1px rgba(0,0,0,.5); }
+  [data-theme="classic"] .brand-icon { background: linear-gradient(135deg,#5b9bd5 0%,#2a5ea0 100%); border:1px solid #0a246a; }
+  [data-theme="classic"] .nav-item.active { background: linear-gradient(180deg,#316ac5 0%,#1d52a3 100%); color:#fff; border-radius:0; }
+  [data-theme="classic"] .card { background:var(--surface); border:1px solid var(--border); border-radius:3px; box-shadow:inset 1px 1px 0 #fff,2px 2px 4px rgba(0,0,0,.2); }
+  [data-theme="classic"] .btn-primary { background:linear-gradient(180deg,#5b9bd5 0%,#316ac5 50%,#1d52a3 100%); border:1px solid #0a246a; border-radius:3px; box-shadow:inset 1px 1px 0 rgba(255,255,255,.4); color:#fff; font-size:11px; }
+  [data-theme="classic"] .btn-ghost { background:linear-gradient(180deg,#f5f4ee 0%,#ddd9cc 100%); border:1px solid #888; border-radius:3px; box-shadow:inset 1px 1px 0 #fff; color:#000; font-size:11px; }
+  [data-theme="classic"] .tb-action-btn { background:linear-gradient(180deg,#f5f4ee 0%,#ddd9cc 100%); border:1px solid #888; border-radius:3px; box-shadow:inset 1px 1px 0 #fff; color:#000; }
+  [data-theme="classic"] input,[data-theme="classic"] select,[data-theme="classic"] textarea { border:1px solid #7f9db9; border-radius:2px; background:#fff; font-size:11px; }
+  [data-theme="classic"] .login-header { background:linear-gradient(180deg,#3a6ea5 0%,#1f4f8f 100%); border-bottom:1px solid #0a246a; }
+  [data-theme="classic"] .login-title { -webkit-text-fill-color:#fff; color:#fff; font-family:Tahoma,Arial,sans-serif; }
+  [data-theme="classic"] .login-subtitle { color:#c8d8f0; }
+  [data-theme="classic"] .login-card { border-radius:4px; border:1px solid #888; box-shadow:3px 3px 8px rgba(0,0,0,.3); }
+
+  [data-theme="macos"] {
+    --bg: #f0f0f0; --surface: rgba(255,255,255,0.72); --surface2: rgba(245,245,247,0.8);
+    --border: rgba(0,0,0,0.10); --border2: rgba(0,0,0,0.15);
+    --accent: #0071e3; --accent2: #0077ed;
+    --green: #34c759; --red: #ff3b30; --yellow: #ff9500;
+    --text: #1d1d1f; --muted: #86868b;
+    --mono: 'SF Mono','IBM Plex Mono',monospace;
+    --sans: -apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;
+  }
+  [data-theme="macos"] body { background:linear-gradient(160deg,#e8ecf0 0%,#dde3ea 100%); -webkit-font-smoothing:antialiased; }
+  [data-theme="macos"] .topbar { background:rgba(246,246,248,0.82); backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%); border-bottom:1px solid rgba(0,0,0,0.12); }
+  [data-theme="macos"] .topbar-brand { border-right:1px solid rgba(0,0,0,.08); color:#1d1d1f; }
+  [data-theme="macos"] .brand-icon { background:linear-gradient(145deg,#0071e3 0%,#34aadc 100%); border-radius:9px; box-shadow:0 2px 6px rgba(0,113,227,.35); }
+  [data-theme="macos"] .sidebar { background:rgba(250,250,252,0.75); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-right:1px solid rgba(0,0,0,.09); }
+  [data-theme="macos"] .nav-item { border-radius:8px; margin:1px 6px; font-size:13px; font-weight:500; }
+  [data-theme="macos"] .nav-item:hover { background:rgba(0,0,0,.06); }
+  [data-theme="macos"] .nav-item.active { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(0,113,227,.35); }
+  [data-theme="macos"] .nav-item svg { display:none; }
+  [data-theme="macos"] .nav-item::before { font-size:15px; flex-shrink:0; width:18px; text-align:center; }
+  [data-theme="macos"] #navStatus::before      { content:'📊'; }
+  [data-theme="macos"] #navDomains::before     { content:'🌐'; }
+  [data-theme="macos"] #navSubdomains::before  { content:'🏠'; }
+  [data-theme="macos"] #navUsers::before       { content:'👥'; }
+  [data-theme="macos"] #navTemplates::before   { content:'📋'; }
+  [data-theme="macos"] #navConfig::before      { content:'⚙️'; }
+  [data-theme="macos"] #navDns::before         { content:'🔗'; }
+  [data-theme="macos"] #navUfw::before         { content:'🛡️'; }
+  [data-theme="macos"] #navLogins::before      { content:'🔑'; }
+  [data-theme="macos"] #navFail2ban::before    { content:'🚫'; }
+  [data-theme="macos"] #navProfile::before     { content:'👤'; }
+  [data-theme="macos"] #navUserDomains::before { content:'🌐'; }
+  [data-theme="macos"] #navUserFtp::before     { content:'📁'; }
+  [data-theme="macos"] #navUserDb::before      { content:'🗄️'; }
+  [data-theme="macos"] #navUserDns::before     { content:'🔗'; }
+  [data-theme="macos"] #navUserLogs::before    { content:'📄'; }
+  [data-theme="macos"] #navUserCrontab::before { content:'🕐'; }
+  [data-theme="macos"] .card { background:rgba(255,255,255,0.75); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.9); border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  [data-theme="macos"] .btn-primary { background:var(--accent); border:none; border-radius:8px; box-shadow:0 1px 4px rgba(0,113,227,.4); font-weight:600; }
+  [data-theme="macos"] .btn-ghost { background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,.12); border-radius:8px; }
+  [data-theme="macos"] .tb-action-btn { background:rgba(255,255,255,0.65); border:1px solid rgba(0,0,0,.10); border-radius:7px; }
+  [data-theme="macos"] input,[data-theme="macos"] select,[data-theme="macos"] textarea { background:rgba(255,255,255,0.85); border:1px solid rgba(0,0,0,.15); border-radius:7px; }
+  [data-theme="macos"] input:focus,[data-theme="macos"] select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,113,227,.18); outline:none; }
+  [data-theme="macos"] #loginPage { background:linear-gradient(160deg,#dce8f8 0%,#d4dfe8 60%,#e2e8ee 100%); }
+  [data-theme="macos"] .login-card { background:rgba(255,255,255,.78); backdrop-filter:blur(24px) saturate(200%); border:1px solid rgba(255,255,255,.9); border-radius:18px; box-shadow:0 24px 60px rgba(0,0,0,.15); }
+  [data-theme="macos"] .login-card::before { display:none; }
+  [data-theme="macos"] .login-header { background:rgba(248,248,252,0.5); border-bottom:1px solid rgba(0,0,0,.07); }
+  [data-theme="macos"] .login-logo-wrap { background:linear-gradient(145deg,#0071e3 0%,#34aadc 100%); border-radius:16px; }
+  [data-theme="macos"] .login-title { background:linear-gradient(135deg,#1d1d1f 0%,#3a3a4a 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  [data-theme="macos"] ::-webkit-scrollbar { width:8px; height:8px; }
+  [data-theme="macos"] ::-webkit-scrollbar-thumb { background:rgba(0,0,0,.2); border-radius:10px; }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; transition: background .2s, color .2s; }
 
   /* ── SUBTLE LIGHT TEXTURE ── */
@@ -695,7 +767,15 @@
         Mise à jour
         <span id="updateBadge" style="display:none;position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:#f59e0b;border:2px solid var(--surface);animation:pulse 2s infinite"></span>
       </button>
-      <button id="themeToggleBtn" onclick="togglePanelTheme()" class="tb-action-btn" title="Changer le thème" style="width:34px;height:34px;padding:0;justify-content:center;font-size:15px">🌙</button>
+      <div style="position:relative;display:inline-flex;align-items:center">
+        <button id="themeToggleBtn" onclick="toggleThemeMenu()" class="tb-action-btn" title="Changer le thème" style="width:34px;height:34px;padding:0;justify-content:center;font-size:15px">🌙</button>
+        <div id="themeMenu" style="display:none;position:absolute;top:38px;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:999;min-width:150px;overflow:hidden">
+          <div onclick="setTheme('light')"   id="theme-opt-light"   style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">☀️ Light</div>
+          <div onclick="setTheme('dark')"    id="theme-opt-dark"    style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🌙 Dark</div>
+          <div onclick="setTheme('classic')" id="theme-opt-classic" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🖥️ Classic</div>
+          <div onclick="setTheme('macos')"   id="theme-opt-macos"   style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🍎 macOS</div>
+        </div>
+      </div>
       <div class="user-chip">
         <div class="user-avatar-dot" id="topbarAvatarDot">A</div>
         <span id="topbarUser">admin</span>
@@ -2548,8 +2628,15 @@
           <option value="admin">Administrateur — accès complet</option>
         </select>
       </div>
+      <div class="form-group" id="newUserTplGroup">
+        <label>Template de ressources</label>
+        <select id="newUserTemplate">
+          <option value="">— Aucun template —</option>
+        </select>
+        <div class="form-hint">Définit les limites FTP, bases de données, domaines, disque...</div>
+      </div>
       <div class="form-group">
-        <label id="pwLabel">Mot de passe</label>
+        <label id="pwLabel">Mot de passe <button type="button" onclick="generateRandomPassword()" id="genPwBtn" style="margin-left:8px;background:rgba(79,110,247,.12);border:1px solid rgba(79,110,247,.3);color:var(--accent2);border-radius:4px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.03em">🎲 Aléatoire</button></label>
         <div class="pw-input-wrap">
           <input type="password" id="newUserPassword" placeholder="••••••••" oninput="checkPwStrength(this.value)">
           <button class="pw-toggle-btn" type="button" onclick="togglePwVis('newUserPassword', this)">👁</button>
@@ -2906,25 +2993,45 @@ function showLoginError(msg) {
   err.style.display = 'block';
 }
 
-// ── Thème sombre / clair ──────────────────────────────────────────────────────
-function togglePanelTheme() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const newTheme = isDark ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', newTheme);
-  document.getElementById('themeToggleBtn').textContent = isDark ? '🌙' : '☀️';
-  localStorage.setItem('kazy-panel-theme', newTheme);
+// ── Thème multi ──────────────────────────────────────────────────────────────
+const THEME_ICONS = { light: '☀️', dark: '🌙', classic: '🖥️', macos: '🍎' };
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.textContent = THEME_ICONS[theme] || '🌙';
+  localStorage.setItem('kazy-panel-theme', theme);
+  ['light','dark','classic','macos'].forEach(t => {
+    const el = document.getElementById('theme-opt-' + t);
+    if (el) { el.style.background = t === theme ? 'var(--accent)' : ''; el.style.color = t === theme ? '#fff' : ''; }
+  });
+  closeThemeMenu();
 }
-// Appliquer le thème sauvegardé au chargement
+
+function toggleThemeMenu() {
+  const menu = document.getElementById('themeMenu');
+  if (!menu) return;
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function closeThemeMenu() {
+  const menu = document.getElementById('themeMenu');
+  if (menu) menu.style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#themeToggleBtn') && !e.target.closest('#themeMenu')) closeThemeMenu();
+});
+
 (function() {
-  const saved = localStorage.getItem('kazy-panel-theme');
-  if (saved === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    // Le bouton sera mis à jour une fois le DOM chargé
-    document.addEventListener('DOMContentLoaded', () => {
-      const btn = document.getElementById('themeToggleBtn');
-      if (btn) btn.textContent = '☀️';
-    });
-  }
+  const saved = localStorage.getItem('kazy-panel-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('themeToggleBtn');
+    if (btn) btn.textContent = THEME_ICONS[saved] || '🌙';
+    const el = document.getElementById('theme-opt-' + saved);
+    if (el) { el.style.background = 'var(--accent)'; el.style.color = '#fff'; }
+  });
 })();
 
 function doLogout() {
@@ -5752,9 +5859,22 @@ function openCreateUserModal() {
   document.getElementById('newUsername').disabled = false;
   document.getElementById('newUserRole').value = 'user';
   document.getElementById('newUserPassword').value = '';
-  document.getElementById('pwLabel').textContent = 'Mot de passe';
+  document.getElementById('newUserTplGroup').style.display = '';
+  document.getElementById('pwLabel').innerHTML = 'Mot de passe <button type="button" onclick="generateRandomPassword()" id="genPwBtn" style="margin-left:8px;background:rgba(79,110,247,.12);border:1px solid rgba(79,110,247,.3);color:var(--accent2);border-radius:4px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.03em">🎲 Aléatoire</button>';
   document.getElementById('saveUserBtn').textContent = 'Créer';
   checkPwStrengthUser('');
+  // Charger les templates dans le select
+  fetch(`${API}/api/templates`, { headers: { Authorization: 'Bearer ' + token } })
+    .then(r => r.json()).then(data => {
+      const sel = document.getElementById('newUserTemplate');
+      sel.innerHTML = '<option value="">— Aucun template —</option>';
+      (data.templates || data || []).forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = `${t.name}${t.description ? ' — ' + t.description : ''}`;
+        sel.appendChild(opt);
+      });
+    }).catch(() => {});
   document.getElementById('createUserModal').classList.add('open');
 }
 
@@ -5765,7 +5885,8 @@ function openEditUserModal(id, username, role) {
   document.getElementById('newUsername').disabled = true;
   document.getElementById('newUserRole').value = role;
   document.getElementById('newUserPassword').value = '';
-  document.getElementById('pwLabel').textContent = 'Nouveau mot de passe (laisser vide pour ne pas changer)';
+  document.getElementById('newUserTplGroup').style.display = 'none';
+  document.getElementById('pwLabel').innerHTML = 'Nouveau mot de passe <span style="font-weight:400;color:var(--muted);font-size:11px">(laisser vide pour ne pas changer)</span>';
   document.getElementById('saveUserBtn').textContent = 'Enregistrer';
   checkPwStrengthUser('');
   document.getElementById('createUserModal').classList.add('open');
@@ -5807,6 +5928,7 @@ async function saveUser() {
   const username = document.getElementById('newUsername').value.trim();
   const role = document.getElementById('newUserRole').value;
   const password = document.getElementById('newUserPassword').value;
+  const templateId = document.getElementById('newUserTemplate')?.value || '';
   const btn = document.getElementById('saveUserBtn');
   const isEdit = !!id;
 
@@ -5835,15 +5957,41 @@ async function saveUser() {
     }
     const data = await res.json();
     if (!res.ok) throw new Error(data.rules ? data.rules[0] : data.error);
-    showToast(data.message, 'success');
+
+    // Appliquer le template si sélectionné (création uniquement)
+    let templateName = '';
+    if (!isEdit && templateId && data.id) {
+      try {
+        await fetch(`${API}/api/users/${data.id}/template`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ templateId: parseInt(templateId) })
+        });
+        const sel = document.getElementById('newUserTemplate');
+        const opt = sel?.options[sel.selectedIndex];
+        if (opt) templateName = opt.textContent.split(' — ')[0];
+      } catch {}
+    }
+
     closeCreateUserModal();
     loadUsers();
+    if (!isEdit) {
+      openUserCreatedModal(username, password, role, templateName);
+    } else {
+      showToast(data.message, 'success');
+    }
   } catch (e) {
     showToast(e.message, 'error');
   } finally {
     btn.textContent = isEdit ? 'Enregistrer' : 'Créer';
     btn.disabled = false;
   }
+}
+
+function openGmail() {
+  const tpl  = document.getElementById('uccTemplate').value;
+  const url  = `https://mail.google.com/mail/?view=cm&fs=1&body=${encodeURIComponent(tpl)}`;
+  window.open(url, '_blank');
 }
 
 async function deleteUser(id, username) {
@@ -7957,6 +8105,118 @@ async function checkUpdateSilent() {
     }
   } catch (e) { /* silencieux */ }
 }
+
+// ── Mot de passe aléatoire ────────────────────────────────────────────────────
+function generateRandomPassword() {
+  const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower   = 'abcdefghjkmnpqrstuvwxyz';
+  const digits  = '23456789';
+  const special = '!@#$%&*-_=+?';
+  const all     = upper + lower + digits + special;
+  let pw = '';
+  pw += upper[Math.floor(Math.random() * upper.length)];
+  pw += lower[Math.floor(Math.random() * lower.length)];
+  pw += digits[Math.floor(Math.random() * digits.length)];
+  pw += special[Math.floor(Math.random() * special.length)];
+  for (let i = 4; i < 12; i++) pw += all[Math.floor(Math.random() * all.length)];
+  pw = pw.split('').sort(() => Math.random() - .5).join('');
+  const input = document.getElementById('newUserPassword');
+  input.type  = 'text';
+  input.value = pw;
+  checkPwStrength(pw);
+  // Mettre à jour le bouton toggle
+  const toggle = input.nextElementSibling;
+  if (toggle) toggle.textContent = '🙈';
+}
+
+// ── Modal confirmation création compte ───────────────────────────────────────
+function openUserCreatedModal(username, password, role, templateName) {
+  const panelUrl = `${window.location.protocol}//${window.location.host}`;
+  const roleLabel = role === 'admin' ? 'Administrateur' : 'Utilisateur';
+  document.getElementById('uccUsername').textContent = username;
+  document.getElementById('uccPassword').textContent = password;
+  document.getElementById('uccRole').textContent     = roleLabel;
+  document.getElementById('uccUrl').textContent      = panelUrl;
+  document.getElementById('uccUrl').href             = panelUrl;
+  // Ligne template
+  const tplLbl = document.getElementById('uccTplLbl');
+  const tplVal = document.getElementById('uccTplName');
+  if (tplLbl) tplLbl.style.display = templateName ? '' : 'none';
+  if (tplVal) { tplVal.style.display = templateName ? '' : 'none'; tplVal.textContent = templateName || ''; }
+  // Construire le template
+  const tplLine = templateName ? `\n📋 Template   : ${templateName}` : '';
+  const tpl = `Bonjour,
+
+Votre compte d'hébergement KazyPanel a été créé avec succès.
+
+Voici vos informations de connexion :
+
+🔗 Panel     : ${panelUrl}
+👤 Identifiant : ${username}
+🔑 Mot de passe : ${password}
+🎭 Rôle      : ${roleLabel}${tplLine}
+
+⚠️ Pour votre sécurité, veuillez changer votre mot de passe dès votre première connexion.
+
+Cordialement,`;
+  document.getElementById('uccTemplate').value = tpl;
+  document.getElementById('userCreatedModal').classList.add('open');
+}
+
+function closeUserCreatedModal() {
+  document.getElementById('userCreatedModal').classList.remove('open');
+}
+
+function copyUserTemplate() {
+  const tpl = document.getElementById('uccTemplate').value;
+  navigator.clipboard.writeText(tpl).then(() => {
+    const btn = document.getElementById('uccCopyBtn');
+    btn.textContent = '✅ Copié !';
+    setTimeout(() => { btn.textContent = '📋 Copier le message'; }, 2000);
+  });
+}
 </script>
-</body>
+
+<!-- ── MODAL CONFIRMATION CRÉATION COMPTE ── -->
+<div class="modal-overlay" id="userCreatedModal">
+  <div class="modal" style="width:520px">
+    <div class="modal-header" style="background:linear-gradient(135deg,rgba(5,150,105,.12),rgba(79,110,247,.08));border-bottom:1px solid rgba(5,150,105,.2)">
+      <div class="modal-title" style="color:var(--green)">✅ Compte créé avec succès</div>
+      <button class="modal-close" onclick="closeUserCreatedModal()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px">
+
+      <!-- Résumé compte -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px">Informations du compte</div>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:13px">
+          <span style="color:var(--muted)">👤 Identifiant</span>
+          <span id="uccUsername" style="font-family:var(--mono);font-weight:700;color:var(--text)"></span>
+          <span style="color:var(--muted)">🔑 Mot de passe</span>
+          <span id="uccPassword" style="font-family:var(--mono);font-weight:700;color:var(--accent2)"></span>
+          <span style="color:var(--muted)">🎭 Rôle</span>
+          <span id="uccRole" style="color:var(--text)"></span>
+          <span id="uccTplLbl" style="color:var(--muted);display:none">📋 Template</span>
+          <span id="uccTplName" style="color:var(--text);display:none"></span>
+          <span style="color:var(--muted)">🔗 Panel</span>
+          <a id="uccUrl" href="#" target="_blank" style="color:var(--accent);font-family:var(--mono);font-size:12px"></a>
+        </div>
+      </div>
+
+      <!-- Template message -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px">📧 Template à envoyer au client</div>
+        <textarea id="uccTemplate" rows="11" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:12px;color:var(--text);resize:vertical;line-height:1.7"></textarea>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button id="uccCopyBtn" class="btn btn-primary" style="flex:1;justify-content:center" onclick="copyUserTemplate()">📋 Copier le message</button>
+        <a id="uccGmailBtn" onclick="openGmail()" class="btn btn-ghost" style="flex:1;justify-content:center;cursor:pointer;text-decoration:none">✉️ Ouvrir Gmail</a>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeUserCreatedModal()">Fermer</button>
+    </div>
+  </div>
+</div>
 </html>
