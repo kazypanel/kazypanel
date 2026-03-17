@@ -2,6 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
+ * Dernière modification : 17/03/2026 15:05
  */
 
 const express = require('express');
@@ -18,7 +19,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.2.0';
+const KAZYPANEL_VERSION = '1.1.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -376,7 +377,11 @@ app.get('/api/server-config', authMiddleware, adminOnly, async (req, res) => {
     const maintenanceMsg = PANEL_CONFIG.maintenanceMsg || '';
     const maintenanceEnabled = !!PANEL_CONFIG.maintenanceEnabled;
 
-    res.json({ sshPort, motd, jailLocal, timezone, maintenanceMsg, maintenanceEnabled });
+    // Hostname actuel
+    let hostname = 'N/A';
+    try { hostname = (await runCmd('hostname')).trim(); } catch {}
+
+    res.json({ sshPort, motd, jailLocal, timezone, maintenanceMsg, maintenanceEnabled, hostname });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -515,6 +520,92 @@ app.post('/api/server-config/timezone', authMiddleware, adminOnly, async (req, r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/server-config/hostname — lire le hostname actuel
+app.get('/api/server-config/hostname', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const hostname = await runCmd('hostname');
+    res.json({ hostname: hostname.trim() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/server-config/hostname — changer le hostname
+app.post('/api/server-config/hostname', authMiddleware, adminOnly, async (req, res) => {
+  const { hostname } = req.body;
+  if (!hostname || !/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/.test(hostname))
+    return res.status(400).json({ error: 'Hostname invalide (lettres, chiffres, tirets — 63 car. max)' });
+  try {
+    await runCmd(`hostnamectl set-hostname "${hostname}"`);
+    // Mettre à jour /etc/hosts si l'ancien hostname y figure
+    try {
+      const oldHostname = (await runCmd('hostname')).trim();
+      const hosts = require('fs').readFileSync('/etc/hosts', 'utf8');
+      if (hosts.includes(oldHostname)) {
+        require('fs').writeFileSync('/etc/hosts', hosts.replace(new RegExp(oldHostname, 'g'), hostname));
+      }
+    } catch {}
+    log('HOSTNAME', `Hostname changé vers ${hostname}`, 'OK');
+    res.json({ success: true, message: `Hostname défini sur "${hostname}" — redémarrage recommandé pour prise en compte complète` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/server-config/bashrc — lire /root/.bashrc + templates
+app.get('/api/server-config/bashrc', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const content   = fs.existsSync('/root/.bashrc') ? fs.readFileSync('/root/.bashrc', 'utf8') : '';
+    const templates = PANEL_CONFIG.bashrcTemplates || [];
+    res.json({ content, templates });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/server-config/bashrc/templates — créer un template personnalisé
+app.post('/api/server-config/bashrc/templates', authMiddleware, adminOnly, (req, res) => {
+  const { name, content } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
+  if (!content)              return res.status(400).json({ error: 'Contenu requis' });
+  if (!PANEL_CONFIG.bashrcTemplates) PANEL_CONFIG.bashrcTemplates = [];
+  const id = 'tpl_' + Date.now();
+  PANEL_CONFIG.bashrcTemplates.push({ id, name: name.trim(), content, createdAt: new Date().toISOString() });
+  savePanelConfig();
+  log('BASHRC_TPL', `Template "${name}" créé`, 'OK');
+  res.json({ success: true, message: `Template "${name}" sauvegardé`, templates: PANEL_CONFIG.bashrcTemplates });
+});
+
+// DELETE /api/server-config/bashrc/templates/:id — supprimer un template
+app.delete('/api/server-config/bashrc/templates/:id', authMiddleware, adminOnly, (req, res) => {
+  if (!PANEL_CONFIG.bashrcTemplates) PANEL_CONFIG.bashrcTemplates = [];
+  const idx = PANEL_CONFIG.bashrcTemplates.findIndex(t => t.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Template introuvable' });
+  const [tpl] = PANEL_CONFIG.bashrcTemplates.splice(idx, 1);
+  savePanelConfig();
+  log('BASHRC_TPL', `Template "${tpl.name}" supprimé`, 'OK');
+  res.json({ success: true, message: `Template "${tpl.name}" supprimé`, templates: PANEL_CONFIG.bashrcTemplates });
+});
+
+// POST /api/server-config/bashrc — sauvegarder /root/.bashrc
+app.post('/api/server-config/bashrc', authMiddleware, adminOnly, (req, res) => {
+  const { content } = req.body;
+  if (content === undefined) return res.status(400).json({ error: 'Contenu requis' });
+  try {
+    // Sauvegarde de l'ancien fichier
+    if (fs.existsSync('/root/.bashrc'))
+      fs.copyFileSync('/root/.bashrc', `/root/.bashrc.bak.${Date.now()}`);
+    fs.writeFileSync('/root/.bashrc', content, 'utf8');
+    log('BASHRC', 'Mis à jour', 'OK');
+    res.json({ success: true, message: '.bashrc sauvegardé avec succès' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/server-config/bashrc/apply — source /root/.bashrc
+app.post('/api/server-config/bashrc/apply', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    await runCmd('bash -c "source /root/.bashrc"');
+    log('BASHRC', 'Appliqué via source', 'OK');
+    res.json({ success: true, message: '.bashrc appliqué (source) avec succès' });
+  } catch (err) {
+    res.status(500).json({ error: `Erreur lors de l'application : ${err.message}` });
+  }
+});
+
 // POST /api/server-config/maintenance — bannière de maintenance
 app.post('/api/server-config/maintenance', authMiddleware, adminOnly, (req, res) => {
   const { enabled, message } = req.body;
@@ -645,6 +736,57 @@ app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
       error:     err.message,
     });
   }
+});
+
+// ─── ROUTE: HISTORIQUE DES CONNEXIONS ───────────────────────────────────────
+app.get('/api/logins', authMiddleware, async (req, res) => {
+  const isAdmin = req.user.role === 'admin';
+  const filter  = req.query.filter || 'all'; // all | ok | fail
+  const limit   = Math.min(parseInt(req.query.limit) || 100, 500);
+
+  let logContent = '';
+  try { logContent = fs.readFileSync(CONFIG.LOG_FILE, 'utf8'); } catch { logContent = ''; }
+
+  const lines = logContent.split('\n').filter(l => l.includes('] LOGIN:'));
+
+  // Parser chaque ligne de log LOGIN
+  const allEntries = [];
+  for (const line of lines) {
+    const m = line.match(/^\[([^\]]+)\] \[(OK|FAIL)\] LOGIN: (\S+) depuis (\S+)$/);
+    if (!m) continue;
+    const [, dateRaw, status, username, ip] = m;
+    // Filtrer par utilisateur si non admin
+    if (!isAdmin && username !== req.user.username) continue;
+    allEntries.push({
+      date:     new Date(dateRaw).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' }),
+      dateRaw,
+      status,
+      username,
+      ip:       ip.replace('::ffff:', ''),
+      detail:   status === 'FAIL' ? 'Identifiants incorrects' : null
+    });
+  }
+
+  // Appliquer le filtre
+  const filtered = allEntries
+    .filter(e => filter === 'all' || e.status === filter.toUpperCase())
+    .reverse()
+    .slice(0, limit);
+
+  // Stats admin
+  let stats = null;
+  if (isAdmin) {
+    const today    = new Date().toISOString().slice(0, 10);
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    stats = {
+      successToday: allEntries.filter(e => e.status === 'OK'   && e.dateRaw.startsWith(today)).length,
+      failToday:    allEntries.filter(e => e.status === 'FAIL' && e.dateRaw.startsWith(today)).length,
+      uniqueIps:    new Set(allEntries.filter(e => new Date(e.dateRaw).getTime() > sevenDaysAgo).map(e => e.ip)).size,
+      totalLogins:  allEntries.length
+    };
+  }
+
+  res.json({ entries: filtered, stats, total: allEntries.length });
 });
 
 // ─── ROUTE: VERSION LOCALE ────────────────────────────────────────────────────
@@ -1010,17 +1152,30 @@ async function createFtpSystemAccount(ftpUsername, homeDir, password) {
     await runCmd(`usermod -d "${homeDir}" -s /bin/false "${ftpUsername}"`);
   }
 
-  // 3. Chroot vsftpd : le dossier jail doit appartenir à root (non writable par l'user)
-  await runCmd(`chown root:root "${homeDir}"`);
-  await runCmd(`chmod 755 "${homeDir}"`);
+  // 3. Permissions du dossier racine (chroot vsftpd)
+  // Si allow_writeable_chroot=YES dans vsftpd.conf → le dossier peut appartenir à l'utilisateur
+  // Sinon → doit appartenir à root
+  let writeableChroot = false;
+  try {
+    const vsftpdConf = fs.readFileSync('/etc/vsftpd.conf', 'utf8');
+    writeableChroot = /^allow_writeable_chroot=YES/m.test(vsftpdConf);
+  } catch {}
 
-  // 4. Sous-dossier writable par l'user FTP
-  const uploadDir = `${homeDir}/files`;
-  await runCmd(`mkdir -p "${uploadDir}"`);
-  await runCmd(`chown "${ftpUsername}":"${ftpUsername}" "${uploadDir}"`);
-  await runCmd(`chmod 755 "${uploadDir}"`);
+  if (writeableChroot) {
+    // Dossier appartient à l'utilisateur FTP — accès en écriture direct
+    await runCmd(`chown "${ftpUsername}":"${ftpUsername}" "${homeDir}"`);
+    await runCmd(`chmod 755 "${homeDir}"`);
+  } else {
+    // Dossier appartient à root — seul le sous-dossier files est writable
+    await runCmd(`chown root:root "${homeDir}"`);
+    await runCmd(`chmod 755 "${homeDir}"`);
+    const uploadDir = `${homeDir}/files`;
+    await runCmd(`mkdir -p "${uploadDir}"`);
+    await runCmd(`chown "${ftpUsername}":"${ftpUsername}" "${uploadDir}"`);
+    await runCmd(`chmod 755 "${uploadDir}"`);
+  }
 
-  // 5. Mot de passe
+  // 4. Mot de passe
   await setSystemPassword(ftpUsername, password);
 
   // 6. vsftpd.userlist — un user par ligne, sans espaces
@@ -1228,21 +1383,35 @@ app.post('/api/me/ftp', authMiddleware, async (req, res) => {
 
   const ftpUsername = suffix ? `${user.username}_${suffix}` : user.username;
 
-  // Validation du dossier choisi — doit rester dans /FTP_ROOT/username/
+  // Validation du dossier choisi — doit être le DocumentRoot d'un sous-domaine appartenant à l'utilisateur
   const baseDir = `${CONFIG.FTP_ROOT}/${user.username}`;
   let homeDir = baseDir;
   if (ftpHomeDir && ftpHomeDir.trim()) {
-    // Nettoyage : enlever ../ traversal, garder lettres/chiffres/tiret/underscore/slash
-    const cleanSub = ftpHomeDir.trim()
-      .replace(/\.\./g, '')
-      .replace(/[^a-zA-Z0-9_\-\/]/g, '')
-      .replace(/^\/+/, '');
-    if (cleanSub) {
-      homeDir = path.resolve(baseDir, cleanSub);
-      // Double vérification que le chemin résolu reste bien sous baseDir
-      if (!homeDir.startsWith(baseDir + '/') && homeDir !== baseDir)
-        return res.status(400).json({ error: 'Dossier non autorisé — doit être sous votre répertoire personnel' });
-    }
+    const cleanDir = path.resolve(ftpHomeDir.trim());
+
+    // Vérifier que le dossier correspond au DocumentRoot d'un sous-domaine de l'utilisateur
+    let isAllowed = false;
+    try {
+      if (fs.existsSync(CONFIG.APACHE_SITES_PATH)) {
+        const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
+          .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f));
+        for (const file of files) {
+          const parts = file.replace('.conf','').split('.');
+          if (parts.length <= 2) continue; // pas un sous-domaine
+          const conf    = fs.readFileSync(path.join(CONFIG.APACHE_SITES_PATH, file), 'utf8');
+          const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
+          if (userOwnsDocRoot(user, docRoot) && path.resolve(docRoot) === cleanDir) {
+            isAllowed = true;
+            break;
+          }
+        }
+      }
+    } catch {}
+
+    if (!isAllowed)
+      return res.status(400).json({ error: 'Dossier non autorisé — doit être le DocumentRoot d\'un de vos sous-domaines' });
+
+    homeDir = cleanDir;
   }
 
   const label = suffix ? suffix : 'Compte principal';
@@ -1927,6 +2096,54 @@ app.get('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
   const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
   if (!userOwnsDocRoot(user, docRoot)) return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
   res.json({ name: safeName, config: conf });
+});
+
+// Modifier la configuration Apache d'un domaine (utilisateur)
+app.put('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user || !user.ftpAccounts || !user.ftpAccounts.length)
+    return res.status(403).json({ error: 'Accès refusé' });
+
+  const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+  const confFile = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
+  if (!fs.existsSync(confFile)) return res.status(404).json({ error: 'Domaine introuvable' });
+
+  const existing = fs.readFileSync(confFile, 'utf8');
+  const docRoot  = (existing.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
+  if (!userOwnsDocRoot(user, docRoot))
+    return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
+
+  const { config } = req.body;
+  if (!config || !config.trim())
+    return res.status(400).json({ error: 'Configuration vide' });
+
+  // Vérifications de sécurité basiques
+  const forbidden = ['exec', 'system(', 'passthru', 'shell_exec', 'popen', 'proc_open'];
+  if (forbidden.some(f => config.toLowerCase().includes(f)))
+    return res.status(400).json({ error: 'Configuration non autorisée' });
+
+  // Le DocumentRoot ne doit pas changer
+  const newDocRoot = (config.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
+  if (newDocRoot && !userOwnsDocRoot(user, newDocRoot))
+    return res.status(400).json({ error: 'DocumentRoot non autorisé' });
+
+  // Valider la config avec apache2ctl
+  const tmpFile = `/tmp/vhost_check_${Date.now()}.conf`;
+  try {
+    fs.writeFileSync(tmpFile, config);
+    await runCmd(`apache2ctl -t 2>&1 || apachectl -t 2>&1`).catch(() => {});
+  } finally { try { fs.unlinkSync(tmpFile); } catch {} }
+
+  try {
+    fs.writeFileSync(confFile, config);
+    await runCmd('systemctl reload apache2');
+    log('USER_UPDATE_VHOST', `${user.username} → ${safeName}`, 'OK');
+    res.json({ success: true, message: `Configuration de ${safeName} mise à jour et Apache rechargé` });
+  } catch (err) {
+    // Restaurer l'ancienne config en cas d'erreur
+    fs.writeFileSync(confFile, existing);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Supprimer un domaine de l'utilisateur

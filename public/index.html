@@ -474,16 +474,6 @@
     font-size: 11px; color: var(--muted); line-height: 1.5;
   }
 
-  .backup-file {
-    display: flex; align-items: center; gap: 5px;
-    font-family: var(--mono); font-size: 10px;
-    padding: 2px 0;
-  }
-  .backup-file::before { font-size: 9px; }
-  .backup-file.inc { color: var(--text); }
-  .backup-file.inc::before { content: '✓'; color: #6ee7b7; }
-  .backup-file.exc { color: var(--muted); }
-  .backup-file.exc::before { content: '✕'; color: #f87171; }
 
   /* PHP TABS */
   .php-tab {
@@ -759,6 +749,10 @@
       <div class="nav-item admin-only" id="navUfw" onclick="showUfwPage()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         Pare-feu (UFW)
+      </div>
+      <div class="nav-item admin-only" id="navLogins" onclick="showLoginsPage()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        <span>Connexions</span>
       </div>
       <div class="nav-item admin-only" id="navFail2ban" onclick="showFail2banPage()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
@@ -1317,7 +1311,7 @@
                   <input class="form-input" id="dnsEmailInput" placeholder="admin.exemple.com" style="font-family:var(--mono);font-size:12px;padding-left:28px">
                   <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;pointer-events:none">@</span>
                 </div>
-                <div style="font-size:10px;color:var(--muted);margin-top:4px">Format pointé — ex : <code style="color:var(--accent2)">admin.kazylax.fr</code> (= admin@kazylax.fr)</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:4px">Format pointé — ex : <code style="color:var(--accent2)">admin.kazylax.fr</code> (= admin&#64;kazylax.fr)</div>
               </div>
             </div>
           </div>
@@ -1390,6 +1384,33 @@
         </div>
         <div id="ufwBody">
           <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto 12px"></div></div>
+        </div>
+      </div>
+
+      <!-- ══ CONNEXIONS PAGE SECTION ══ -->
+      <div id="loginsPageSection" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Connexions</div>
+            <div class="page-subtitle" id="loginsSubtitle">Historique des accès au panel</div>
+          </div>
+          <div style="display:flex;gap:10px">
+            <select id="loginsFilter" onchange="loadLoginsPage()" style="font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer">
+              <option value="all">Toutes les connexions</option>
+              <option value="ok">Réussies uniquement</option>
+              <option value="fail">Échouées uniquement</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="loadLoginsPage()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+              Actualiser
+            </button>
+          </div>
+        </div>
+        <div id="loginsStats" class="admin-only" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px"></div>
+        <div class="table-container">
+          <div id="loginsTableWrap">
+            <div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>Chargement…</div>
+          </div>
         </div>
       </div>
 
@@ -1597,10 +1618,7 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
             Serveur
           </button>
-          <button class="cfg-tab" data-tab="backups"    onclick="switchCfgTab('backups')">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Sauvegardes
-          </button>
+
           <button class="cfg-tab" data-tab="pma"        onclick="switchCfgTab('pma')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
             phpMyAdmin
@@ -1612,6 +1630,10 @@
           <button class="cfg-tab" data-tab="https"      onclick="switchCfgTab('https')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><polyline points="9 16 12 13 15 16"/></svg>
             HTTPS
+          </button>
+          <button class="cfg-tab" data-tab="bashrc" onclick="switchCfgTab('bashrc')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Bashrc
           </button>
         </div>
 
@@ -1732,6 +1754,33 @@
               </div>
             </div>
 
+            <!-- Nom du serveur (Hostname) -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#7c3aed,#5b21b6)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Nom du serveur</div>
+                  <div class="cfg-card-sub">Hostname système — <code style="font-size:10px">hostnamectl</code></div>
+                </div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label class="form-label">Hostname</label>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input class="form-input" id="cfgHostname" placeholder="mon-serveur" style="font-family:var(--mono)">
+                    <div id="cfgHostnameBadge" style="font-size:11px;color:var(--muted);white-space:nowrap"></div>
+                  </div>
+                  <div style="font-size:10px;color:var(--muted);margin-top:5px">Lettres, chiffres et tirets — 63 caractères max</div>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveHostname()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#7c3aed,#5b21b6)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Appliquer
+                </button>
+              </div>
+            </div>
+
             <!-- Fuseau horaire -->
             <div class="cfg-card">
               <div class="cfg-card-head">
@@ -1796,68 +1845,69 @@
           </div>
         </div>
 
-        <!-- ═══ ONGLET : SAUVEGARDES ═══ -->
-        <div id="cfgTab-backups" class="cfg-tab-content" style="display:none">
+        <!-- ═══ ONGLET : BASHRC ═══ -->
+        <div id="cfgTab-bashrc" class="cfg-tab-content" style="display:none">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
-            <!-- Créer une sauvegarde -->
-            <div class="cfg-card">
+            <!-- Éditeur .bashrc -->
+            <div class="cfg-card" style="grid-column:1/-1">
               <div class="cfg-card-head">
                 <div class="cfg-card-icon" style="background:linear-gradient(135deg,#059669,#047857)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
                 </div>
-                <div>
-                  <div class="cfg-card-title">Créer une sauvegarde</div>
-                  <div class="cfg-card-sub">Archive tar.gz horodatée dans <code style="font-size:10px">backups/</code></div>
+                <div style="flex:1">
+                  <div class="cfg-card-title">Éditeur .bashrc</div>
+                  <div class="cfg-card-sub">Fichier <code style="font-size:10px">/root/.bashrc</code> — alias, variables, prompt</div>
                 </div>
+                <button onclick="cfgLoadBashrc()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                  Recharger
+                </button>
               </div>
               <div class="cfg-card-body">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-                  <div>
-                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#6ee7b7;margin-bottom:8px">✅ Inclus</div>
-                    <div style="display:flex;flex-direction:column;gap:5px">
-                      <div class="backup-file inc">server.js</div>
-                      <div class="backup-file inc">public/index.html</div>
-                      <div class="backup-file inc">package.json</div>
-                      <div class="backup-file inc">version.json</div>
-                      <div class="backup-file inc">templates.json</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#f87171;margin-bottom:8px">❌ Exclus</div>
-                    <div style="display:flex;flex-direction:column;gap:5px">
-                      <div class="backup-file exc">.env</div>
-                      <div class="backup-file exc">users.json</div>
-                      <div class="backup-file exc">db_configs.json</div>
-                      <div class="backup-file exc">node_modules/</div>
-                      <div class="backup-file exc">backups/ · *.log</div>
-                    </div>
-                  </div>
+                <textarea id="bashrcEditor"
+                  style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;resize:vertical;min-height:340px;outline:none"
+                  placeholder="Chargement..." spellcheck="false"></textarea>
+                <div style="display:flex;gap:10px;margin-top:12px">
+                  <button class="btn btn-primary" onclick="cfgSaveBashrc()" style="flex:1;justify-content:center">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    Enregistrer
+                  </button>
+                  <button class="btn btn-ghost" onclick="cfgApplyBashrc()" style="flex:1;justify-content:center">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Appliquer (source)
+                  </button>
                 </div>
-                <button class="btn btn-primary" id="backupCreateBtn" onclick="createBackup()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#059669,#047857)">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  Lancer la sauvegarde
-                </button>
+                <div class="cfg-warn" style="margin-top:12px">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <div>Ce fichier est chargé à chaque connexion SSH root. Une erreur peut bloquer votre accès — gardez une session SSH ouverte lors de la modification.</div>
+                </div>
               </div>
             </div>
 
-            <!-- Liste des sauvegardes -->
-            <div class="cfg-card">
+            <!-- Gestion des templates -->
+            <div class="cfg-card" style="grid-column:1/-1">
               <div class="cfg-card-head">
                 <div class="cfg-card-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 </div>
                 <div style="flex:1">
-                  <div class="cfg-card-title">Sauvegardes existantes</div>
-                  <div class="cfg-card-sub">Télécharger ou supprimer</div>
+                  <div class="cfg-card-title">Templates .bashrc</div>
+                  <div class="cfg-card-sub">Choisissez un template a charger dans l'editeur</div>
                 </div>
-                <button onclick="loadBackups()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-                </button>
               </div>
-              <div class="cfg-card-body" style="padding-top:0">
-                <div id="backupList" style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
-                  <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px"><div class="spinner" style="margin:0 auto 8px"></div>Chargement…</div>
+              <div class="cfg-card-body">
+                <div id="bashrcTemplateList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+                <div style="border-top:1px solid var(--border);padding-top:14px">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Nouveau template personnalise</div>
+                  <div style="display:flex;gap:8px">
+                    <input class="form-input" id="bashrcTplName" placeholder="Nom du template" style="flex:1">
+                    <button class="btn btn-primary btn-sm" onclick="cfgSaveBashrcTemplate()">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      Sauvegarder comme template
+                    </button>
+                  </div>
+                  <div style="font-size:10px;color:var(--muted);margin-top:6px">Le contenu actuel de l'editeur sera sauvegarde comme template reutilisable</div>
                 </div>
               </div>
             </div>
@@ -1955,7 +2005,7 @@
                 </div>
                 <div class="form-group">
                   <label class="form-label">Email Let's Encrypt</label>
-                  <input class="form-input" id="httpsEmail" type="email" placeholder="admin@kazylax.fr" style="font-family:var(--mono)">
+                  <input class="form-input" id="httpsEmail" type="email" placeholder="admin&#64;kazylax.fr" style="font-family:var(--mono)">
                   <div style="font-size:10px;color:var(--muted);margin-top:4px">Utilisé pour les alertes d'expiration SSL</div>
                 </div>
 
@@ -2296,16 +2346,14 @@
         <div class="form-hint">Login FTP : <span id="myFtpLoginPreview" style="font-family:var(--mono);color:var(--accent2)">votrelogin</span></div>
       </div>
 
-      <!-- Dossier d'atterrissage -->
+      <!-- Dossier d'atterrissage — limité aux DocumentRoot des sous-domaines -->
       <div class="form-group">
         <label>Dossier d'atterrissage FTP</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap" id="myFtpBasePath">/var/www/…/</span>
-          <input type="text" id="myFtpHomeDir" placeholder="public_html" oninput="updateMyFtpPreview()"
-            style="font-family:var(--mono);font-size:12px">
-        </div>
+        <select id="myFtpHomeDir" onchange="updateMyFtpPreview()" style="font-family:var(--mono);font-size:12px;width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+          <option value="">Chargement…</option>
+        </select>
         <div class="form-hint" style="margin-top:6px">
-          Chemin complet : <span id="myFtpFullPath" style="font-family:var(--mono);font-size:11px;color:var(--accent2)">—</span>
+          Chemin : <span id="myFtpFullPath" style="font-family:var(--mono);font-size:11px;color:var(--accent2)">—</span>
         </div>
       </div>
 
@@ -2381,10 +2429,20 @@
         <span style="width:10px;height:10px;border-radius:50%;background:#34d399;display:inline-block"></span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:8px" id="domainConfigFilename">—</span>
       </div>
-      <pre id="domainConfigContent" style="margin:0;padding:20px 24px;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text);overflow-x:auto;white-space:pre;background:var(--surface);min-height:200px;max-height:500px;overflow-y:auto"><div class="spinner" style="margin:40px auto"></div></pre>
+      <!-- Lecture seule (admin) -->
+      <pre id="domainConfigContent" style="margin:0;padding:20px 24px;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text);overflow-x:auto;white-space:pre;background:var(--surface);min-height:200px;max-height:500px;overflow-y:auto"></pre>
+      <!-- Édition (utilisateur) -->
+      <textarea id="domainConfigEditor" style="display:none;width:100%;box-sizing:border-box;margin:0;padding:20px 24px;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text);background:var(--surface);border:none;outline:none;resize:vertical;min-height:300px;max-height:500px"></textarea>
+      <div id="domainConfigWarn" style="display:none;padding:10px 20px;background:rgba(245,158,11,.08);border-top:1px solid rgba(245,158,11,.2);font-size:12px;color:#f59e0b">
+        ⚠️ Modifiez uniquement si vous savez ce que vous faites — une configuration invalide peut rendre votre site inaccessible.
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeDomainConfigModal()">Fermer</button>
+      <button class="btn btn-primary" id="saveDomainConfigBtn" style="display:none" onclick="saveDomainConfig()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        Enregistrer
+      </button>
     </div>
   </div>
 </div>
@@ -3170,7 +3228,7 @@ function setTopbarSection(name) {
 // ── Helper : masque toutes les sections principales ──────────────────────────
 function hideAllMainSections() {
   ['domainsSection','ipSection','usersSection','statusSection','templatesSection',
-   'configSection','userCrontabSection','dnsPageSection','ufwPageSection','fail2banPageSection']
+   'configSection','userCrontabSection','dnsPageSection','ufwPageSection','fail2banPageSection','loginsPageSection']
     .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 }
 
@@ -4560,6 +4618,181 @@ async function showUfwPage() {
   await loadUfwStatus();
 }
 
+// ─── CONFIG VHOST DOMAINE ────────────────────────────────────────────────────
+let _domainConfigMode = 'admin'; // 'admin' | 'user'
+let _domainConfigName = null;
+
+async function viewDomainConfig(name, mode) {
+  _domainConfigMode = mode || 'admin';
+  _domainConfigName = name;
+  const modal   = document.getElementById('domainConfigModal');
+  const pre     = document.getElementById('domainConfigContent');
+  const editor  = document.getElementById('domainConfigEditor');
+  const saveBtn = document.getElementById('saveDomainConfigBtn');
+  const warn    = document.getElementById('domainConfigWarn');
+  const copyBtn = document.getElementById('copyConfigBtn');
+
+  document.getElementById('domainConfigName').textContent  = name;
+  document.getElementById('domainConfigFilename').textContent = `${name}.conf`;
+  pre.innerHTML = '<div class="spinner" style="margin:40px auto"></div>';
+  editor.style.display  = 'none';
+  saveBtn.style.display = 'none';
+  warn.style.display    = 'none';
+  pre.style.display     = 'block';
+  modal.classList.add('open');
+
+  try {
+    const url = _domainConfigMode === 'user'
+      ? `${API}/api/me/domains/${encodeURIComponent(name)}/config`
+      : `${API}/api/domains/${encodeURIComponent(name)}/config`;
+
+    const res  = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const config = data.config || '';
+
+    if (_domainConfigMode === 'user') {
+      // Mode édition pour l'utilisateur
+      pre.style.display     = 'none';
+      editor.style.display  = 'block';
+      editor.value          = config;
+      saveBtn.style.display = '';
+      warn.style.display    = '';
+      copyBtn.style.display = '';
+    } else {
+      // Mode lecture seule pour l'admin
+      pre.textContent       = config;
+      pre.style.display     = 'block';
+      editor.style.display  = 'none';
+      saveBtn.style.display = 'none';
+    }
+  } catch(e) {
+    pre.textContent = 'Erreur : ' + e.message;
+  }
+}
+
+async function saveDomainConfig() {
+  if (_domainConfigMode !== 'user') return;
+  const config = document.getElementById('domainConfigEditor').value.trim();
+  if (!config) return showToast('Configuration vide', 'error');
+
+  const btn = document.getElementById('saveDomainConfigBtn');
+  btn.innerHTML = '<div class="spinner"></div>';
+  btn.disabled  = true;
+
+  try {
+    const res  = await fetch(`${API}/api/me/domains/${encodeURIComponent(_domainConfigName)}/config`, {
+      method:  'PUT',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ config })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+    closeDomainConfigModal();
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Enregistrer';
+    btn.disabled  = false;
+  }
+}
+
+function closeDomainConfigModal() {
+  document.getElementById('domainConfigModal').classList.remove('open');
+  _domainConfigName = null;
+}
+
+function copyDomainConfig() {
+  const content = _domainConfigMode === 'user'
+    ? document.getElementById('domainConfigEditor').value
+    : document.getElementById('domainConfigContent').textContent;
+  navigator.clipboard.writeText(content).then(() => showToast('Configuration copiée', 'success'));
+}
+
+// ─── PAGE CONNEXIONS ─────────────────────────────────────────────────────────
+async function showLoginsPage() {
+  hideAllMainSections();
+  document.getElementById('loginsPageSection').style.display = 'block';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('navLogins').classList.add('active');
+  setTopbarSection('Connexions');
+  loadLoginsPage();
+}
+
+async function loadLoginsPage() {
+  const filter = document.getElementById('loginsFilter')?.value || 'all';
+  const wrap   = document.getElementById('loginsTableWrap');
+  wrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>Chargement…</div>';
+
+  try {
+    const res  = await fetch(`${API}/api/logins?filter=${filter}&limit=200`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    // Stats (admin seulement)
+    if (currentRole === 'admin' && data.stats) {
+      const stats = data.stats;
+      document.getElementById('loginsStats').innerHTML = `
+        <div class="table-container" style="padding:16px 20px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--green)">${stats.successToday}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Connexions réussies aujourd'hui</div>
+        </div>
+        <div class="table-container" style="padding:16px 20px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--red)">${stats.failToday}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Tentatives échouées aujourd'hui</div>
+        </div>
+        <div class="table-container" style="padding:16px 20px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--accent2)">${stats.uniqueIps}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">IPs distinctes (7 jours)</div>
+        </div>
+        <div class="table-container" style="padding:16px 20px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--text)">${stats.totalLogins}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Total connexions (log complet)</div>
+        </div>`;
+    }
+
+    document.getElementById('loginsSubtitle').textContent = `${data.entries.length} entrée(s) affichée(s)`;
+
+    if (!data.entries.length) {
+      wrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Aucune connexion trouvée</div>';
+      return;
+    }
+
+    const isAdmin = currentRole === 'admin';
+    wrap.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Date / Heure</th>
+          ${isAdmin ? '<th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Utilisateur</th>' : ''}
+          <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Statut</th>
+          ${isAdmin ? '<th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Adresse IP</th>' : ''}
+          ${isAdmin ? '<th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Détails</th>' : ''}
+        </tr>
+      </thead>
+      <tbody>
+        ${data.entries.map((e, i) => `
+          <tr style="border-bottom:1px solid var(--border);background:${i%2===0?'transparent':'rgba(255,255,255,.02)'}">
+            <td style="padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--muted)">${e.date}</td>
+            ${isAdmin ? `<td style="padding:8px 12px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text)">${e.username}</td>` : ''}
+            <td style="padding:8px 12px">
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;
+                background:${e.status==='OK'?'rgba(34,197,94,.1)':'rgba(239,68,68,.1)'};
+                color:${e.status==='OK'?'var(--green)':'var(--red)'}">
+                ${e.status==='OK'?'✅ Réussie':'❌ Échouée'}
+              </span>
+            </td>
+            ${isAdmin ? `<td style="padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--muted)">${e.ip}</td>` : ''}
+            ${isAdmin ? `<td style="padding:8px 12px;font-size:11px;color:var(--muted)">${e.detail || '—'}</td>` : ''}
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+  } catch(e) {
+    wrap.innerHTML = `<div style="color:var(--red);padding:20px">${e.message}</div>`;
+  }
+}
+
 async function showFail2banPage() {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('navFail2ban').classList.add('active');
@@ -4694,9 +4927,6 @@ function openPma(db, e) {
 // Redirige vers l'onglet phpMyAdmin de la page Configuration
 function openPmaConfigModal() { openConfigPage().then(() => switchCfgTab('pma')); }
 async function savePmaUrl() { await cfgSavePmaUrl(); }
-
-// Redirige vers l'onglet Sauvegardes
-async function doBackup_legacy() { openConfigPage().then(() => switchCfgTab('backups')); }
 
 // ── SSL LET'S ENCRYPT ─────────────────────────────────────────
 let _sslDomainName = null;
@@ -5114,90 +5344,6 @@ async function renewAllSSL() {
 
 async function doBackup() {
   await openConfigPage();
-  switchCfgTab('backups');
-}
-
-async function loadBackups() {
-  const list = document.getElementById('backupList');
-  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px"><div class="spinner" style="margin:0 auto 8px"></div>Chargement…</div>';
-  try {
-    const res = await fetch(`${API}/api/backup`, { headers: { Authorization: 'Bearer ' + token } });
-    const d = await res.json();
-    renderBackupList(d.backups || []);
-  } catch(e) {
-    list.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">${e.message}</div>`;
-  }
-}
-
-function renderBackupList(backups) {
-  const list = document.getElementById('backupList');
-  if (!backups.length) {
-    list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Aucune sauvegarde</div>';
-    return;
-  }
-  list.innerHTML = backups.map(b => {
-    const date = new Date(b.createdAt).toLocaleString('fr-FR');
-    return `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;gap:10px">
-      <div style="min-width:0;flex:1">
-        <div style="font-size:12px;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600">${b.name}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px;display:flex;gap:12px">
-          <span>📅 ${date}</span>
-          <span>📦 ${fmtSize(b.size)}</span>
-        </div>
-      </div>
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <a href="${API}/api/backup/${encodeURIComponent(b.name)}" download
-           onclick="this.setAttribute('href', '${API}/api/backup/${encodeURIComponent(b.name)}')"
-           style="text-decoration:none">
-          <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.3)" onclick="downloadBackup('${b.name}', event)">⬇ Télécharger</button>
-        </a>
-        <button class="btn btn-danger btn-sm" onclick="deleteBackup('${b.name}')">Supprimer</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function createBackup() {
-  const btn = document.getElementById('backupCreateBtn');
-  btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px"></div> En cours…';
-  btn.disabled = true;
-  try {
-    const res = await fetch(`${API}/api/backup`, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error);
-    showToast(`Sauvegarde créée : ${fmtSize(d.backup.size)}`, 'success');
-    await loadBackups();
-  } catch(e) {
-    showToast('Erreur : ' + e.message, 'error');
-  } finally {
-    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Sauvegarder';
-    btn.disabled = false;
-  }
-}
-
-async function downloadBackup(name, e) {
-  if (e) e.preventDefault();
-  try {
-    const res = await fetch(`${API}/api/backup/${encodeURIComponent(name)}`, { headers: { Authorization: 'Bearer ' + token } });
-    if (!res.ok) throw new Error('Erreur téléchargement');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = name; a.click();
-    URL.revokeObjectURL(url);
-  } catch(err) { showToast(err.message, 'error'); }
-}
-
-async function deleteBackup(name) {
-  if (!confirm(`Supprimer la sauvegarde "${name}" ?`)) return;
-  try {
-    const res = await fetch(`${API}/api/backup/${encodeURIComponent(name)}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error);
-    showToast(d.message, 'success');
-    await loadBackups();
-  } catch(e) { showToast(e.message, 'error'); }
 }
 
 async function showUsersSection() {
@@ -5832,27 +5978,44 @@ async function saveFtpLimit(userId) {
 }
 
 // ── FTP MANAGEMENT (utilisateur — self-service) ───────────────
-function openMyFtpCreateModal() {
-  document.getElementById('myFtpSuffix').value = '';
+async function openMyFtpCreateModal() {
+  document.getElementById('myFtpSuffix').value   = '';
   document.getElementById('myFtpPassword').value = '';
-  document.getElementById('myFtpHomeDir').value = 'public_html';
-  const base = userFtpDir || `/var/www/${_currentUsername || '…'}`;
-  document.getElementById('myFtpBasePath').textContent = base + '/';
-  updateMyFtpPreview();
   document.getElementById('myFtpModal').classList.add('open');
+
+  // Charger les sous-domaines et leurs DocumentRoot
+  const select = document.getElementById('myFtpHomeDir');
+  select.innerHTML = '<option value="">Chargement…</option>';
+  try {
+    const res  = await fetch(`${API}/api/me/domains`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    const subdomains = (data.domains || []).filter(d => d.isSubdomain);
+
+    if (!subdomains.length) {
+      select.innerHTML = '<option value="">Aucun sous-domaine disponible</option>';
+      updateMyFtpPreview();
+      return;
+    }
+
+    select.innerHTML = subdomains.map(d =>
+      `<option value="${d.docRoot}">${d.domain} → ${d.docRoot}</option>`
+    ).join('');
+
+    updateMyFtpPreview();
+  } catch(e) {
+    select.innerHTML = '<option value="">Erreur de chargement</option>';
+  }
 }
 function closeMyFtpModal() { document.getElementById('myFtpModal').classList.remove('open'); }
 
 function updateMyFtpPreview() {
-  const suffix = (document.getElementById('myFtpSuffix')?.value || '').trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-  const base = userFtpDir || `/var/www/${_currentUsername || '…'}`;
-  const sub = (document.getElementById('myFtpHomeDir')?.value || '').trim().replace(/\.\./g, '').replace(/[^a-zA-Z0-9_\-\/]/g, '').replace(/^\/+/, '');
-  const login = suffix ? `${_currentUsername || 'login'}_${suffix}` : (_currentUsername || 'login');
-  const fullPath = sub ? `${base}/${sub}` : base;
-  const loginEl = document.getElementById('myFtpLoginPreview');
-  const pathEl  = document.getElementById('myFtpFullPath');
+  const suffix   = (document.getElementById('myFtpSuffix')?.value || '').trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  const docRoot  = document.getElementById('myFtpHomeDir')?.value || '';
+  const login    = suffix ? `${_currentUsername || 'login'}_${suffix}` : (_currentUsername || 'login');
+  const loginEl  = document.getElementById('myFtpLoginPreview');
+  const pathEl   = document.getElementById('myFtpFullPath');
   if (loginEl) loginEl.textContent = login;
-  if (pathEl)  pathEl.textContent  = fullPath;
+  if (pathEl)  pathEl.textContent  = docRoot || '—';
 }
 
 async function doCreateMyFtp() {
@@ -5861,12 +6024,13 @@ async function doCreateMyFtp() {
   const ftpHomeDir  = document.getElementById('myFtpHomeDir').value.trim();
   const btn = document.getElementById('myFtpSaveBtn');
   if (!ftpPassword) { showToast('Le mot de passe est requis', 'error'); return; }
+  if (!ftpHomeDir)  { showToast("Sélectionnez un dossier d'atterrissage", "error"); return; }
   btn.innerHTML = '<div class="spinner"></div>'; btn.disabled = true;
   try {
     const res = await fetch(`${API}/api/me/ftp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ ftpPassword, ftpSuffix: ftpSuffix || undefined, ftpHomeDir: ftpHomeDir || undefined })
+      body: JSON.stringify({ ftpPassword, ftpSuffix: ftpSuffix || undefined, ftpHomeDir })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.rules ? data.rules[0] : data.error);
@@ -6530,10 +6694,164 @@ function switchCfgTab(tab) {
   document.querySelector(`.cfg-tab[data-tab="${tab}"]`).classList.add('active');
   document.querySelectorAll('.cfg-tab-content').forEach(c => c.style.display = 'none');
   document.getElementById(`cfgTab-${tab}`).style.display = '';
-  if (tab === 'backups') loadBackups();
   if (tab === 'system')  loadPanelUsage();
   if (tab === 'https')   loadHttpsStatus();
-  if (tab === 'server')  cfgLoadSshAllowUsers();
+  if (tab === 'server')  { cfgLoadSshAllowUsers(); cfgLoadHostname(); }
+  if (tab === 'bashrc')  cfgLoadBashrc();
+}
+
+// ─── BASHRC TEMPLATE PAR DÉFAUT ──────────────────────────────────────────────
+const BASHRC_TEMPLATE = [
+  "# ~/.bashrc - KazyPanel Template",
+  "export LS_OPTIONS='--color=auto'",
+  'eval "$(dircolors)"',
+  "alias ls='ls $LS_OPTIONS'",
+  "alias ll='ls $LS_OPTIONS -l'",
+  "alias l='ls $LS_OPTIONS -lA'",
+  "export PS1='[Root]-[\\t]-[\\w]\\n[\\u]: '",
+  "clear",
+  'echo "*******************************************************************************"',
+  'echo "************************* bienvenue Sur L\'aide Du Shell ***********************"',
+  'echo "*******************************************************************************"',
+  'echo "|-----------------------------------------------------------------------------|"',
+  'echo "| Commande de base du shell                                                   |"',
+  'echo "|-----------------------------------------------------------------------------|"',
+  'echo "| cat <fichier>         : Affiche le contenu d\'un fichier                     |"',
+  'echo "| cd ..                 : Va dans un repertoire (precedent,home,choisi)       |"',
+  'echo "| cp <fichier> <dest.>  : Copie un fichier vers dest.                         |"',
+  'echo "| ls <repertoire>       : Affiche le contenu d\'un repertoire                  |"',
+  'echo "| wget <url>            : Telecharge un fichier sur ftp/http                  |"',
+  'echo "| mkdir <repertoire>    : Cree le repertoire indique                          |"',
+  'echo "| mv <fichier> <dest.>  : Deplace un fichier vers dest.                       |"',
+  'echo "| passwd                : Change votre mot de passe ou celui d\'user           |"',
+  'echo "| ps aux                : Donne la list de procs                              |"',
+  'echo "| tar -cf               : Cree un Tar                                         |"',
+  'echo "| tar -zxf              : Decompresse un Tar                                  |"',
+  'echo "|-----------------------------------------------------------------------------|"',
+  'echo "|-----------------------------------------------------------------------------|"'
+].join('\n');
+
+// ─── BASHRC FUNCTIONS ─────────────────────────────────────────────────────────
+let _bashrcTemplates = [];
+
+async function cfgLoadBashrc() {
+  const editor = document.getElementById('bashrcEditor');
+  if (!editor) return;
+  editor.value = 'Chargement...';
+  try {
+    const res  = await fetch(API + '/api/server-config/bashrc', { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    editor.value = data.content || '';
+    _bashrcTemplates = data.templates || [];
+    cfgRenderBashrcTemplates();
+  } catch(e) { editor.value = 'Erreur : ' + e.message; }
+}
+
+function cfgRenderBashrcTemplates() {
+  const list = document.getElementById('bashrcTemplateList');
+  if (!list) return;
+  const templates = [{ id: '__kazypanel__', name: 'KazyPanel (defaut)', locked: true }].concat(_bashrcTemplates);
+  var rows = [];
+  templates.forEach(function(t) {
+    var lockBadge = t.locked ? '<div style="font-size:10px;color:var(--muted)">Officiel - non modifiable</div>' : '';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px';
+    var info = document.createElement('div');
+    info.style.flex = '1';
+    info.innerHTML = '<div style="font-size:13px;font-weight:600">' + t.name + '</div>' + lockBadge;
+    var loadBtn = document.createElement('button');
+    loadBtn.className = 'btn btn-ghost btn-sm';
+    loadBtn.textContent = 'Charger';
+    loadBtn.onclick = (function(id){ return function(){ cfgApplyBashrcTemplate(id); }; })(t.id);
+    row.appendChild(info);
+    row.appendChild(loadBtn);
+    if (!t.locked) {
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-danger btn-sm';
+      delBtn.textContent = 'Supprimer';
+      delBtn.onclick = (function(id){ return function(){ cfgDeleteBashrcTemplate(id); }; })(t.id);
+      row.appendChild(delBtn);
+    }
+    rows.push(row);
+  });
+  list.innerHTML = '';
+  rows.forEach(function(r){ list.appendChild(r); });
+}
+
+function cfgApplyBashrcTemplate(id) {
+  if (!confirm("Charger ce template dans l'editeur ?")) return;
+  if (id === '__kazypanel__') {
+    document.getElementById('bashrcEditor').value = BASHRC_TEMPLATE;
+    showToast('Template KazyPanel charge - cliquez sur Enregistrer pour appliquer', 'success');
+    return;
+  }
+  const tpl = _bashrcTemplates.find(function(t) { return t.id === id; });
+  if (!tpl) return showToast('Template introuvable', 'error');
+  document.getElementById('bashrcEditor').value = tpl.content;
+  showToast('Template "' + tpl.name + '" charge', 'success');
+}
+
+async function cfgSaveBashrcTemplate() {
+  const name    = document.getElementById('bashrcTplName').value.trim();
+  const content = document.getElementById('bashrcEditor').value;
+  if (!name)    return showToast('Nom du template requis', 'error');
+  if (!content) return showToast('Editeur vide', 'error');
+  try {
+    const res  = await fetch(API + '/api/server-config/bashrc/templates', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, content: content })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast('Template "' + name + '" sauvegarde', 'success');
+    document.getElementById('bashrcTplName').value = '';
+    _bashrcTemplates = data.templates;
+    cfgRenderBashrcTemplates();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function cfgDeleteBashrcTemplate(id) {
+  if (!confirm('Supprimer ce template ?')) return;
+  try {
+    const res  = await fetch(API + '/api/server-config/bashrc/templates/' + id, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+    _bashrcTemplates = data.templates;
+    cfgRenderBashrcTemplates();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function cfgSaveBashrc() {
+  const content = document.getElementById('bashrcEditor').value;
+  try {
+    const res  = await fetch(API + '/api/server-config/bashrc', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: content })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function cfgApplyBashrc() {
+  if (!confirm('Appliquer le .bashrc via source ?')) return;
+  try {
+    const res  = await fetch(API + '/api/server-config/bashrc/apply', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+  } catch(e) { showToast(e.message, 'error'); }
 }
 
 // ── HTTPS / Sous-domaine panel ────────────────────────────────────────────────
@@ -6636,6 +6954,10 @@ async function loadConfigPage() {
 
     document.getElementById('cfgSshPort').value = data.sshPort || '22';
     document.getElementById('cfgSshPortBadge').textContent = `actuel : ${data.sshPort || '22'}`;
+    if (data.hostname && document.getElementById('cfgHostname')) {
+      document.getElementById('cfgHostname').value = data.hostname;
+      document.getElementById('cfgHostnameBadge').textContent = `actuel : ${data.hostname}`;
+    }
     document.getElementById('cfgMotd').value = data.motd || '';
     document.getElementById('cfgTimezone').value = data.timezone || 'UTC';
 
@@ -6929,6 +7251,33 @@ function cfgApplyMaintenanceBanner(enabled, message) {
     document.body.appendChild(banner);
   }
   banner.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><strong>Maintenance :</strong> ${message || 'Mode maintenance activé'}`;
+}
+
+async function cfgLoadHostname() {
+  try {
+    const res  = await fetch(`${API}/api/server-config/hostname`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    document.getElementById('cfgHostname').value = data.hostname || '';
+    document.getElementById('cfgHostnameBadge').textContent = `actuel : ${data.hostname}`;
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function cfgSaveHostname() {
+  const hostname = document.getElementById('cfgHostname').value.trim();
+  if (!hostname) return showToast('Hostname requis', 'error');
+  if (!confirm(`Changer le hostname en "${hostname}" ?`)) return;
+  try {
+    const res  = await fetch(`${API}/api/server-config/hostname`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hostname })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+    document.getElementById('cfgHostnameBadge').textContent = `actuel : ${hostname}`;
+  } catch(e) { showToast(e.message, 'error'); }
 }
 
 async function cfgSaveTimezone() {

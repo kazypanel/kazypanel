@@ -2,7 +2,7 @@
 
 Panel d'hébergement web auto-hébergé en **Node.js**, conçu pour gérer un serveur Linux (Debian/Ubuntu) avec Apache, PHP 8.4, MariaDB et vsftpd.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
@@ -225,3 +225,7 @@ systemctl restart kazypanel
 ## Licence
 
 MIT — Libre d'utilisation, modification et distribution.
+
+## Changelog
+
+### v1.1.0 — 2026-03-17
