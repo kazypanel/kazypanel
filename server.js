@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 18/03/2026 00:44
+ * Dernière modification : 19/03/2026 21:05
  */
 
 const express = require('express');
@@ -20,12 +20,17 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.1.0';
+const KAZYPANEL_VERSION = '1.2.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
 const CONFIG = {
-  JWT_SECRET: process.env.JWT_SECRET || 'CHANGEZ_CE_SECRET_EN_PRODUCTION_' + Math.random(),
+  JWT_SECRET: process.env.JWT_SECRET || (() => {
+    const fallback = require('crypto').randomBytes(64).toString('hex');
+    console.warn('\n⚠️  JWT_SECRET non défini dans .env — clé temporaire générée.');
+    console.warn('   Les sessions seront perdues au prochain redémarrage.\n');
+    return fallback;
+  })(),
   APACHE_SITES_PATH: '/etc/apache2/sites-available',
   APACHE_ENABLED_PATH: '/etc/apache2/sites-enabled',
   WEB_ROOT: '/var/www/admin',
@@ -215,7 +220,15 @@ async function initUsers() {
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+app.use(cors({
+  origin: (origin, cb) => {
+    // Autoriser les requêtes sans origin (curl, Postman, appel direct)
+    // et les requêtes provenant du même serveur
+    if (!origin) return cb(null, true);
+    cb(null, true); // En production : remplacer par une whitelist d'origines
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -241,9 +254,41 @@ function adminOnly(req, res, next) {
   next();
 }
 
+// ─── LISTE DES PRÉFIXES DE COMMANDES NÉCESSITANT SUDO ────────────────────────
+// Ces commandes requièrent des droits root lorsque le serveur tourne en tant que
+// utilisateur non-privilégié (ex: debian). Assurez-vous que /etc/sudoers.d/kazypanel
+// autorise ces commandes en NOPASSWD pour l'utilisateur qui lance KazyPanel.
+const SUDO_PREFIXES = [
+  'a2ensite', 'a2dissite', 'a2enmod',
+  'systemctl',
+  'useradd', 'userdel', 'usermod',
+  'chpasswd',
+  'chown', 'chmod',
+  'mkdir -p /var/spool', 'cp ', 'rm -rf /var', 'rm -f /tmp/kp_',
+  'rndc',
+  'named-checkzone', 'named-checkconf',
+  'certbot',
+  'ufw',
+  'fail2ban-client',
+  'sshd -t', 'hostnamectl', 'timedatectl set-timezone',
+  'du -sm', 'du -sk',
+  'crontab -u',
+  'tar ',
+  'apache2ctl', 'apachectl',
+  'bash -c "source /root/',
+];
+
+function needsSudo(cmd) {
+  const trimmed = cmd.trim();
+  // Ne pas doubler le sudo si déjà présent
+  if (trimmed.startsWith('sudo ')) return false;
+  return SUDO_PREFIXES.some(prefix => trimmed.startsWith(prefix));
+}
+
 function runCmd(cmd) {
+  const finalCmd = needsSudo(cmd) ? `sudo ${cmd}` : cmd;
   return new Promise((resolve, reject) => {
-    exec(cmd, { timeout: 30000 }, (error, stdout, stderr) => {
+    exec(finalCmd, { timeout: 30000 }, (error, stdout, stderr) => {
       if (error) reject(new Error(stderr || error.message));
       else resolve(stdout.trim());
     });
@@ -253,7 +298,7 @@ function runCmd(cmd) {
 // Utilise spawn + stdin pour éviter les problèmes d'échappement avec chpasswd
 function setSystemPassword(username, password) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('chpasswd', [], { timeout: 10000 });
+    const proc = spawn('sudo', ['chpasswd'], { timeout: 10000 });
     let stderr = '';
     proc.stderr.on('data', d => { stderr += d; });
     proc.on('close', code => {
@@ -995,8 +1040,11 @@ app.post('/api/users', authMiddleware, adminOnly, async (req, res) => {
     const vsftpdUserList = '/etc/vsftpd.userlist';
     if (fs.existsSync(vsftpdUserList)) {
       const list = fs.readFileSync(vsftpdUserList, 'utf8');
-      if (!list.split('\n').includes(username))
-        fs.appendFileSync(vsftpdUserList, `\n${username}`);
+      if (!list.split('\n').includes(username)) {
+        const tmpVsftpd = `/tmp/kp_userlist_${Date.now()}`;
+        fs.writeFileSync(tmpVsftpd, list.trimEnd() + `\n${username}\n`);
+        await runCmd(`sudo cp "${tmpVsftpd}" "${vsftpdUserList}" && sudo chmod 644 "${vsftpdUserList}"; rm -f "${tmpVsftpd}"`);
+      }
     }
 
     ftpInfo = { ftpUsername: username, label: 'Compte principal', dir: homeDir, createdAt: new Date().toISOString() };
@@ -1186,7 +1234,9 @@ async function createFtpSystemAccount(ftpUsername, homeDir, password) {
     const lines = fs.readFileSync(list, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
     if (!lines.includes(ftpUsername)) {
       lines.push(ftpUsername);
-      fs.writeFileSync(list, lines.join('\n') + '\n');
+      const tmpList = `/tmp/kp_userlist_${Date.now()}`;
+      fs.writeFileSync(tmpList, lines.join('\n') + '\n');
+      await runCmd(`sudo cp "${tmpList}" "${list}" && sudo chmod 644 "${list}"; rm -f "${tmpList}"`);
     }
   }
 
@@ -1232,7 +1282,9 @@ async function ensureVsftpdChroot() {
   }
 
   if (changed) {
-    fs.writeFileSync(confPath, conf);
+    const tmpConf = `/tmp/kp_vsftpd_${Date.now()}`;
+    fs.writeFileSync(tmpConf, conf);
+    await runCmd(`sudo cp "${tmpConf}" "${confPath}" && sudo chmod 644 "${confPath}"; rm -f "${tmpConf}"`);
     log('FTP_CONFIG', 'vsftpd.conf mis à jour', 'OK');
   }
 
@@ -1252,7 +1304,9 @@ async function deleteFtpSystemAccount(ftpUsername) {
   if (fs.existsSync(list)) {
     const lines = fs.readFileSync(list, 'utf8').split('\n')
       .filter(l => l.trim() !== ftpUsername);
-    fs.writeFileSync(list, lines.join('\n'));
+    const tmpList = `/tmp/kp_userlist_${Date.now()}`;
+    fs.writeFileSync(tmpList, lines.join('\n'));
+    await runCmd(`sudo cp "${tmpList}" "${list}" && sudo chmod 644 "${list}"; rm -f "${tmpList}"`);
   }
 }
 
@@ -1747,7 +1801,7 @@ app.get('/api/users/:id/diskusage', authMiddleware, adminOnly, async (req, res) 
 
 // Usage disque — route utilisateur (profil)
 app.get('/api/me/diskusage', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const userDir = `${CONFIG.FTP_ROOT}/${user.username}`;
   let usedMb = 0;
@@ -1799,17 +1853,17 @@ function readUserCrontabFile(username) {
 }
 
 async function writeUserCrontabFile(username, content) {
-  await runCmd(`mkdir -p ${CRONTAB_DIR}`);
+  await runCmd(`sudo mkdir -p ${CRONTAB_DIR}`);
   const filePath = `${CRONTAB_DIR}/${username}`;
   // Écrire via un fichier tmp pour éviter les problèmes d'échappement shell
   const tmpPath = `/tmp/kp_cron_${username}_${Date.now()}`;
   fs.writeFileSync(tmpPath, content, 'utf8');
-  await runCmd(`cp "${tmpPath}" "${filePath}" && chmod 600 "${filePath}" && chown ${username}: "${filePath}" 2>/dev/null; rm -f "${tmpPath}"`);
+  await runCmd(`sudo cp "${tmpPath}" "${filePath}" && sudo chmod 600 "${filePath}" && sudo chown ${username}: "${filePath}" 2>/dev/null; rm -f "${tmpPath}"`);
 }
 
 // GET /api/me/crontab
 app.get('/api/me/crontab', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   try {
     const raw = readUserCrontabFile(user.username);
@@ -1819,7 +1873,7 @@ app.get('/api/me/crontab', authMiddleware, async (req, res) => {
 
 // POST /api/me/crontab — ajouter une entrée
 app.post('/api/me/crontab', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { label = '', schedule, command } = req.body;
   if (!schedule || !command) return res.status(400).json({ error: 'schedule et command requis' });
@@ -1847,10 +1901,10 @@ app.post('/api/me/crontab', authMiddleware, async (req, res) => {
 
 // DELETE /api/me/crontab/:id — supprimer une entrée par index
 app.delete('/api/me/crontab/:id', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === req.user.id);
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const targetId = parseInt(req.params.id);
-  if (!targetId) return res.status(400).json({ error: 'ID invalide' });
+  if (isNaN(targetId)) return res.status(400).json({ error: 'ID invalide' });
   try {
     const raw   = readUserCrontabFile(user.username);
     const lines = raw.split('\n');
@@ -1924,7 +1978,7 @@ async function getDbSizeMb(dbName) {
 app.get('/api/databases/:dbname/usage', authMiddleware, async (req, res) => {
   const isAdmin = req.user.role === 'admin';
   const dbname  = req.params.dbname.replace(/[^a-zA-Z0-9_]/g, '');
-  const user    = USERS.find(u => u.id === req.user.id);
+  const user    = USERS.find(u => u.id === parseInt(req.user.id));
   if (!isAdmin) {
     const dbs = await getUserDatabases(user.username).catch(() => []);
     if (!dbs.includes(dbname)) return res.status(403).json({ error: 'Cette base ne vous appartient pas' });
@@ -2751,7 +2805,7 @@ app.get('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
 
   // Vérifier propriété si non admin
   if (!isAdmin) {
-    const user = USERS.find(u => u.id === req.user.id);
+    const user = USERS.find(u => u.id === parseInt(req.user.id));
     if (!userOwnsDocRoot(user, docRoot))
       return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
   }
@@ -2776,7 +2830,7 @@ app.put('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
   if (!docRoot) return res.status(400).json({ error: 'DocumentRoot introuvable' });
 
   if (!isAdmin) {
-    const user = USERS.find(u => u.id === req.user.id);
+    const user = USERS.find(u => u.id === parseInt(req.user.id));
     if (!userOwnsDocRoot(user, docRoot))
       return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
   }
@@ -2808,7 +2862,7 @@ app.delete('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
   const conf    = fs.readFileSync(confFile, 'utf8');
   const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim();
   if (!isAdmin) {
-    const user = USERS.find(u => u.id === req.user.id);
+    const user = USERS.find(u => u.id === parseInt(req.user.id));
     if (!userOwnsDocRoot(user, docRoot))
       return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
   }
@@ -3213,8 +3267,9 @@ async function f2bCmd(args) {
 }
 
 async function runCmdOut(cmd) {
+  const finalCmd = needsSudo(cmd) ? `sudo ${cmd}` : cmd;
   return new Promise((resolve, reject) => {
-    exec(cmd, (err, stdout, stderr) => {
+    exec(finalCmd, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr || err.message));
       else resolve({ stdout, stderr });
     });
