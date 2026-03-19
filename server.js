@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 19/03/2026 21:05
+ * Dernière modification : 19/03/2026 21:15
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.2.0';
+const KAZYPANEL_VERSION = '1.3.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
