@@ -10,3 +10,4 @@ backups/
 .npm/
 templates.json
 publish.sh
+publish.sh
