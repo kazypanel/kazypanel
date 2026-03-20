@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 20/03/2026 21:40
+ * Dernière modification : 20/03/2026 23:48
  */
 
 const express = require('express');
@@ -264,24 +264,52 @@ const SUDO_PREFIXES = [
   'useradd', 'userdel', 'usermod',
   'chpasswd',
   'chown', 'chmod',
-  'mkdir -p /var/spool', 'cp ', 'rm -rf /var', 'rm -f /tmp/kp_',
+  'mkdir',
+  'cp ',
+  'rm -rf', 'rm -f',
   'rndc',
   'named-checkzone', 'named-checkconf',
   'certbot',
   'ufw',
   'fail2ban-client',
-  'sshd -t', 'hostnamectl', 'timedatectl set-timezone',
+  'sshd -t', 'hostnamectl', 'timedatectl',
   'du -sm', 'du -sk',
   'crontab -u',
   'tar ',
   'apache2ctl', 'apachectl',
-  'bash -c "source /root/',
+  'bash -c "source',
+  'passwd ',
+];
+
+// Commandes de lecture qui ne nécessitent PAS sudo
+const NO_SUDO_PREFIXES = [
+  'systemctl is-active',
+  'systemctl status',
+  'du -sm "/proc',
+  'du -sk "/proc',
+  'cat ',
+  'ls ',
+  'grep ',
+  'hostname',
+  'which ',
+  'id ',
+  'free ',
+  'df ',
+  'lsb_release',
+  'uname',
+  'uptime',
+  'ss -',
+  'netstat',
+  'tail ',
+  'head ',
+  'find ',
 ];
 
 function needsSudo(cmd) {
   const trimmed = cmd.trim();
-  // Ne pas doubler le sudo si déjà présent
   if (trimmed.startsWith('sudo ')) return false;
+  // Vérifier d'abord si c'est une commande de lecture (pas de sudo)
+  if (NO_SUDO_PREFIXES.some(prefix => trimmed.startsWith(prefix))) return false;
   return SUDO_PREFIXES.some(prefix => trimmed.startsWith(prefix));
 }
 
@@ -531,14 +559,17 @@ app.post('/api/server-config/fail2ban', authMiddleware, adminOnly, async (req, r
   if (!content || !content.trim()) return res.status(400).json({ error: 'Contenu requis' });
 
   // Créer /etc/fail2ban/filter.d/ si nécessaire
-  try { fs.mkdirSync('/etc/fail2ban/filter.d', { recursive: true }); } catch {}
+  try { await runCmd('sudo mkdir -p /etc/fail2ban/filter.d'); } catch {}
 
   // Créer automatiquement le filtre kazypanel s'il est référencé et manquant
   const filterPath = '/etc/fail2ban/filter.d/kazypanel.conf';
   if (content.includes('filter   = kazypanel') || content.includes('filter=kazypanel')) {
     if (!fs.existsSync(filterPath)) {
       try {
-        fs.writeFileSync(filterPath, KAZYPANEL_FILTER, 'utf8');
+        const tmpFilter = `/tmp/kp_f2b_filter_${Date.now()}.conf`;
+        fs.writeFileSync(tmpFilter, KAZYPANEL_FILTER, 'utf8');
+        await runCmd(`sudo cp "${tmpFilter}" "${filterPath}" && sudo chmod 644 "${filterPath}"`);
+        fs.unlinkSync(tmpFilter);
         log('FAIL2BAN_FILTER', 'Filtre kazypanel.conf créé automatiquement', 'OK');
       } catch (e) {
         return res.status(500).json({ error: `Impossible de créer le filtre kazypanel : ${e.message}` });
@@ -548,7 +579,7 @@ app.post('/api/server-config/fail2ban', authMiddleware, adminOnly, async (req, r
 
   // Sauvegarde de l'ancien jail.local
   const bak = '/etc/fail2ban/jail.local.bak.' + Date.now();
-  try { fs.copyFileSync('/etc/fail2ban/jail.local', bak); } catch {}
+  try { await runCmd(`sudo cp /etc/fail2ban/jail.local "${bak}"`); } catch {}
 
   try {
     const tmpJail = `/tmp/kp_jail_${Date.now()}`;
@@ -561,7 +592,7 @@ app.post('/api/server-config/fail2ban', authMiddleware, adminOnly, async (req, r
     res.json({ success: true, message: 'Fail2ban reconfiguré et redémarré' + (filterCreated ? ' — filtre kazypanel.conf créé' : '') });
   } catch (err) {
     // Restaurer la sauvegarde en cas d'erreur
-    try { fs.copyFileSync(bak, '/etc/fail2ban/jail.local'); await runCmd('systemctl restart fail2ban'); } catch {}
+    try { await runCmd(`sudo cp "${bak}" /etc/fail2ban/jail.local`); await runCmd('systemctl restart fail2ban'); } catch {}
     res.status(500).json({ error: err.message });
   }
 });
@@ -1110,7 +1141,7 @@ app.post('/api/users', authMiddleware, adminOnly, async (req, res) => {
     try { await runCmd(`id ${username}`); userExists = true; } catch {}
 
     if (!userExists) {
-      await runCmd(`mkdir -p "${homeDir}"`);
+      await runCmd(`sudo mkdir -p "${homeDir}"`);
       await runCmd(`useradd -d "${homeDir}" -s /bin/bash -M ${username}`);
       await setSystemPassword(username, password);
       await runCmd(`chown ${username}:${username} "${homeDir}"`);
@@ -1234,8 +1265,8 @@ app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
           if (allDirs.some(dir => docRoot.startsWith(dir))) {
             const name = file.replace('.conf', '');
             const enabledLink = path.join(CONFIG.APACHE_ENABLED_PATH, file);
-            if (fs.existsSync(enabledLink)) fs.unlinkSync(enabledLink);
-            fs.unlinkSync(path.join(CONFIG.APACHE_SITES_PATH, file));
+            try { await runCmd(`sudo rm -f "${enabledLink}"`); } catch {}
+            await runCmd(`sudo rm -f "${path.join(CONFIG.APACHE_SITES_PATH, file)}"`);
             log('VHOST_DELETE', `${name} (suppression user ${deleted.username})`, 'OK');
           }
         } catch (e) { errors.push(`VHost ${file}: ${e.message}`); }
@@ -1282,10 +1313,10 @@ async function createFtpSystemAccount(ftpUsername, homeDir, password) {
   let exists = false;
   try { await runCmd(`id "${ftpUsername}"`); exists = true; } catch {}
   if (!exists) {
-    await runCmd(`mkdir -p "${homeDir}"`);
+    await runCmd(`sudo mkdir -p "${homeDir}"`);
     await runCmd(`useradd -d "${homeDir}" -s /bin/false -M "${ftpUsername}"`);
   } else {
-    await runCmd(`mkdir -p "${homeDir}"`);
+    await runCmd(`sudo mkdir -p "${homeDir}"`);
     await runCmd(`usermod -d "${homeDir}" -s /bin/false "${ftpUsername}"`);
   }
 
@@ -1307,7 +1338,7 @@ async function createFtpSystemAccount(ftpUsername, homeDir, password) {
     await runCmd(`chown root:root "${homeDir}"`);
     await runCmd(`chmod 755 "${homeDir}"`);
     const uploadDir = `${homeDir}/files`;
-    await runCmd(`mkdir -p "${uploadDir}"`);
+    await runCmd(`sudo mkdir -p "${uploadDir}"`);
     await runCmd(`chown "${ftpUsername}":"${ftpUsername}" "${uploadDir}"`);
     await runCmd(`chmod 755 "${uploadDir}"`);
   }
@@ -2194,7 +2225,7 @@ app.post('/api/me/domains', authMiddleware, async (req, res) => {
     return res.status(409).json({ error: 'Ce domaine existe déjà' });
 
   try {
-    await runCmd(`mkdir -p "${webRoot}"`);
+    await runCmd(`sudo mkdir -p "${webRoot}"`);
     const domainRoot = isSubdomain
       ? `${ftpDir}/${parts.slice(1).join('.')}`
       : `${ftpDir}/${safeDomain}`;
@@ -2204,9 +2235,16 @@ app.post('/api/me/domains', authMiddleware, async (req, res) => {
       ? generateVhostConfigSub(safeDomain, webRoot, phpVersion)
       : generateVhostConfig(safeDomain, webRoot, phpVersion, false);
 
-    fs.writeFileSync(`${webRoot}/index.html`, defaultIndexPage(safeDomain, isSubdomain));
-    fs.writeFileSync(confFile, vhostConfig);
-    await runCmd(`a2ensite ${safeDomain}.conf && systemctl reload apache2`);
+    const tmpIdx  = `/tmp/kp_index_${Date.now()}.html`;
+    const tmpConf = `/tmp/kp_vhost_${Date.now()}.conf`;
+    fs.writeFileSync(tmpIdx,  defaultIndexPage(safeDomain, isSubdomain));
+    fs.writeFileSync(tmpConf, vhostConfig);
+    await runCmd(`sudo cp "${tmpIdx}"  "${webRoot}/index.html" && sudo chmod 644 "${webRoot}/index.html"`);
+    await runCmd(`sudo cp "${tmpConf}" "${confFile}" && sudo chmod 644 "${confFile}"`);
+    try { fs.unlinkSync(tmpIdx);  } catch {}
+    try { fs.unlinkSync(tmpConf); } catch {}
+    await runCmd(`a2ensite ${safeDomain}.conf`);
+    await runCmd('systemctl reload apache2');
     log('USER_CREATE_DOMAIN', `${user.username} → ${safeDomain} (${webRoot})`, 'OK');
 
     // ── SSL automatique Let's Encrypt ────────────────────────────────────────
@@ -2278,13 +2316,19 @@ app.put('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
   } finally { try { fs.unlinkSync(tmpFile); } catch {} }
 
   try {
-    fs.writeFileSync(confFile, config);
+    const tmpConf = `/tmp/kp_vhost_${Date.now()}.conf`;
+    fs.writeFileSync(tmpConf, config);
+    await runCmd(`sudo cp "${tmpConf}" "${confFile}" && sudo chmod 644 "${confFile}"`);
+    try { fs.unlinkSync(tmpConf); } catch {}
     await runCmd('systemctl reload apache2');
     log('USER_UPDATE_VHOST', `${user.username} → ${safeName}`, 'OK');
     res.json({ success: true, message: `Configuration de ${safeName} mise à jour et Apache rechargé` });
   } catch (err) {
     // Restaurer l'ancienne config en cas d'erreur
-    fs.writeFileSync(confFile, existing);
+    const tmpRestore = `/tmp/kp_vhost_restore_${Date.now()}.conf`;
+    fs.writeFileSync(tmpRestore, existing);
+    await runCmd(`sudo cp "${tmpRestore}" "${confFile}"`).catch(() => {});
+    try { fs.unlinkSync(tmpRestore); } catch {}
     res.status(500).json({ error: err.message });
   }
 });
@@ -2308,7 +2352,7 @@ app.delete('/api/me/domains/:name', authMiddleware, async (req, res) => {
 
   try {
     await runCmd(`a2dissite ${safeName}.conf`);
-    fs.unlinkSync(confFile);
+    await runCmd(`sudo rm -f "${confFile}"`);
     const ftpDir = getPrimaryFtpDir(user);
     const domainDir = `${ftpDir}/${safeName}`;
     try { await runCmd(`rm -rf "${domainDir}"`); } catch {}
@@ -2406,11 +2450,18 @@ app.post('/api/domains', authMiddleware, adminOnly, async (req, res) => {
     return res.json({ success: true, message: `Domaine ${safeDomain} créé (mode démo)`, domain: safeDomain });
   if (fs.existsSync(confFile)) return res.status(409).json({ error: 'Ce domaine existe déjà' });
   try {
-    await runCmd(`mkdir -p "${webRoot}"`);
+    await runCmd(`sudo mkdir -p "${webRoot}"`);
     await runCmd(`chown -R www-data:www-data "${webRoot}"`);
-    fs.writeFileSync(`${webRoot}/index.html`, defaultIndexPage(safeDomain, false));
-    fs.writeFileSync(confFile, generateVhostConfig(safeDomain, webRoot, phpVersion, enableSsl));
-    await runCmd(`a2ensite ${safeDomain}.conf && systemctl reload apache2`);
+    const tmpIdx  = `/tmp/kp_index_${Date.now()}.html`;
+    const tmpConf = `/tmp/kp_vhost_${Date.now()}.conf`;
+    fs.writeFileSync(tmpIdx,  defaultIndexPage(safeDomain, false));
+    fs.writeFileSync(tmpConf, generateVhostConfig(safeDomain, webRoot, phpVersion, enableSsl));
+    await runCmd(`sudo cp "${tmpIdx}"  "${webRoot}/index.html" && sudo chmod 644 "${webRoot}/index.html"`);
+    await runCmd(`sudo cp "${tmpConf}" "${confFile}" && sudo chmod 644 "${confFile}"`);
+    try { fs.unlinkSync(tmpIdx);  } catch {}
+    try { fs.unlinkSync(tmpConf); } catch {}
+    await runCmd(`a2ensite ${safeDomain}.conf`);
+    await runCmd('systemctl reload apache2');
     log('CREATE_DOMAIN', safeDomain, 'OK');
     res.json({ success: true, message: `Domaine ${safeDomain} créé avec succès`, domain: safeDomain });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2648,7 +2699,10 @@ app.put('/api/domains/:name', authMiddleware, adminOnly, async (req, res) => {
   if (!fs.existsSync(confFile)) return res.status(404).json({ error: 'Domaine introuvable' });
   try {
     const webRoot = docRoot || `${CONFIG.WEB_ROOT}/${safeName}/public_html`;
-    fs.writeFileSync(confFile, generateVhostConfig(safeName, webRoot, phpVersion || CONFIG.PHP_VERSION, false));
+    const tmpConf = `/tmp/kp_vhost_${Date.now()}.conf`;
+    fs.writeFileSync(tmpConf, generateVhostConfig(safeName, webRoot, phpVersion || CONFIG.PHP_VERSION, false));
+    await runCmd(`sudo cp "${tmpConf}" "${confFile}" && sudo chmod 644 "${confFile}"`);
+    try { fs.unlinkSync(tmpConf); } catch {}
     await runCmd(`systemctl reload apache2`);
     log('UPDATE_DOMAIN', safeName, 'OK');
     res.json({ success: true, message: `Domaine ${safeName} mis à jour` });
@@ -2665,7 +2719,7 @@ app.delete('/api/domains/:name', authMiddleware, adminOnly, async (req, res) => 
   if (!fs.existsSync(confFile)) return res.status(404).json({ error: 'Domaine introuvable' });
   try {
     await runCmd(`a2dissite ${safeName}.conf`);
-    fs.unlinkSync(confFile);
+    await runCmd(`sudo rm -f "${confFile}"`);
     if (deleteFiles) await runCmd(`rm -rf "${CONFIG.WEB_ROOT}/${safeName}"`);
     await runCmd(`systemctl reload apache2`);
     log('DELETE_DOMAIN', safeName, 'OK');
@@ -2679,7 +2733,8 @@ app.post('/api/domains/:name/toggle', authMiddleware, adminOnly, async (req, res
   const { enable } = req.body;
   if (!fs.existsSync(CONFIG.APACHE_SITES_PATH)) return res.json({ success: true });
   try {
-    await runCmd(`${enable ? 'a2ensite' : 'a2dissite'} ${safeName}.conf && systemctl reload apache2`);
+    await runCmd(`${enable ? 'a2ensite' : 'a2dissite'} ${safeName}.conf`);
+    await runCmd('systemctl reload apache2');
     log('TOGGLE_DOMAIN', `${safeName} → ${enable ? 'activé' : 'désactivé'}`, 'OK');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2749,6 +2804,10 @@ app.post('/api/services/:service/:action', authMiddleware, adminOnly, async (req
 
   if (service === 'kazypanel') return res.status(403).json({ error: 'Non autorisé' });
 
+  // Empêcher de stopper Apache — le panel passerait hors ligne
+  if (service === 'apache2' && action === 'stop')
+    return res.status(403).json({ error: '⚠️ Impossible d\'arrêter Apache — le panel est accessible via le reverse proxy Apache. Utilisez "reload" ou "restart" uniquement.' });
+
   try {
     // UFW utilise ses propres commandes
     if (service === 'ufw') {
@@ -2759,6 +2818,14 @@ app.post('/api/services/:service/:action', authMiddleware, adminOnly, async (req
       const newStatus = ufwOut.includes('active') ? 'active' : 'inactive';
       log('SERVICE_CTRL', `${action} ufw par ${req.user.username}`, 'OK');
       return res.json({ success: true, message: `UFW : ${action} effectué`, status: newStatus });
+    }
+
+    // Pour apache2 restart, on répond avant de redémarrer pour que le client reçoive la réponse
+    if (service === 'apache2' && action === 'restart') {
+      res.json({ success: true, message: 'Apache : restart en cours — reconnexion dans 3 secondes', status: 'running' });
+      log('SERVICE_CTRL', `restart apache2 par ${req.user.username}`, 'OK');
+      setTimeout(() => { runCmd('systemctl restart apache2').catch(() => {}); }, 500);
+      return;
     }
 
     await runCmd(`systemctl ${action} ${service}`);
@@ -2868,15 +2935,18 @@ function parseUserIni(content) {
   return cfg;
 }
 
-function writeUserIni(docRoot, values) {
+async function writeUserIni(docRoot, values) {
   const lines = ['; KazyPanel PHP config — ne pas modifier manuellement', ''];
   for (const [k, v] of Object.entries(values)) {
     if (PHP_ALLOWED_KEYS.includes(k) && v !== '' && v !== null) {
       lines.push(`${k} = ${v}`);
     }
   }
-  fs.mkdirSync(docRoot, { recursive: true });
-  fs.writeFileSync(path.join(docRoot, '.user.ini'), lines.join('\n') + '\n', 'utf8');
+  await runCmd(`sudo mkdir -p "${docRoot}"`);
+  const tmpIni = `/tmp/kp_userini_${Date.now()}.ini`;
+  fs.writeFileSync(tmpIni, lines.join('\n') + '\n', 'utf8');
+  await runCmd(`sudo cp "${tmpIni}" "${path.join(docRoot, '.user.ini')}" && sudo chmod 644 "${path.join(docRoot, '.user.ini')}"`);
+  fs.unlinkSync(tmpIni);
 }
 
 // GET config PHP d'un domaine (admin ou propriétaire)
@@ -2930,7 +3000,7 @@ app.put('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
   }
 
   try {
-    writeUserIni(docRoot, safe);
+    await writeUserIni(docRoot, safe);
     // Forcer rechargement PHP-FPM pour prise en compte
     await runCmd(`systemctl reload php${CONFIG.PHP_VERSION}-fpm`).catch(() => {});
     log('PHP_CONFIG', safeName, 'OK');
@@ -2954,7 +3024,7 @@ app.delete('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
   }
   const iniPath = getUserIniPath(docRoot);
-  if (fs.existsSync(iniPath)) fs.unlinkSync(iniPath);
+  if (fs.existsSync(iniPath)) await runCmd(`sudo rm -f "${iniPath}"`).catch(() => {});
   await runCmd(`systemctl reload php${CONFIG.PHP_VERSION}-fpm`).catch(() => {});
   log('PHP_CONFIG_RESET', safeName, 'OK');
   res.json({ success: true, message: `Configuration PHP réinitialisée pour ${safeName}` });
@@ -3615,12 +3685,12 @@ async function writeAndReload(domain, records, existingSerial) {
   }
 
   const file    = path.join(BIND_ZONES_DIR, `db.${domain}`);
-  const tmpFile = `${file}.tmp`;
+  const tmpFile = `/tmp/kp_zone_${domain}_${Date.now()}.tmp`;
 
-  // Écrire dans un fichier temporaire d'abord
+  // Écrire dans /tmp (accessible sans droits root)
   fs.writeFileSync(tmpFile, content);
 
-  // Valider avec named-checkzone si disponible (stdout = erreurs, exit code = résultat)
+  // Valider avec named-checkzone si disponible
   const checkzoneAvailable = await new Promise(r => exec('which named-checkzone', e => r(!e)));
   if (checkzoneAvailable) {
     await new Promise((resolve, reject) => {
@@ -3636,11 +3706,9 @@ async function writeAndReload(domain, records, existingSerial) {
     });
   }
 
-  // Validation OK → remplacer le fichier de production
-  fs.renameSync(tmpFile, file);
-
-  // S'assurer que bind peut lire le fichier
-  try { await runCmd(`chown root:bind "${file}" && chmod 644 "${file}"`); } catch {}
+  // Validation OK → copier vers le dossier bind avec sudo
+  await runCmd(`sudo cp "${tmpFile}" "${file}" && sudo chown root:bind "${file}" && sudo chmod 644 "${file}"`);
+  try { fs.unlinkSync(tmpFile); } catch {}
 
   // Recharger BIND9 — rndc reload si disponible, sinon systemctl
   try { await runCmd(`rndc reload "${domain}"`); }
@@ -3676,8 +3744,11 @@ async function ensureZoneInConf(domain) {
     let tmpCreated = false;
     if (!fs.existsSync(file)) {
       try {
-        if (!fs.existsSync(BIND_ZONES_DIR)) fs.mkdirSync(BIND_ZONES_DIR, { recursive: true });
-        fs.writeFileSync(file, '; placeholder\n');
+        await runCmd(`sudo mkdir -p "${BIND_ZONES_DIR}" && sudo chown root:bind "${BIND_ZONES_DIR}" && sudo chmod 775 "${BIND_ZONES_DIR}"`);
+        const tmpPlaceholder = `/tmp/kp_zone_placeholder_${Date.now()}`;
+        fs.writeFileSync(tmpPlaceholder, '; placeholder\n');
+        await runCmd(`sudo cp "${tmpPlaceholder}" "${file}" && sudo chmod 644 "${file}"`);
+        fs.unlinkSync(tmpPlaceholder);
         tmpCreated = true;
       } catch {}
     }
@@ -3685,11 +3756,14 @@ async function ensureZoneInConf(domain) {
       await runCmd('named-checkconf');
     } catch (e) {
       const cleaned = fs.readFileSync(BIND_CONF_LOCAL, 'utf8').replace(entry, '');
-      fs.writeFileSync(BIND_CONF_LOCAL, cleaned);
-      if (tmpCreated) try { fs.unlinkSync(file); } catch {}
+      const tmpNamedClean = `/tmp/kp_named_clean_${Date.now()}`;
+      fs.writeFileSync(tmpNamedClean, cleaned);
+      await runCmd(`sudo cp "${tmpNamedClean}" "${BIND_CONF_LOCAL}" && sudo chmod 644 "${BIND_CONF_LOCAL}"`);
+      fs.unlinkSync(tmpNamedClean);
+      if (tmpCreated) try { await runCmd(`sudo rm -f "${file}"`); } catch {}
       throw new Error(`Erreur named.conf : ${e.message}`);
     }
-    if (tmpCreated) try { fs.unlinkSync(file); } catch {}
+    if (tmpCreated) try { await runCmd(`sudo rm -f "${file}"`); } catch {}
   }
 }
 
@@ -3697,11 +3771,13 @@ async function ensureZoneInConf(domain) {
 function removeZoneFromConf(domain) {
   if (!fs.existsSync(BIND_CONF_LOCAL)) return;
   let content = fs.readFileSync(BIND_CONF_LOCAL, 'utf8');
-  // Regex robuste : capture tout le bloc zone {...}; même si il contient des } imbriqués
   const safe  = domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`\\nzone\\s+"${safe}"\\s*\\{[^]*?\\};\\s*\\n?`, 'g');
   const cleaned = content.replace(regex, '\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
-  fs.writeFileSync(BIND_CONF_LOCAL, cleaned);
+  const tmpNamed = `/tmp/kp_named_remove_${Date.now()}`;
+  fs.writeFileSync(tmpNamed, cleaned);
+  require('child_process').execSync(`sudo cp "${tmpNamed}" "${BIND_CONF_LOCAL}" && sudo chmod 644 "${BIND_CONF_LOCAL}"`);
+  fs.unlinkSync(tmpNamed);
 }
 
 // Vérifie que l'utilisateur est propriétaire du domaine DNS
@@ -3759,7 +3835,10 @@ app.post('/api/config/setup-https', authMiddleware, adminOnly, async (req, res) 
     RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
     RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
 </VirtualHost>`;
-    fs.writeFileSync(confPath, vhostHttp);
+    const tmpHttp = `/tmp/kp_vhost_http_${Date.now()}.conf`;
+    fs.writeFileSync(tmpHttp, vhostHttp);
+    await runCmd(`sudo cp "${tmpHttp}" "${confPath}" && sudo chmod 644 "${confPath}"`);
+    fs.unlinkSync(tmpHttp);
     await runCmd(`a2ensite ${fqdn}.conf 2>&1`);
     await runCmd('apache2ctl graceful 2>&1');
 
@@ -3795,7 +3874,10 @@ app.post('/api/config/setup-https', authMiddleware, adminOnly, async (req, res) 
     Include /etc/letsencrypt/options-ssl-apache.conf
 </VirtualHost>
 </IfModule>`;
-    fs.writeFileSync(confPath, vhostHttps);
+    const tmpHttps = `/tmp/kp_vhost_https_${Date.now()}.conf`;
+    fs.writeFileSync(tmpHttps, vhostHttps);
+    await runCmd(`sudo cp "${tmpHttps}" "${confPath}" && sudo chmod 644 "${confPath}"`);
+    fs.unlinkSync(tmpHttps);
 
     // 5. Recharger Apache
     out('→ Rechargement Apache…');
@@ -3972,7 +4054,7 @@ app.delete('/api/me/dns/:domain', authMiddleware, async (req, res) => {
 
   const file = path.join(BIND_ZONES_DIR, `db.${domain}`);
   try {
-    if (fs.existsSync(file)) fs.unlinkSync(file);
+    if (fs.existsSync(file)) await runCmd(`sudo rm -f "${file}"`);
     removeZoneFromConf(domain);
     try { await runCmd(`rndc delzone ${domain}`); } catch {}
     try { await runCmd('systemctl reload bind9 || systemctl reload named'); } catch {}

@@ -1937,13 +1937,8 @@
                 </div>
                 <div style="flex:1">
                   <div class="cfg-card-title">Éditeur .bashrc</div>
-                  <div class="cfg-card-sub" id="bashrcPathLabel">Fichier <code style="font-size:10px">/root/.bashrc</code> — alias, variables, prompt</div>
+                  <div class="cfg-card-sub">Fichier <code style="font-size:10px">/root/.bashrc</code> — alias, variables, prompt</div>
                 </div>
-                <!-- Sélecteur de compte -->
-                <select id="bashrcTarget" onchange="cfgLoadBashrc()"
-                  style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;flex-shrink:0;margin-right:8px">
-                  <option value="root">root</option>
-                </select>
                 <button onclick="cfgLoadBashrc()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                   Recharger
@@ -3138,11 +3133,26 @@ function renderDomains(domains) {
     tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🌐</div><div class="empty-text">Aucun ${_currentDomainFilter === 'subdomains' ? 'sous-domaine' : 'domaine'} configuré</div></div></td></tr>`;
     return;
   }
-  tbody.innerHTML = domains.map(d => `
+  tbody.innerHTML = domains.map(d => {
+    const proto = d.ssl ? 'https' : 'http';
+    const url   = `${proto}://${d.domain}`;
+    return `
     <tr>
       <td>
-        <span class="domain-name ${d.isSubdomain ? 'domain-sub' : ''}">${d.domain}</span>
-        ${d.ssl ? '<span class="badge badge-green" style="margin-left:6px;font-size:10px">🔒 SSL</span>' : ''}
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="domain-name ${d.isSubdomain ? 'domain-sub' : ''}">${d.domain}</span>
+          ${d.ssl ? '<span class="badge badge-green" style="font-size:10px">🔒 SSL</span>' : ''}
+          <a href="${url}" target="_blank" rel="noopener"
+             title="Visiter ${url}"
+             style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--accent2);
+                    text-decoration:none;background:rgba(79,110,247,.08);border:1px solid rgba(79,110,247,.2);
+                    border-radius:4px;padding:2px 8px;white-space:nowrap;transition:background .15s"
+             onmouseover="this.style.background='rgba(79,110,247,.18)'"
+             onmouseout="this.style.background='rgba(79,110,247,.08)'">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Visiter
+          </a>
+        </div>
       </td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.docRoot}">${d.docRoot}</td>
       <td><span class="badge badge-blue">PHP ${d.phpVersion}</span></td>
@@ -3163,8 +3173,8 @@ function renderDomains(domains) {
           <button class="btn btn-danger btn-sm" onclick="askDelete('${d.name}')">Supprimer</button>
         </div>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 function updateStats() {
@@ -3475,10 +3485,33 @@ async function serviceAction(svc, action) {
     badge.className = 'badge';
     badge.style = 'background:rgba(100,116,139,.1);color:var(--muted);border:1px solid var(--border2)';
   }
+
+  // Pour kazypanel restart, on envoie et on attend sans attendre la réponse
+  if (svc === 'kazypanel' && action === 'restart') {
+    try {
+      fetch(`${API}/api/services/${svc}/${action}`, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token }
+      }).catch(() => {});
+    } catch {}
+    showToast('KazyPanel redémarre — reconnexion dans 5 secondes…', 'success');
+    if (badge) { badge.textContent = '● …'; }
+    setTimeout(() => { window.location.reload(); }, 5000);
+    return;
+  }
+
   try {
-    const res = await fetch(`${API}/api/services/${svc}/${action}`, {
-      method: 'POST', headers: { Authorization: 'Bearer ' + token }
-    });
+    // Timeout de 15 secondes pour éviter un fetch bloqué indéfiniment
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let res;
+    try {
+      res = await fetch(`${API}/api/services/${svc}/${action}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        signal: controller.signal
+      });
+    } finally { clearTimeout(timeout); }
+
     const d = await res.json();
     if (!res.ok) throw new Error(d.error);
     const running = d.status === 'running';
@@ -3489,11 +3522,30 @@ async function serviceAction(svc, action) {
     }
     showToast(d.message, 'success');
     // Rafraîchir aussi les dots topbar
-    const sd = await (await fetch(`${API}/api/status`, { headers: { Authorization: 'Bearer ' + token } })).json();
-    refreshStatus(sd);
+    try {
+      const sd = await (await fetch(`${API}/api/status`, { headers: { Authorization: 'Bearer ' + token } })).json();
+      refreshStatus(sd);
+    } catch {}
   } catch(e) {
-    showToast(e.message, 'error');
-    if (badge) badge.textContent = '● ?';
+    // Si le fetch est annulé (timeout ou service restart) on réessaie après 3s
+    if (e.name === 'AbortError' || e.message === 'Failed to fetch') {
+      showToast(`${svc} redémarre — vérification dans 3 secondes…`, 'success');
+      setTimeout(async () => {
+        try {
+          const sd = await (await fetch(`${API}/api/status`, { headers: { Authorization: 'Bearer ' + token } })).json();
+          refreshStatus(sd);
+          if (badge) {
+            const running = sd[svc] === 'running';
+            badge.textContent = running ? '● Actif' : '● Arrêté';
+            badge.className = 'badge ' + (running ? 'badge-green' : '');
+            badge.style = running ? '' : 'background:rgba(220,38,38,.1);color:var(--red);border-color:rgba(220,38,38,.2)';
+          }
+        } catch {}
+      }, 3000);
+    } else {
+      showToast(e.message, 'error');
+      if (badge) badge.textContent = '● ?';
+    }
   }
 }
 
@@ -6886,40 +6938,17 @@ const BASHRC_TEMPLATE = [
 
 // ─── BASHRC FUNCTIONS ─────────────────────────────────────────────────────────
 let _bashrcTemplates = [];
-let _bashrcTarget = 'root';
 
 async function cfgLoadBashrc() {
   const editor = document.getElementById('bashrcEditor');
   if (!editor) return;
-  const sel = document.getElementById('bashrcTarget');
-  _bashrcTarget = sel ? sel.value : 'root';
   editor.value = 'Chargement...';
   try {
-    const res  = await fetch(API + '/api/server-config/bashrc?target=' + encodeURIComponent(_bashrcTarget), { headers: { Authorization: 'Bearer ' + token } });
+    const res  = await fetch(API + '/api/server-config/bashrc', { headers: { Authorization: 'Bearer ' + token } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     editor.value = data.content || '';
     _bashrcTemplates = data.templates || [];
-
-    // Mettre à jour le label avec le chemin réel
-    const label = document.getElementById('bashrcPathLabel');
-    if (label && data.bashrcPath) {
-      label.innerHTML = 'Fichier <code style="font-size:10px">' + data.bashrcPath + '</code> — alias, variables, prompt';
-    }
-
-    // Peupler le sélecteur avec les comptes disponibles retournés par le serveur
-    if (data.available && sel) {
-      const currentVal = sel.value;
-      sel.innerHTML = '';
-      data.available.forEach(function(a) {
-        const opt = document.createElement('option');
-        opt.value = a.label;
-        opt.textContent = a.label + ' (' + a.path + ')';
-        if (a.label === currentVal) opt.selected = true;
-        sel.appendChild(opt);
-      });
-    }
-
     cfgRenderBashrcTemplates();
   } catch(e) { editor.value = 'Erreur : ' + e.message; }
 }
@@ -7009,7 +7038,7 @@ async function cfgSaveBashrc() {
     const res  = await fetch(API + '/api/server-config/bashrc', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: content, target: _bashrcTarget })
+      body: JSON.stringify({ content: content })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -7022,8 +7051,7 @@ async function cfgApplyBashrc() {
   try {
     const res  = await fetch(API + '/api/server-config/bashrc/apply', {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target: _bashrcTarget })
+      headers: { Authorization: 'Bearer ' + token }
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
