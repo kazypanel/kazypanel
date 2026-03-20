@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 19/03/2026 22:44
+ * Dernière modification : 20/03/2026 21:40
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.4.0';
+const KAZYPANEL_VERSION = '1.5.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -451,7 +451,10 @@ app.post('/api/server-config/ssh-port', authMiddleware, adminOnly, async (req, r
     const tmpFile = '/tmp/sshd_config_test';
     fs.writeFileSync(tmpFile, updated);
     try { await runCmd(`sshd -t -f ${tmpFile}`); } finally { try { fs.unlinkSync(tmpFile); } catch {} }
-    fs.writeFileSync('/etc/ssh/sshd_config', updated);
+    const tmpApply = `/tmp/sshd_config_apply_${Date.now()}`;
+    fs.writeFileSync(tmpApply, updated);
+    await runCmd(`sudo cp "${tmpApply}" /etc/ssh/sshd_config && sudo chmod 644 /etc/ssh/sshd_config`);
+    fs.unlinkSync(tmpApply);
     await runCmd('systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true');
     log('SSH_PORT', `Port SSH changé vers ${p}`, 'OK');
     res.json({ success: true, message: `Port SSH changé vers ${p} — reconnectez-vous sur le port ${p}` });
@@ -488,7 +491,10 @@ app.post('/api/server-config/ssh-allowusers', authMiddleware, adminOnly, async (
     const tmpFile = '/tmp/sshd_config_allowusers_test';
     fs.writeFileSync(tmpFile, conf);
     try { await runCmd(`sshd -t -f ${tmpFile}`); } finally { try { fs.unlinkSync(tmpFile); } catch {} }
-    fs.writeFileSync('/etc/ssh/sshd_config', conf);
+    const tmpApply = `/tmp/sshd_config_allowusers_apply_${Date.now()}`;
+    fs.writeFileSync(tmpApply, conf);
+    await runCmd(`sudo cp "${tmpApply}" /etc/ssh/sshd_config && sudo chmod 644 /etc/ssh/sshd_config`);
+    fs.unlinkSync(tmpApply);
     await runCmd('systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true');
     const msg = safe.length ? `SSH restreint à : ${safe.join(', ')}` : 'Restriction SSH supprimée';
     log('SSH_ALLOWUSERS', msg, 'OK');
@@ -497,11 +503,14 @@ app.post('/api/server-config/ssh-allowusers', authMiddleware, adminOnly, async (
 });
 
 // POST /api/server-config/motd — mettre à jour /etc/motd
-app.post('/api/server-config/motd', authMiddleware, adminOnly, (req, res) => {
+app.post('/api/server-config/motd', authMiddleware, adminOnly, async (req, res) => {
   const { motd } = req.body;
   if (motd === undefined) return res.status(400).json({ error: 'Contenu requis' });
   try {
-    fs.writeFileSync('/etc/motd', motd + '\n', 'utf8');
+    const tmpMotd = `/tmp/kp_motd_${Date.now()}`;
+    fs.writeFileSync(tmpMotd, motd + '\n', 'utf8');
+    await runCmd(`sudo cp "${tmpMotd}" /etc/motd && sudo chmod 644 /etc/motd`);
+    fs.unlinkSync(tmpMotd);
     log('MOTD', 'Mis à jour', 'OK');
     res.json({ success: true, message: 'MOTD mis à jour' });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -542,7 +551,10 @@ app.post('/api/server-config/fail2ban', authMiddleware, adminOnly, async (req, r
   try { fs.copyFileSync('/etc/fail2ban/jail.local', bak); } catch {}
 
   try {
-    fs.writeFileSync('/etc/fail2ban/jail.local', content, 'utf8');
+    const tmpJail = `/tmp/kp_jail_${Date.now()}`;
+    fs.writeFileSync(tmpJail, content, 'utf8');
+    await runCmd(`sudo cp "${tmpJail}" /etc/fail2ban/jail.local && sudo chmod 644 /etc/fail2ban/jail.local`);
+    fs.unlinkSync(tmpJail);
     await runCmd('systemctl restart fail2ban');
     log('FAIL2BAN_CONFIG', 'jail.local mis à jour et redémarré', 'OK');
     const filterCreated = content.includes('filter   = kazypanel') && !fs.existsSync(filterPath + '.exists');
@@ -586,7 +598,10 @@ app.post('/api/server-config/hostname', authMiddleware, adminOnly, async (req, r
       const oldHostname = (await runCmd('hostname')).trim();
       const hosts = require('fs').readFileSync('/etc/hosts', 'utf8');
       if (hosts.includes(oldHostname)) {
-        require('fs').writeFileSync('/etc/hosts', hosts.replace(new RegExp(oldHostname, 'g'), hostname));
+        const tmpHosts = `/tmp/kp_hosts_${Date.now()}`;
+        require('fs').writeFileSync(tmpHosts, hosts.replace(new RegExp(oldHostname, 'g'), hostname));
+        await runCmd(`sudo cp "${tmpHosts}" /etc/hosts && sudo chmod 644 /etc/hosts`);
+        require('fs').unlinkSync(tmpHosts);
       }
     } catch {}
     log('HOSTNAME', `Hostname changé vers ${hostname}`, 'OK');
@@ -594,12 +609,74 @@ app.post('/api/server-config/hostname', authMiddleware, adminOnly, async (req, r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/server-config/bashrc — lire /root/.bashrc + templates
+// ── Helper : retourne les .bashrc disponibles (root + utilisateurs du panel) ──
+function getBashrcPaths() {
+  const paths = [];
+
+  // Toujours root en premier
+  paths.push({ label: 'root', path: '/root/.bashrc' });
+
+  // Lire /etc/passwd une seule fois
+  let passwdLines = [];
+  try { passwdLines = fs.readFileSync('/etc/passwd', 'utf8').split('\n'); } catch {}
+
+  // Fonction pour trouver le home d'un username dans /etc/passwd
+  function getHomeDir(username) {
+    const line = passwdLines.find(l => l.startsWith(username + ':'));
+    if (!line) return null;
+    return line.split(':')[5] || null;
+  }
+
+  // Ajouter EN PREMIER l'utilisateur qui lance le process (ex: debian)
+  try {
+    const procUsername = require('os').userInfo().username || process.env.USER || '';
+    const procHome     = process.env.HOME || require('os').homedir();
+    if (procUsername && procUsername !== 'root' && procHome && procHome !== '/root') {
+      const bashrcPath = path.join(procHome, '.bashrc');
+      if (!fs.existsSync(bashrcPath)) {
+        try { fs.writeFileSync(bashrcPath, `# .bashrc — ${procUsername}\n`); } catch {}
+      }
+      paths.push({ label: procUsername, path: bashrcPath });
+    }
+  } catch {}
+
+  // Utilisateurs du panel KazyPanel
+  for (const u of USERS) {
+    if (u.username === 'admin') continue;
+    const homeDir = getHomeDir(u.username);
+    if (!homeDir) continue;
+    const bashrcPath = path.join(homeDir, '.bashrc');
+    // Créer un .bashrc vide si inexistant
+    if (!fs.existsSync(bashrcPath)) {
+      try {
+        fs.mkdirSync(homeDir, { recursive: true });
+        fs.writeFileSync(bashrcPath, `# .bashrc — ${u.username}\n`);
+      } catch {}
+    }
+    // Éviter les doublons
+    if (!paths.find(p => p.label === u.username)) {
+      paths.push({ label: u.username, path: bashrcPath });
+    }
+  }
+
+  return paths;
+}
+
+function getBashrcPath(target) {
+  if (!target || target === 'root') return '/root/.bashrc';
+  const all = getBashrcPaths();
+  const found = all.find(p => p.label === target);
+  return found ? found.path : '/root/.bashrc';
+}
+
 app.get('/api/server-config/bashrc', authMiddleware, adminOnly, (req, res) => {
   try {
-    const content   = fs.existsSync('/root/.bashrc') ? fs.readFileSync('/root/.bashrc', 'utf8') : '';
-    const templates = PANEL_CONFIG.bashrcTemplates || [];
-    res.json({ content, templates });
+    const target     = req.query.target || 'root';
+    const bashrcPath = getBashrcPath(target);
+    const content    = fs.existsSync(bashrcPath) ? fs.readFileSync(bashrcPath, 'utf8') : '';
+    const templates  = PANEL_CONFIG.bashrcTemplates || [];
+    const available  = getBashrcPaths();
+    res.json({ content, templates, bashrcPath, target, available });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -627,26 +704,32 @@ app.delete('/api/server-config/bashrc/templates/:id', authMiddleware, adminOnly,
   res.json({ success: true, message: `Template "${tpl.name}" supprimé`, templates: PANEL_CONFIG.bashrcTemplates });
 });
 
-// POST /api/server-config/bashrc — sauvegarder /root/.bashrc
-app.post('/api/server-config/bashrc', authMiddleware, adminOnly, (req, res) => {
-  const { content } = req.body;
+// POST /api/server-config/bashrc — sauvegarder le .bashrc
+app.post('/api/server-config/bashrc', authMiddleware, adminOnly, async (req, res) => {
+  const { content, target } = req.body;
   if (content === undefined) return res.status(400).json({ error: 'Contenu requis' });
   try {
+    const bashrcPath = getBashrcPath(target || 'root');
     // Sauvegarde de l'ancien fichier
-    if (fs.existsSync('/root/.bashrc'))
-      fs.copyFileSync('/root/.bashrc', `/root/.bashrc.bak.${Date.now()}`);
-    fs.writeFileSync('/root/.bashrc', content, 'utf8');
-    log('BASHRC', 'Mis à jour', 'OK');
-    res.json({ success: true, message: '.bashrc sauvegardé avec succès' });
+    if (fs.existsSync(bashrcPath))
+      await runCmd(`sudo cp "${bashrcPath}" "${bashrcPath}.bak.${Date.now()}"`);
+    const tmpBashrc = `/tmp/kp_bashrc_${Date.now()}`;
+    fs.writeFileSync(tmpBashrc, content, 'utf8');
+    await runCmd(`sudo cp "${tmpBashrc}" "${bashrcPath}" && sudo chmod 644 "${bashrcPath}"`);
+    fs.unlinkSync(tmpBashrc);
+    log('BASHRC', `Mis à jour (${bashrcPath})`, 'OK');
+    res.json({ success: true, message: `${bashrcPath} sauvegardé avec succès`, bashrcPath });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/server-config/bashrc/apply — source /root/.bashrc
+// POST /api/server-config/bashrc/apply — source le .bashrc
 app.post('/api/server-config/bashrc/apply', authMiddleware, adminOnly, async (req, res) => {
   try {
-    await runCmd('bash -c "source /root/.bashrc"');
-    log('BASHRC', 'Appliqué via source', 'OK');
-    res.json({ success: true, message: '.bashrc appliqué (source) avec succès' });
+    const { target } = req.body;
+    const bashrcPath = getBashrcPath(target || 'root');
+    await runCmd(`sudo bash -c "source ${bashrcPath}"`);
+    log('BASHRC', `Appliqué via source (${bashrcPath})`, 'OK');
+    res.json({ success: true, message: `${bashrcPath} appliqué (source) avec succès`, bashrcPath });
   } catch (err) {
     res.status(500).json({ error: `Erreur lors de l'application : ${err.message}` });
   }
@@ -1187,8 +1270,12 @@ async function createFtpSystemAccount(ftpUsername, homeDir, password) {
   const shellsPath = '/etc/shells';
   if (fs.existsSync(shellsPath)) {
     const shells = fs.readFileSync(shellsPath, 'utf8').split('\n').map(l => l.trim());
-    if (!shells.includes('/bin/false'))
-      fs.appendFileSync(shellsPath, '/bin/false\n');
+    if (!shells.includes('/bin/false')) {
+      const tmpShells = `/tmp/kp_shells_${Date.now()}`;
+      fs.writeFileSync(tmpShells, fs.readFileSync(shellsPath, 'utf8') + '/bin/false\n');
+      await runCmd(`sudo cp "${tmpShells}" "${shellsPath}" && sudo chmod 644 "${shellsPath}"`);
+      fs.unlinkSync(tmpShells);
+    }
   }
 
   // 2. Créer ou mettre à jour le compte système
@@ -3580,7 +3667,10 @@ async function ensureZoneInConf(domain) {
   if (!fs.existsSync(BIND_CONF_LOCAL)) return;
   const content = fs.readFileSync(BIND_CONF_LOCAL, 'utf8');
   if (content.includes(`zone "${domain}"`)) return;
-  fs.appendFileSync(BIND_CONF_LOCAL, entry);
+  const tmpNamed = `/tmp/kp_named_${Date.now()}`;
+  fs.writeFileSync(tmpNamed, content + entry);
+  await runCmd(`sudo cp "${tmpNamed}" "${BIND_CONF_LOCAL}" && sudo chmod 644 "${BIND_CONF_LOCAL}"`);
+  fs.unlinkSync(tmpNamed);
   const checkconfAvailable = await new Promise(r => exec('which named-checkconf', e => r(!e)));
   if (checkconfAvailable) {
     let tmpCreated = false;

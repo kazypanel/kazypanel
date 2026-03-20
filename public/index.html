@@ -1937,8 +1937,13 @@
                 </div>
                 <div style="flex:1">
                   <div class="cfg-card-title">Éditeur .bashrc</div>
-                  <div class="cfg-card-sub">Fichier <code style="font-size:10px">/root/.bashrc</code> — alias, variables, prompt</div>
+                  <div class="cfg-card-sub" id="bashrcPathLabel">Fichier <code style="font-size:10px">/root/.bashrc</code> — alias, variables, prompt</div>
                 </div>
+                <!-- Sélecteur de compte -->
+                <select id="bashrcTarget" onchange="cfgLoadBashrc()"
+                  style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;flex-shrink:0;margin-right:8px">
+                  <option value="root">root</option>
+                </select>
                 <button onclick="cfgLoadBashrc()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                   Recharger
@@ -6881,17 +6886,40 @@ const BASHRC_TEMPLATE = [
 
 // ─── BASHRC FUNCTIONS ─────────────────────────────────────────────────────────
 let _bashrcTemplates = [];
+let _bashrcTarget = 'root';
 
 async function cfgLoadBashrc() {
   const editor = document.getElementById('bashrcEditor');
   if (!editor) return;
+  const sel = document.getElementById('bashrcTarget');
+  _bashrcTarget = sel ? sel.value : 'root';
   editor.value = 'Chargement...';
   try {
-    const res  = await fetch(API + '/api/server-config/bashrc', { headers: { Authorization: 'Bearer ' + token } });
+    const res  = await fetch(API + '/api/server-config/bashrc?target=' + encodeURIComponent(_bashrcTarget), { headers: { Authorization: 'Bearer ' + token } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     editor.value = data.content || '';
     _bashrcTemplates = data.templates || [];
+
+    // Mettre à jour le label avec le chemin réel
+    const label = document.getElementById('bashrcPathLabel');
+    if (label && data.bashrcPath) {
+      label.innerHTML = 'Fichier <code style="font-size:10px">' + data.bashrcPath + '</code> — alias, variables, prompt';
+    }
+
+    // Peupler le sélecteur avec les comptes disponibles retournés par le serveur
+    if (data.available && sel) {
+      const currentVal = sel.value;
+      sel.innerHTML = '';
+      data.available.forEach(function(a) {
+        const opt = document.createElement('option');
+        opt.value = a.label;
+        opt.textContent = a.label + ' (' + a.path + ')';
+        if (a.label === currentVal) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+
     cfgRenderBashrcTemplates();
   } catch(e) { editor.value = 'Erreur : ' + e.message; }
 }
@@ -6981,7 +7009,7 @@ async function cfgSaveBashrc() {
     const res  = await fetch(API + '/api/server-config/bashrc', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: content })
+      body: JSON.stringify({ content: content, target: _bashrcTarget })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -6994,7 +7022,8 @@ async function cfgApplyBashrc() {
   try {
     const res  = await fetch(API + '/api/server-config/bashrc/apply', {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + token }
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: _bashrcTarget })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
