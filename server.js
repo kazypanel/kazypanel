@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 20/03/2026 17:37
+ * Dernière modification : 19/03/2026 22:44
  */
 
 const express = require('express');
@@ -609,21 +609,74 @@ app.post('/api/server-config/hostname', authMiddleware, adminOnly, async (req, r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/server-config/bashrc — lire /root/.bashrc + templates
-// ── Helper : détecte le bon .bashrc selon l'utilisateur qui lance le process ──
-function getBashrcPath() {
-  // Si le process tourne en root → /root/.bashrc
-  // Sinon → home de l'utilisateur courant (ex: /home/debian/.bashrc)
-  const homeDir = process.env.HOME || require('os').homedir();
-  return require('path').join(homeDir, '.bashrc');
+// ── Helper : retourne les .bashrc disponibles (root + utilisateurs du panel) ──
+function getBashrcPaths() {
+  const paths = [];
+
+  // Toujours root en premier
+  paths.push({ label: 'root', path: '/root/.bashrc' });
+
+  // Lire /etc/passwd une seule fois
+  let passwdLines = [];
+  try { passwdLines = fs.readFileSync('/etc/passwd', 'utf8').split('\n'); } catch {}
+
+  // Fonction pour trouver le home d'un username dans /etc/passwd
+  function getHomeDir(username) {
+    const line = passwdLines.find(l => l.startsWith(username + ':'));
+    if (!line) return null;
+    return line.split(':')[5] || null;
+  }
+
+  // Ajouter EN PREMIER l'utilisateur qui lance le process (ex: debian)
+  try {
+    const procUsername = require('os').userInfo().username || process.env.USER || '';
+    const procHome     = process.env.HOME || require('os').homedir();
+    if (procUsername && procUsername !== 'root' && procHome && procHome !== '/root') {
+      const bashrcPath = path.join(procHome, '.bashrc');
+      if (!fs.existsSync(bashrcPath)) {
+        try { fs.writeFileSync(bashrcPath, `# .bashrc — ${procUsername}\n`); } catch {}
+      }
+      paths.push({ label: procUsername, path: bashrcPath });
+    }
+  } catch {}
+
+  // Utilisateurs du panel KazyPanel
+  for (const u of USERS) {
+    if (u.username === 'admin') continue;
+    const homeDir = getHomeDir(u.username);
+    if (!homeDir) continue;
+    const bashrcPath = path.join(homeDir, '.bashrc');
+    // Créer un .bashrc vide si inexistant
+    if (!fs.existsSync(bashrcPath)) {
+      try {
+        fs.mkdirSync(homeDir, { recursive: true });
+        fs.writeFileSync(bashrcPath, `# .bashrc — ${u.username}\n`);
+      } catch {}
+    }
+    // Éviter les doublons
+    if (!paths.find(p => p.label === u.username)) {
+      paths.push({ label: u.username, path: bashrcPath });
+    }
+  }
+
+  return paths;
+}
+
+function getBashrcPath(target) {
+  if (!target || target === 'root') return '/root/.bashrc';
+  const all = getBashrcPaths();
+  const found = all.find(p => p.label === target);
+  return found ? found.path : '/root/.bashrc';
 }
 
 app.get('/api/server-config/bashrc', authMiddleware, adminOnly, (req, res) => {
   try {
-    const bashrcPath = getBashrcPath();
+    const target     = req.query.target || 'root';
+    const bashrcPath = getBashrcPath(target);
     const content    = fs.existsSync(bashrcPath) ? fs.readFileSync(bashrcPath, 'utf8') : '';
     const templates  = PANEL_CONFIG.bashrcTemplates || [];
-    res.json({ content, templates, bashrcPath });
+    const available  = getBashrcPaths();
+    res.json({ content, templates, bashrcPath, target, available });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -653,10 +706,10 @@ app.delete('/api/server-config/bashrc/templates/:id', authMiddleware, adminOnly,
 
 // POST /api/server-config/bashrc — sauvegarder le .bashrc
 app.post('/api/server-config/bashrc', authMiddleware, adminOnly, async (req, res) => {
-  const { content } = req.body;
+  const { content, target } = req.body;
   if (content === undefined) return res.status(400).json({ error: 'Contenu requis' });
   try {
-    const bashrcPath = getBashrcPath();
+    const bashrcPath = getBashrcPath(target || 'root');
     // Sauvegarde de l'ancien fichier
     if (fs.existsSync(bashrcPath))
       await runCmd(`sudo cp "${bashrcPath}" "${bashrcPath}.bak.${Date.now()}"`);
@@ -665,17 +718,18 @@ app.post('/api/server-config/bashrc', authMiddleware, adminOnly, async (req, res
     await runCmd(`sudo cp "${tmpBashrc}" "${bashrcPath}" && sudo chmod 644 "${bashrcPath}"`);
     fs.unlinkSync(tmpBashrc);
     log('BASHRC', `Mis à jour (${bashrcPath})`, 'OK');
-    res.json({ success: true, message: `${bashrcPath} sauvegardé avec succès` });
+    res.json({ success: true, message: `${bashrcPath} sauvegardé avec succès`, bashrcPath });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/server-config/bashrc/apply — source le .bashrc
 app.post('/api/server-config/bashrc/apply', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const bashrcPath = getBashrcPath();
-    await runCmd(`bash -c "source ${bashrcPath}"`);
+    const { target } = req.body;
+    const bashrcPath = getBashrcPath(target || 'root');
+    await runCmd(`sudo bash -c "source ${bashrcPath}"`);
     log('BASHRC', `Appliqué via source (${bashrcPath})`, 'OK');
-    res.json({ success: true, message: `${bashrcPath} appliqué (source) avec succès` });
+    res.json({ success: true, message: `${bashrcPath} appliqué (source) avec succès`, bashrcPath });
   } catch (err) {
     res.status(500).json({ error: `Erreur lors de l'application : ${err.message}` });
   }
