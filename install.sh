@@ -105,9 +105,8 @@ PHP_VERSION=${PHP_VERSION:-8.4}
 read -rp "  $(echo -e "${CYAN}URL phpMyAdmin${NC} (optionnel, ex: https://pma.mondomaine.fr) : ")" PMA_URL
 PMA_URL=${PMA_URL:-""}
 
-# Répertoire d'installation
-read -rp "  $(echo -e "${CYAN}Répertoire d'installation${NC} [/opt/kazypanel] : ")" INSTALL_DIR
-INSTALL_DIR=${INSTALL_DIR:-/opt/kazypanel}
+# Répertoire d'installation fixe
+INSTALL_DIR="/opt/kazypanel"
 
 # Générer une clé JWT aléatoire
 JWT_SECRET=$(openssl rand -hex 64)
@@ -222,8 +221,14 @@ cp /etc/vsftpd.conf /etc/vsftpd.conf.bak
 
 # Créer le fichier userlist
 touch /etc/vsftpd.userlist
+chmod 644 /etc/vsftpd.userlist
 
-cat > /etc/vsftpd.conf << 'VSFTPD'
+# Détecter l'IP publique du serveur
+SERVER_PUBLIC_IP=$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null \
+  || curl -s --max-time 5 https://ifconfig.me 2>/dev/null \
+  || hostname -I | awk '{print $1}')
+
+cat > /etc/vsftpd.conf << VSFTPD
 listen=YES
 listen_ipv6=NO
 anonymous_enable=NO
@@ -250,12 +255,15 @@ userlist_deny=NO
 pasv_enable=YES
 pasv_min_port=40000
 pasv_max_port=50000
-local_root=/var/www/$USER
+pasv_address=${SERVER_PUBLIC_IP}
+check_shell=NO
+vsftpd_log_file=/var/log/vsftpd.log
+log_ftp_protocol=YES
 VSFTPD
 
 systemctl enable vsftpd
 systemctl restart vsftpd
-ok "vsftpd installé et configuré"
+ok "vsftpd installé et configuré (IP: ${SERVER_PUBLIC_IP})"
 
 # ── BIND9 ────────────────────────────────────────────────────
 step "Installation de BIND9 (DNS)"
@@ -274,6 +282,63 @@ ok "BIND9 installé et démarré"
 step "Installation de Certbot (Let's Encrypt)"
 apt-get install -y -qq certbot python3-certbot-apache
 ok "Certbot installé"
+
+# ── SSL vsftpd (FTP explicite / FTPES) ───────────────────────
+step "Configuration SSL pour vsftpd (FTP explicite)"
+
+FTP_CERT=""
+FTP_KEY=""
+
+# Chercher un certificat Let's Encrypt existant
+LETSENCRYPT_LIVE="/etc/letsencrypt/live"
+if [ -d "$LETSENCRYPT_LIVE" ]; then
+  FIRST_CERT=$(ls "$LETSENCRYPT_LIVE" 2>/dev/null | head -1)
+  if [ -n "$FIRST_CERT" ]; then
+    FTP_CERT="$LETSENCRYPT_LIVE/$FIRST_CERT/fullchain.pem"
+    FTP_KEY="$LETSENCRYPT_LIVE/$FIRST_CERT/privkey.pem"
+    info "Certificat Let's Encrypt trouvé : $FIRST_CERT"
+  fi
+fi
+
+# Sinon générer un certificat auto-signé
+if [ -z "$FTP_CERT" ] || [ ! -f "$FTP_CERT" ]; then
+  info "Génération d'un certificat auto-signé pour vsftpd..."
+  mkdir -p /etc/ssl/kazypanel
+  openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout /etc/ssl/kazypanel/vsftpd.key \
+    -out /etc/ssl/kazypanel/vsftpd.crt \
+    -subj "/C=FR/ST=France/L=Paris/O=KazyPanel/CN=${SERVER_PUBLIC_IP}" \
+    2>/dev/null
+  chmod 600 /etc/ssl/kazypanel/vsftpd.key
+  chmod 644 /etc/ssl/kazypanel/vsftpd.crt
+  FTP_CERT="/etc/ssl/kazypanel/vsftpd.crt"
+  FTP_KEY="/etc/ssl/kazypanel/vsftpd.key"
+  warn "Certificat auto-signé généré — remplacez-le par un certificat Let's Encrypt après installation"
+fi
+
+# Mettre à jour vsftpd.conf avec SSL
+cat >> /etc/vsftpd.conf << VSFTPDSSL
+
+# ── SSL / FTP Explicite (FTPES) ──────────────────────────────
+ssl_enable=YES
+allow_anon_ssl=NO
+force_local_data_ssl=NO
+force_local_logins_ssl=NO
+ssl_tlsv1=YES
+ssl_sslv2=NO
+ssl_sslv3=NO
+require_ssl_reuse=NO
+rsa_cert_file=${FTP_CERT}
+rsa_private_key_file=${FTP_KEY}
+VSFTPDSSL
+
+# Retirer l'ancienne ligne ssl_enable=NO
+sed -i '/^ssl_enable=NO$/d' /etc/vsftpd.conf
+
+systemctl restart vsftpd
+ok "vsftpd SSL configuré — FTP explicite (FTPES) actif"
+info "Certificat : $FTP_CERT"
+info "Pour utiliser un certificat Let's Encrypt : editez /etc/vsftpd.conf et remplacez rsa_cert_file/rsa_private_key_file"
 
 # ── phpMyAdmin ───────────────────────────────────────────────
 step "Installation de phpMyAdmin"
@@ -334,9 +399,9 @@ PMACONF
   a2ensite phpmyadmin.conf
   PMA_VHOST_URL="http://${PMA_HOST}"
 else
-  # Accessible via /phpmyadmin sur le serveur
+  # Accessible via /pma sur le serveur
   cat > /etc/apache2/conf-available/phpmyadmin.conf << PMACONF
-Alias /phpmyadmin ${PMA_DIR}
+Alias /pma ${PMA_DIR}
 <Directory ${PMA_DIR}>
     Options SymLinksIfOwnerMatch
     DirectoryIndex index.php
@@ -349,7 +414,7 @@ Alias /phpmyadmin ${PMA_DIR}
 </Directory>
 PMACONF
   a2enconf phpmyadmin.conf
-  PMA_VHOST_URL="http://$(hostname -I | awk '{print $1}')/phpmyadmin"
+  PMA_VHOST_URL="http://${SERVER_PUBLIC_IP}/pma"
   # Mettre à jour .env avec l'URL auto-détectée si non fournie
   PMA_URL="$PMA_VHOST_URL"
 fi
@@ -368,7 +433,8 @@ ufw allow 443/tcp
 ufw allow "${PANEL_PORT}/tcp"
 ufw allow 21/tcp
 ufw allow 40000:50000/tcp   # FTP passif
-ufw allow 53                 # DNS
+ufw allow 53/tcp                 # DNS TCP
+ufw allow 53/udp                 # DNS UDP
 echo "y" | ufw enable
 ok "UFW configuré et activé"
 
@@ -474,6 +540,104 @@ PHP_VERSION=8.4
 PMA_URL=
 ENVEX
 
+# ── Détection de l'utilisateur sudo ─────────────────────────
+step "Détection de l'utilisateur de service"
+
+SERVICE_USER="root"
+
+# Chercher un utilisateur non-root avec sudo ALL=(ALL) ou sudo ALL
+SUDO_USER_FOUND=""
+
+# Méthode 1 : chercher dans /etc/sudoers et /etc/sudoers.d/
+while IFS= read -r line; do
+  # Ignorer commentaires et lignes vides
+  [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+  # Détecter les lignes du type : username ALL=(ALL:ALL) ALL ou username ALL=(ALL) ALL
+  if echo "$line" | grep -qP '^[a-z_][a-z0-9_-]*\s+ALL=\(ALL'; then
+    CANDIDATE=$(echo "$line" | awk '{print $1}')
+    # Vérifier que c'est bien un utilisateur existant et non root
+    if id "$CANDIDATE" &>/dev/null && [ "$CANDIDATE" != "root" ]; then
+      SUDO_USER_FOUND="$CANDIDATE"
+      break
+    fi
+  fi
+done < <(grep -rh '' /etc/sudoers /etc/sudoers.d/ 2>/dev/null)
+
+# Méthode 2 : chercher dans le groupe sudo
+if [ -z "$SUDO_USER_FOUND" ]; then
+  while IFS= read -r u; do
+    [ "$u" != "root" ] && id "$u" &>/dev/null && { SUDO_USER_FOUND="$u"; break; }
+  done < <(getent group sudo 2>/dev/null | cut -d: -f4 | tr ',' '\n')
+fi
+
+# Méthode 3 : chercher dans le groupe wheel (CentOS/Fedora)
+if [ -z "$SUDO_USER_FOUND" ]; then
+  while IFS= read -r u; do
+    [ "$u" != "root" ] && id "$u" &>/dev/null && { SUDO_USER_FOUND="$u"; break; }
+  done < <(getent group wheel 2>/dev/null | cut -d: -f4 | tr ',' '\n')
+fi
+
+if [ -n "$SUDO_USER_FOUND" ]; then
+  SERVICE_USER="$SUDO_USER_FOUND"
+  ok "Utilisateur de service détecté : ${CYAN}${SERVICE_USER}${NC}"
+else
+  warn "Aucun utilisateur sudo trouvé — service lancé en root (déconseillé)"
+  SERVICE_USER="root"
+fi
+
+# ── Créer le fichier sudoers pour KazyPanel ───────────────────
+if [ "$SERVICE_USER" != "root" ]; then
+  info "Création du fichier sudoers pour $SERVICE_USER..."
+  cat > /etc/sudoers.d/kazypanel << SUDOERS
+# KazyPanel — permissions sudo pour $SERVICE_USER
+$SERVICE_USER ALL=(root) NOPASSWD: \\
+    /usr/sbin/a2ensite, \\
+    /usr/sbin/a2dissite, \\
+    /usr/sbin/a2enmod, \\
+    /usr/bin/systemctl, \\
+    /usr/sbin/useradd, \\
+    /usr/sbin/userdel, \\
+    /usr/sbin/usermod, \\
+    /usr/sbin/chpasswd, \\
+    /bin/chown, \\
+    /usr/bin/chown, \\
+    /bin/chmod, \\
+    /usr/bin/chmod, \\
+    /bin/mkdir, \\
+    /usr/bin/mkdir, \\
+    /bin/cp, \\
+    /usr/bin/cp, \\
+    /bin/rm, \\
+    /usr/bin/rm, \\
+    /usr/sbin/rndc, \\
+    /usr/sbin/named-checkzone, \\
+    /usr/sbin/named-checkconf, \\
+    /usr/bin/certbot, \\
+    /usr/sbin/ufw, \\
+    /usr/bin/fail2ban-client, \\
+    /usr/sbin/sshd, \\
+    /usr/bin/hostnamectl, \\
+    /usr/bin/timedatectl, \\
+    /usr/bin/du, \\
+    /usr/bin/crontab, \\
+    /bin/tar, \\
+    /usr/bin/tar, \\
+    /usr/sbin/apache2ctl, \\
+    /usr/sbin/apachectl, \\
+    /bin/bash, \\
+    /usr/bin/passwd
+SUDOERS
+  chmod 440 /etc/sudoers.d/kazypanel
+  # Valider la syntaxe sudoers
+  if visudo -c -f /etc/sudoers.d/kazypanel &>/dev/null; then
+    ok "Fichier sudoers créé pour $SERVICE_USER"
+  else
+    warn "Erreur dans le fichier sudoers — retour sur root"
+    rm -f /etc/sudoers.d/kazypanel
+    SERVICE_USER="root"
+  fi
+fi
+
 # ── Service systemd ──────────────────────────────────────────
 step "Création du service systemd"
 cat > /etc/systemd/system/kazypanel.service << SERVICE
@@ -485,7 +649,7 @@ Wants=mariadb.service apache2.service
 
 [Service]
 Type=simple
-User=root
+User=${SERVICE_USER}
 WorkingDirectory=${INSTALL_DIR}
 ExecStart=/usr/bin/node ${INSTALL_DIR}/server.js
 Restart=on-failure
@@ -539,10 +703,10 @@ ok "Apache configuré"
 
 # ── Permissions finales ──────────────────────────────────────
 step "Ajustement des permissions"
-chown -R root:root "$INSTALL_DIR"
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "$INSTALL_DIR"
 chmod 750 "$INSTALL_DIR"
 chmod 600 "$INSTALL_DIR/.env"
-ok "Permissions configurées"
+ok "Permissions configurées pour $SERVICE_USER"
 
 # ── Résumé de l'installation ─────────────────────────────────
 SERVER_IP=$(hostname -I | awk '{print $1}')
@@ -557,6 +721,7 @@ echo -e "  ┌──────────────────────
 echo -e "  │  🔗 URL        : ${CYAN}http://${SERVER_IP}:${PANEL_PORT}${NC}"
 echo -e "  │  👤 Login      : ${CYAN}admin${NC}"
 echo -e "  │  🔑 Mot passe  : ${CYAN}${ADMIN_PASSWORD}${NC}"
+echo -e "  │  👤 Service    : ${CYAN}${SERVICE_USER}${NC}"
 echo -e "  └─────────────────────────────────────────────────┘"
 echo ""
 echo -e "${BOLD}  🛠  Services installés :${NC}"
