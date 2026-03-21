@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 20/03/2026 23:48
+ * Dernière modification : 21/03/2026 08:53
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.5.0';
+const KAZYPANEL_VERSION = '1.0.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -1293,6 +1293,22 @@ app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
     : `Utilisateur ${deleted.username} supprimé avec toutes ses ressources`;
 
   res.json({ success: true, message: msg });
+});
+
+// ─── ROUTE: IMPERSONATION (admin → token utilisateur) ────────────────────────
+app.post('/api/users/:id/impersonate', authMiddleware, adminOnly, (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  if (user.username === 'admin') return res.status(403).json({ error: 'Impossible d\'impersonner le compte admin' });
+
+  // Token de courte durée (1h) avec flag impersonated pour traçabilité
+  const token = jwt.sign(
+    { id: user.id, username: user.username, role: user.role, impersonatedBy: req.user.username },
+    CONFIG.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+  log('IMPERSONATE', `admin ${req.user.username} → ${user.username}`, 'OK');
+  res.json({ token, username: user.username, role: user.role });
 });
 
 // ─── HELPERS FTP ──────────────────────────────────────────────────────────────

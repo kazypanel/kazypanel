@@ -1937,8 +1937,12 @@
                 </div>
                 <div style="flex:1">
                   <div class="cfg-card-title">Éditeur .bashrc</div>
-                  <div class="cfg-card-sub">Fichier <code style="font-size:10px">/root/.bashrc</code> — alias, variables, prompt</div>
+                  <div class="cfg-card-sub" id="bashrcPathLabel">Fichier <code style="font-size:10px">/root/.bashrc</code> — alias, variables, prompt</div>
                 </div>
+                <select id="bashrcTarget" onchange="cfgLoadBashrc()"
+                  style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;flex-shrink:0;margin-right:8px">
+                  <option value="root">root (/root/.bashrc)</option>
+                </select>
                 <button onclick="cfgLoadBashrc()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                   Recharger
@@ -2931,6 +2935,34 @@ let currentRole = sessionStorage.getItem('hp_role') || '';
 let allDomains = [];
 let deleteTarget = null;
 let _currentUsername = '';
+
+// ── IMPERSONATION — chargement depuis URL ─────────────────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const impToken = params.get('impersonate');
+  const impUser  = params.get('user');
+  if (impToken && impUser) {
+    token = impToken;
+    currentRole = 'user';
+    sessionStorage.setItem('hp_token', token);
+    sessionStorage.setItem('hp_role', 'user');
+    // Nettoyer l'URL sans recharger
+    window.history.replaceState({}, '', window.location.pathname);
+    // Afficher une bannière d'impersonation
+    document.addEventListener('DOMContentLoaded', () => {
+      const banner = document.createElement('div');
+      banner.innerHTML = `
+        <div style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;
+                    background:rgba(124,58,237,.95);color:#fff;border-radius:10px;padding:10px 20px;
+                    font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:12px;
+                    box-shadow:0 8px 32px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15)">
+          <span>👤 Panel de <strong>${impUser}</strong> — session admin</span>
+          <button onclick="this.parentElement.parentElement.remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px">✕ Fermer</button>
+        </div>`;
+      document.body.appendChild(banner);
+    });
+  }
+})();
 
 // ── AUTH ─────────────────────────────────────────────────────
 async function doLogin() {
@@ -5875,6 +5907,10 @@ function renderUsers(users) {
            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
            ${u.templateName ? `<span style="font-family:var(--mono);font-size:9px;opacity:.8">${u.templateName}</span>` : 'Template'}
          </button>
+         <button class="btn btn-ghost btn-sm" style="color:var(--accent2);border-color:rgba(79,110,247,.25)" onclick="impersonateUser(${u.id},'${u.username}')" title="Visiter le panel de ${u.username} sans quitter votre session admin">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+           Visiter panel
+         </button>
          <div class="act-spacer"></div>
          <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.username}')">
            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
@@ -5901,6 +5937,22 @@ function renderUsers(users) {
       <div class="user-card-actions">${actions}</div>
     </div>`;
   }).join('');
+}
+
+async function impersonateUser(id, username) {
+  if (!confirm(`Visiter le panel de "${username}" dans un nouvel onglet ?\n\nVotre session admin reste active dans cet onglet.`)) return;
+  try {
+    const res  = await fetch(`${API}/api/users/${id}/impersonate`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    // Construire l'URL avec le token dans le fragment — ouverture dans un nouvel onglet
+    const url = `${window.location.origin}/?impersonate=${encodeURIComponent(data.token)}&user=${encodeURIComponent(data.username)}`;
+    window.open(url, '_blank');
+    showToast(`Panel de "${username}" ouvert dans un nouvel onglet`, 'success');
+  } catch(e) { showToast(e.message, 'error'); }
 }
 
 function openFtpModalById(userId) {
@@ -6938,17 +6990,35 @@ const BASHRC_TEMPLATE = [
 
 // ─── BASHRC FUNCTIONS ─────────────────────────────────────────────────────────
 let _bashrcTemplates = [];
+let _bashrcTarget = 'root';
 
 async function cfgLoadBashrc() {
   const editor = document.getElementById('bashrcEditor');
   if (!editor) return;
+  const sel = document.getElementById('bashrcTarget');
+  _bashrcTarget = sel ? sel.value : 'root';
   editor.value = 'Chargement...';
   try {
-    const res  = await fetch(API + '/api/server-config/bashrc', { headers: { Authorization: 'Bearer ' + token } });
+    const res  = await fetch(API + '/api/server-config/bashrc?target=' + encodeURIComponent(_bashrcTarget), { headers: { Authorization: 'Bearer ' + token } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     editor.value = data.content || '';
     _bashrcTemplates = data.templates || [];
+    const label = document.getElementById('bashrcPathLabel');
+    if (label && data.bashrcPath) {
+      label.innerHTML = 'Fichier <code style="font-size:10px">' + data.bashrcPath + '</code> — alias, variables, prompt';
+    }
+    if (data.available && sel) {
+      const currentVal = sel.value;
+      sel.innerHTML = '';
+      data.available.forEach(function(a) {
+        const opt = document.createElement('option');
+        opt.value = a.label;
+        opt.textContent = a.label + ' (' + a.path + ')';
+        if (a.label === currentVal) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
     cfgRenderBashrcTemplates();
   } catch(e) { editor.value = 'Erreur : ' + e.message; }
 }
@@ -7038,7 +7108,7 @@ async function cfgSaveBashrc() {
     const res  = await fetch(API + '/api/server-config/bashrc', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: content })
+      body: JSON.stringify({ content: content, target: _bashrcTarget })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -7051,7 +7121,8 @@ async function cfgApplyBashrc() {
   try {
     const res  = await fetch(API + '/api/server-config/bashrc/apply', {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + token }
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: _bashrcTarget })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
