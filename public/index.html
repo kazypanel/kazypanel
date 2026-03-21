@@ -7232,11 +7232,12 @@ function switchCfgTab(tab) {
   document.querySelector(`.cfg-tab[data-tab="${tab}"]`).classList.add('active');
   document.querySelectorAll('.cfg-tab-content').forEach(c => c.style.display = 'none');
   document.getElementById(`cfgTab-${tab}`).style.display = '';
-  if (tab === 'system')  loadPanelUsage();
-  if (tab === 'https')   loadHttpsStatus();
-  if (tab === 'server')  { cfgLoadSshAllowUsers(); cfgLoadHostname(); }
-  if (tab === 'bashrc')  cfgLoadBashrc();
+  if (tab === 'system')   loadPanelUsage();
+  if (tab === 'https')    loadHttpsStatus();
+  if (tab === 'server')   { cfgLoadSshAllowUsers(); cfgLoadHostname(); }
+  if (tab === 'bashrc')   cfgLoadBashrc();
 }
+
 
 // ─── BASHRC TEMPLATE PAR DÉFAUT ──────────────────────────────────────────────
 const BASHRC_TEMPLATE = [

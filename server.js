@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 21/03/2026 11:53
+ * Dernière modification : 21/03/2026 12:32
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.0.0';
+const KAZYPANEL_VERSION = '1.1.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -4145,6 +4145,7 @@ app.delete('/api/me/dns/:domain', authMiddleware, async (req, res) => {
     res.json({ success: true, message: `Zone ${domain} supprimée` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 
 
 // ─── ROUTE: TERMINAL (admin seulement) ───────────────────────────────────────
