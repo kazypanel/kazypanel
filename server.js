@@ -2,31 +2,41 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 21/03/2026 12:32
+ * Node.js 24 LTS — Dernière modification : 21/03/2026
  */
 
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const cors = require('cors');
-const helmet = require('helmet');
-const https = require('https');
+'use strict';
 
-const app = express();
+const express    = require('express');
+const jwt        = require('jsonwebtoken');
+const bcrypt     = require('bcryptjs');
+const { exec, spawn } = require('child_process');
+const { promisify }   = require('util');
+const fs         = require('fs');
+const fsp        = require('fs').promises;
+const path       = require('path');
+const cors       = require('cors');
+const helmet     = require('helmet');
+const crypto     = require('crypto');
+
+// util.promisify(exec) — plus propre que le callback, tiré des améliorations Node 24
+const execAsync  = promisify(exec);
+
+const app  = express();
 const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.1.0';
+const KAZYPANEL_VERSION = '1.2.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
 const CONFIG = {
   JWT_SECRET: process.env.JWT_SECRET || (() => {
-    const fallback = require('crypto').randomBytes(64).toString('hex');
+    // Node 24 : Web Crypto API stable — crypto.getRandomValues
+    const bytes = new Uint8Array(64);
+    crypto.getRandomValues(bytes);
+    const fallback = Buffer.from(bytes).toString('hex');
     console.warn('\n⚠️  JWT_SECRET non défini dans .env — clé temporaire générée.');
     console.warn('   Les sessions seront perdues au prochain redémarrage.\n');
     return fallback;
@@ -45,8 +55,6 @@ const CONFIG = {
 };
 
 // ─── HELPERS MARIADB ──────────────────────────────────────────────────────────
-const { spawn } = require('child_process');
-
 function mysqlCmd(sql) {
   return new Promise((resolve, reject) => {
     const args = ['-uroot', '--batch', '--skip-column-names'];
@@ -219,39 +227,64 @@ async function initUsers() {
 }
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  permissionsPolicy: false  // on le gère manuellement ci-dessous
+}));
+
+// Permissions-Policy — restreindre les API navigateur inutiles
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 app.use(cors({
   origin: (origin, cb) => {
-    // Autoriser les requêtes sans origin (curl, Postman, appel direct)
-    // et les requêtes provenant du même serveur
     if (!origin) return cb(null, true);
-    cb(null, true); // En production : remplacer par une whitelist d'origines
+    cb(null, true);
   },
   credentials: true
 }));
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
+// Compression gzip des réponses JSON — réduit la bande passante jusqu'à 70%
+app.use((req, res, next) => {
+  const origJson = res.json.bind(res);
+  res.json = function(body) {
+    const accept = req.headers['accept-encoding'] || '';
+    if (!accept.includes('gzip')) return origJson(body);
+    const str = JSON.stringify(body);
+    if (str.length < 1024) return origJson(body); // pas la peine pour les petites réponses
+    require('zlib').gzip(str, (err, compressed) => {
+      if (err) return origJson(body);
+      res.setHeader('Content-Encoding', 'gzip');
+      res.setHeader('Content-Type', 'application/json');
+      res.end(compressed);
+    });
+    return res;
+  };
+  next();
+});
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1h',         // Cache navigateur 1h pour les assets statiques
+  etag: true,
+  lastModified: true
+}));
+
+// ─── LOG ─────────────────────────────────────────────────────────────────────
 function log(action, detail, status = 'OK') {
   const entry = `[${new Date().toISOString()}] [${status}] ${action}: ${detail}`;
   console.log(entry);
-  try {
-    try { if (fs.statSync(CONFIG.LOG_FILE).size > 10*1024*1024) fs.renameSync(CONFIG.LOG_FILE, CONFIG.LOG_FILE+'.bak'); } catch {}
-    fs.appendFileSync(CONFIG.LOG_FILE, entry + '\n');
-  } catch {}
-}
-
-function authMiddleware(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Token manquant' });
-  try { req.user = jwt.verify(token, CONFIG.JWT_SECRET); next(); }
-  catch { return res.status(401).json({ error: 'Token invalide ou expiré' }); }
-}
-
-function adminOnly(req, res, next) {
-  if (req.user?.role !== 'admin')
-    return res.status(403).json({ error: 'Accès réservé à l\'administrateur' });
-  next();
+  // Écriture asynchrone non-bloquante — Node 24 fs.promises optimisé
+  fsp.stat(CONFIG.LOG_FILE)
+    .then(stat => {
+      if (stat.size > 10 * 1024 * 1024) return fsp.rename(CONFIG.LOG_FILE, CONFIG.LOG_FILE + '.bak');
+    })
+    .catch(() => {})
+    .finally(() => fsp.appendFile(CONFIG.LOG_FILE, entry + '\n').catch(() => {}));
 }
 
 // ─── LISTE DES PRÉFIXES DE COMMANDES NÉCESSITANT SUDO ────────────────────────
@@ -313,14 +346,11 @@ function needsSudo(cmd) {
   return SUDO_PREFIXES.some(prefix => trimmed.startsWith(prefix));
 }
 
-function runCmd(cmd) {
+function runCmd(cmd, opts = {}) {
   const finalCmd = needsSudo(cmd) ? `sudo ${cmd}` : cmd;
-  return new Promise((resolve, reject) => {
-    exec(finalCmd, { timeout: 30000 }, (error, stdout, stderr) => {
-      if (error) reject(new Error(stderr || error.message));
-      else resolve(stdout.trim());
-    });
-  });
+  return execAsync(finalCmd, { timeout: opts.timeout || 30000, maxBuffer: opts.maxBuffer || 1024 * 1024 })
+    .then(({ stdout }) => stdout.trim())
+    .catch(err => { throw new Error(err.stderr?.trim() || err.message, { cause: err }); });
 }
 
 // Utilise spawn + stdin pour éviter les problèmes d'échappement avec chpasswd
@@ -354,6 +384,20 @@ function recordFailedAttempt(ip) {
   entry.count += 1;
   if (entry.count >= 5) { entry.blockedUntil = Date.now() + 15 * 60 * 1000; entry.count = 0; }
   loginAttempts.set(ip, entry);
+}
+
+// ─── AUTH MIDDLEWARE ──────────────────────────────────────────────────────────
+function authMiddleware(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Token manquant' });
+  try { req.user = jwt.verify(token, CONFIG.JWT_SECRET); next(); }
+  catch { return res.status(401).json({ error: 'Token invalide ou expiré' }); }
+}
+
+function adminOnly(req, res, next) {
+  if (req.user?.role !== 'admin')
+    return res.status(403).json({ error: 'Accès réservé à l\'administrateur' });
+  next();
 }
 
 // ─── ROUTE: LOGIN ─────────────────────────────────────────────────────────────
@@ -894,19 +938,15 @@ app.get('/api/server-config/usage', authMiddleware, adminOnly, async (req, res) 
 // ─── ROUTE: VÉRIFICATION DE MISE À JOUR ──────────────────────────────────────
 app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
   try {
-    // Fetch du fichier version.json distant via https natif
-    const remoteData = await new Promise((resolve, reject) => {
-      const req = https.get(KAZYPANEL_UPDATE_URL, { timeout: 8000 }, (r) => {
-        let body = '';
-        r.on('data', d => { body += d; });
-        r.on('end', () => {
-          try { resolve(JSON.parse(body)); }
-          catch { reject(new Error('Réponse invalide du serveur de mises à jour')); }
-        });
-      });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout serveur de mises à jour')); });
-    });
+    // Node 24 — fetch natif stable, plus besoin du module https
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    let remoteData;
+    try {
+      const response = await fetch(KAZYPANEL_UPDATE_URL, { signal: controller.signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      remoteData = await response.json();
+    } finally { clearTimeout(timeout); }
 
     const latest   = remoteData.version || '0.0.0';
     const current  = KAZYPANEL_VERSION;
@@ -923,23 +963,14 @@ app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
     const hasUpdate = toNum(latest) > toNum(current);
 
     res.json({
-      current,
-      latest,
-      hasUpdate,
-      installedDate,
+      current, latest, hasUpdate, installedDate,
       changelog:    remoteData.changelog    || [],
       releaseDate:  remoteData.releaseDate  || null,
       downloadUrl:  remoteData.downloadUrl  || null,
       releaseNotes: remoteData.releaseNotes || '',
     });
   } catch (err) {
-    // En cas d'échec réseau, on renvoie quand même la version locale
-    res.json({
-      current:   KAZYPANEL_VERSION,
-      latest:    null,
-      hasUpdate: false,
-      error:     err.message,
-    });
+    res.json({ current: KAZYPANEL_VERSION, latest: null, hasUpdate: false, error: err.message });
   }
 });
 
@@ -1706,7 +1737,6 @@ app.put('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
 
 app.delete('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
   const user = USERS.find(u => u.id === parseInt(req.user.id));
-    saveUsers();
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const ftpUser = req.params.ftpUser;
   if (!user.ftpAccounts || !user.ftpAccounts.find(a => a.ftpUsername === ftpUser))
@@ -1714,6 +1744,7 @@ app.delete('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
   try {
     await deleteFtpSystemAccount(ftpUser);
     user.ftpAccounts = user.ftpAccounts.filter(a => a.ftpUsername !== ftpUser);
+    saveUsers();
     log('FTP_DELETE_USER', `${user.username} → ${ftpUser}`, 'OK');
     res.json({ success: true, message: `Compte FTP "${ftpUser}" supprimé` });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2832,6 +2863,36 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   try { await runCmd('systemctl is-active mariadb'); s.mariadb = 'running'; } catch { s.mariadb = 'stopped'; }
   try { const ufwOut = await runCmd('ufw status 2>/dev/null | head -1'); s.ufw = ufwOut.includes('active') ? 'active' : 'inactive'; } catch { s.ufw = 'unknown'; }
   try { await runCmd('systemctl is-active fail2ban'); s.fail2ban = 'running'; } catch { s.fail2ban = 'stopped'; }
+  try { await runCmd('systemctl is-active kazypanel'); s.kazypanel = 'running'; } catch { s.kazypanel = 'stopped'; }
+
+  // Uptime par service via systemctl show
+  const svcList = ['apache2', `php${CONFIG.PHP_VERSION}-fpm`, 'vsftpd', 'mariadb', 'fail2ban', 'kazypanel'];
+  s.uptimes = {};
+  for (const svc of svcList) {
+    try {
+      const out = await runCmd(`systemctl show ${svc} --property=ActiveEnterTimestamp --value 2>/dev/null`);
+      if (out && out.trim()) {
+        // Format : "Sat 2026-03-21 07:11:47 CET" → extraire la partie date/heure
+        const match = out.trim().match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/);
+        if (match) {
+          const startTime = new Date(`${match[1]}T${match[2]}`);
+          if (!isNaN(startTime)) {
+            const diffSec = Math.floor((Date.now() - startTime.getTime()) / 1000);
+            if (diffSec > 0) {
+              const days  = Math.floor(diffSec / 86400);
+              const hours = Math.floor((diffSec % 86400) / 3600);
+              const mins  = Math.floor((diffSec % 3600) / 60);
+              const parts = [];
+              if (days)  parts.push(`${days}j`);
+              if (hours) parts.push(`${hours}h`);
+              parts.push(`${mins}min`);
+              s.uptimes[svc] = parts.join(' ');
+            }
+          }
+        }
+      }
+    } catch {}
+  }
   try {
     let sec = Math.floor(parseFloat(fs.readFileSync('/proc/uptime', 'utf8').split(' ')[0]));
     const months  = Math.floor(sec / 2592000); sec %= 2592000;
@@ -2872,7 +2933,8 @@ const ALLOWED_SERVICES = {
   vsftpd:   'vsftpd',
   mariadb:  'MariaDB',
   fail2ban: 'Fail2ban',
-  ufw:      'UFW'
+  ufw:      'UFW',
+  kazypanel:'KazyPanel'
 };
 const ALLOWED_ACTIONS = ['start', 'stop', 'restart', 'reload'];
 
@@ -2885,7 +2947,14 @@ app.post('/api/services/:service/:action', authMiddleware, adminOnly, async (req
   if (!allowed[service]) return res.status(400).json({ error: 'Service non autorisé' });
   if (!ALLOWED_ACTIONS.includes(action)) return res.status(400).json({ error: 'Action non autorisée' });
 
-  if (service === 'kazypanel') return res.status(403).json({ error: 'Non autorisé' });
+  // KazyPanel restart — répondre avant de redémarrer
+  if (service === 'kazypanel') {
+    if (action !== 'restart') return res.status(403).json({ error: 'KazyPanel : seul "restart" est autorisé depuis le panel' });
+    res.json({ success: true, message: 'KazyPanel redémarre — reconnexion dans 5 secondes', status: 'running' });
+    log('SERVICE_CTRL', `restart kazypanel par ${req.user.username}`, 'OK');
+    setTimeout(() => { runCmd('systemctl restart kazypanel').catch(() => {}); }, 500);
+    return;
+  }
 
   // Empêcher de stopper Apache — le panel passerait hors ligne
   if (service === 'apache2' && action === 'stop')
@@ -3506,14 +3575,14 @@ async function f2bCmd(args) {
   return stdout.trim();
 }
 
-async function runCmdOut(cmd) {
+async function runCmdOut(cmd, opts = {}) {
   const finalCmd = needsSudo(cmd) ? `sudo ${cmd}` : cmd;
-  return new Promise((resolve, reject) => {
-    exec(finalCmd, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr || err.message));
-      else resolve({ stdout, stderr });
-    });
-  });
+  try {
+    const { stdout, stderr } = await execAsync(finalCmd, { timeout: opts.timeout || 30000, maxBuffer: opts.maxBuffer || 1024 * 1024 });
+    return { stdout, stderr };
+  } catch (err) {
+    throw new Error(err.stderr?.trim() || err.message, { cause: err });
+  }
 }
 
 // GET /api/fail2ban/status — état global + liste des jails avec stats

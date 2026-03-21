@@ -3530,12 +3530,13 @@ async function loadStatusSection() {
 
     // ─ Services ─
     const services = [
-      { key: 'apache',   svc: 'apache2',                         label: 'Apache',          icon: '🌐', ver: d.apacheVersion },
-      { key: 'php',      svc: `php${d.phpVersion||'8.4'}-fpm`,   label: `PHP ${d.phpVersion||'8.4'}`, icon: '🐘', ver: d.phpVersion },
-      { key: 'vsftpd',   svc: 'vsftpd',                          label: 'vsftpd (FTP)',    icon: '📂' },
-      { key: 'mariadb',  svc: 'mariadb',                         label: 'MariaDB',         icon: '🗄️', ver: d.mariadbVersion },
-      { key: 'ufw',      svc: 'ufw',                             label: 'UFW',             icon: '🛡️', noRestart: true },
-      { key: 'fail2ban', svc: 'fail2ban',                        label: 'Fail2ban',        icon: '🚫' },
+      { key: 'kazypanel', svc: 'kazypanel',                        label: 'KazyPanel',       icon: '⚡', kazy: true },
+      { key: 'apache',    svc: 'apache2',                          label: 'Apache',          icon: '🌐', ver: d.apacheVersion },
+      { key: 'php',       svc: `php${d.phpVersion||'8.4'}-fpm`,   label: `PHP ${d.phpVersion||'8.4'}`, icon: '🐘', ver: d.phpVersion },
+      { key: 'vsftpd',    svc: 'vsftpd',                          label: 'vsftpd (FTP)',    icon: '📂' },
+      { key: 'mariadb',   svc: 'mariadb',                         label: 'MariaDB',         icon: '🗄️', ver: d.mariadbVersion },
+      { key: 'ufw',       svc: 'ufw',                             label: 'UFW',             icon: '🛡️', noRestart: true },
+      { key: 'fail2ban',  svc: 'fail2ban',                        label: 'Fail2ban',        icon: '🚫' },
     ];
 
     let running = 0;
@@ -3552,14 +3553,24 @@ async function loadStatusSection() {
       const badgeTxt = unknown ? '—' : (on ? '● Actif' : '● Arrêté');
       const dotColor = unknown ? 'var(--muted)' : (on ? 'var(--green)' : 'var(--red)');
 
+      // Uptime du service
+      const svcUptime = d.uptimes && d.uptimes[sv.svc] && on
+        ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px">⏱ ${d.uptimes[sv.svc]}</div>`
+        : '';
+
       const btns = sv.noRestart
         ? `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','start')">Enable</button>
            <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','stop')">Disable</button>`
+        : sv.kazy
+        ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','restart')">
+             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+             Restart KazyPanel
+           </button>`
         : `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','start')">Start</button>
            <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','stop')">Stop</button>
            <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','restart')">Restart</button>`;
 
-      return `<div class="stat-card" style="padding:14px 16px;cursor:default" id="svc-card-${sv.svc}">
+      return `<div class="stat-card" style="padding:14px 16px;cursor:default${sv.kazy ? ';border-color:rgba(79,110,247,.2);background:rgba(79,110,247,.04)' : ''}" id="svc-card-${sv.svc}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div style="display:flex;align-items:center;gap:8px">
             <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};box-shadow:${on ? `0 0 6px ${dotColor}` : 'none'};flex-shrink:0"></div>
@@ -3567,6 +3578,7 @@ async function loadStatusSection() {
             <div>
               <div style="font-weight:700;font-size:12px;line-height:1.2">${sv.label}</div>
               ${sv.ver ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px">${sv.ver}</div>` : ''}
+              ${svcUptime}
             </div>
           </div>
           <span id="svc-badge-${sv.svc}" class="badge ${badgeCls}" style="${badgeSt};font-size:9px">${badgeTxt}</span>
@@ -3614,15 +3626,15 @@ async function serviceAction(svc, action) {
     badge.style = 'background:rgba(100,116,139,.1);color:var(--muted);border:1px solid var(--border2)';
   }
 
-  // Pour kazypanel restart, on envoie et on attend sans attendre la réponse
+  // Pour kazypanel restart, on appelle la route et on recharge après
   if (svc === 'kazypanel' && action === 'restart') {
-    try {
-      fetch(`${API}/api/services/${svc}/${action}`, {
-        method: 'POST', headers: { Authorization: 'Bearer ' + token }
-      }).catch(() => {});
-    } catch {}
     showToast('KazyPanel redémarre — reconnexion dans 5 secondes…', 'success');
-    if (badge) { badge.textContent = '● …'; }
+    if (badge) badge.textContent = '● …';
+    try {
+      await fetch(`${API}/api/services/kazypanel/restart`, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token }
+      });
+    } catch {}
     setTimeout(() => { window.location.reload(); }, 5000);
     return;
   }

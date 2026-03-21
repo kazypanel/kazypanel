@@ -1,7 +1,9 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "releaseDate": "2026-03-21",
   "downloadUrl": "https://github.com/kazypanel/kazypanel/archive/refs/heads/main.zip",
   "changelog": [
+    { "type": "security", "text": "Passage de la version Node version 24" },
+    { "type": "fix", "text": "Correction de quelques bugs brute force." }
   ]
 }
