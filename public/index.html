@@ -694,6 +694,13 @@
 <div id="loginPage">
   <div class="login-card">
 
+    <!-- Toggle thème -->
+    <button id="loginThemeToggle" onclick="toggleLoginTheme()"
+      style="position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.06);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .18s"
+      title="Changer le thème"
+      onmouseover="this.style.background='rgba(255,255,255,.12)'"
+      onmouseout="this.style.background='rgba(255,255,255,.06)'">🌙</button>
+
     <!-- Header -->
     <div class="login-header">
       <div class="login-logo-wrap">⚡</div>
@@ -837,6 +844,10 @@
       <div class="nav-item admin-only" id="navFail2ban" onclick="showFail2banPage()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
         Fail2ban
+      </div>
+      <div class="nav-item admin-only" id="navTerminal" onclick="showTerminalPage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Terminal SSH
       </div>
 
       <!-- ═══ UTILISATEUR ═══ -->
@@ -1484,6 +1495,10 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
               Actualiser
             </button>
+            <button class="btn btn-ghost btn-sm admin-only" onclick="clearLoginLogs()" style="color:#ef4444;border-color:rgba(220,38,38,.3)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              Effacer les logs
+            </button>
           </div>
         </div>
         <div id="loginsStats" class="admin-only" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px"></div>
@@ -1491,6 +1506,84 @@
           <div id="loginsTableWrap">
             <div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>Chargement…</div>
           </div>
+        </div>
+      </div>
+
+      <!-- ══ TERMINAL SSH PAGE SECTION ══ -->
+      <div id="terminalPageSection" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Terminal SSH</div>
+            <div class="page-subtitle">Shell bash local — accès administrateur complet</div>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-ghost btn-sm" onclick="termClear()" id="termClearBtn" style="display:none">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+              Effacer
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="termClose()" id="termCloseBtn" style="display:none;color:#ef4444;border-color:rgba(220,38,38,.3)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Déconnecter
+            </button>
+          </div>
+        </div>
+
+        <!-- Terminal -->
+        <div class="table-container" style="padding:0;overflow:hidden">
+          <!-- État initial -->
+          <div id="termConnect" style="padding:40px;text-align:center">
+            <div style="font-size:40px;margin-bottom:16px">🖥️</div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:8px">Terminal SSH</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:24px">Ouvre un shell bash local en tant que <code style="font-size:11px">debian</code> avec sudo</div>
+            <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:8px;padding:12px 20px;font-size:11px;color:#ef4444;margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto">
+              ⚠️ Toutes les commandes sont exécutées sur le serveur. Utilisez avec précaution.
+            </div>
+            <button class="btn btn-primary" onclick="termOpen()" style="gap:8px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              Ouvrir le terminal
+            </button>
+          </div>
+
+          <!-- Terminal actif -->
+          <div id="termActive" style="display:none">
+            <!-- Barre de statut -->
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
+              <span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">bash — debian@<span id="termHostname">kazylax.fr</span></span>
+              <span style="flex:1"></span>
+              <span id="termSessionTime" style="font-family:var(--mono);font-size:10px;color:var(--muted)"></span>
+            </div>
+
+            <!-- Sortie terminal -->
+            <div id="termOutput"
+              style="font-family:'DM Mono',monospace;font-size:12px;line-height:1.6;color:#e2e8f0;background:#0d1117;padding:16px;min-height:420px;max-height:520px;overflow-y:auto;white-space:pre-wrap;word-break:break-all">
+            </div>
+
+            <!-- Ligne de saisie -->
+            <div style="display:flex;align-items:center;gap:0;border-top:1px solid var(--border);background:#0d1117">
+              <span style="font-family:var(--mono);font-size:12px;color:#22c55e;padding:10px 8px 10px 16px;white-space:nowrap">$</span>
+              <input id="termInput" type="text" autocomplete="off" spellcheck="false"
+                style="flex:1;background:transparent;border:none;outline:none;font-family:'DM Mono',monospace;font-size:12px;color:#e2e8f0;padding:10px 8px"
+                placeholder="Entrez une commande..."
+                onkeydown="termHandleKey(event)">
+              <button onclick="termSend()" style="background:rgba(79,110,247,.15);border:none;border-left:1px solid var(--border);color:var(--accent2);padding:10px 16px;cursor:pointer;font-size:11px;font-family:var(--mono);transition:background .15s"
+                onmouseover="this.style.background='rgba(79,110,247,.3)'" onmouseout="this.style.background='rgba(79,110,247,.15)'">
+                Envoyer ↵
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Aide commandes rapides -->
+        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px" id="termQuickCmds" style="display:none">
+          <button class="btn btn-ghost btn-sm" onclick="termQuick('kp-info')" style="font-family:var(--mono);font-size:11px">kp-info</button>
+          <button class="btn btn-ghost btn-sm" onclick="termQuick('sudo systemctl status kazypanel')" style="font-family:var(--mono);font-size:11px">status kazypanel</button>
+          <button class="btn btn-ghost btn-sm" onclick="termQuick('sudo ufw status numbered')" style="font-family:var(--mono);font-size:11px">ufw status</button>
+          <button class="btn btn-ghost btn-sm" onclick="termQuick('df -h')" style="font-family:var(--mono);font-size:11px">df -h</button>
+          <button class="btn btn-ghost btn-sm" onclick="termQuick('free -h')" style="font-family:var(--mono);font-size:11px">free -h</button>
+          <button class="btn btn-ghost btn-sm" onclick="termQuick('sudo journalctl -u kazypanel -n 30 --no-pager')" style="font-family:var(--mono);font-size:11px">logs kazypanel</button>
+          <button class="btn btn-ghost btn-sm" onclick="termQuick('sudo tail -f /var/log/apache2/error.log')" style="font-family:var(--mono);font-size:11px">apache errors</button>
+          <button class="btn btn-ghost btn-sm" onclick="termQuick('ls /var/www/')" style="font-family:var(--mono);font-size:11px">ls /var/www</button>
         </div>
       </div>
 
@@ -2936,7 +3029,7 @@ let allDomains = [];
 let deleteTarget = null;
 let _currentUsername = '';
 
-// ── IMPERSONATION — chargement depuis URL ─────────────────────
+// ── IMPERSONATION ─────────────────────────────────────────────
 (function() {
   const params = new URLSearchParams(window.location.search);
   const impToken = params.get('impersonate');
@@ -2946,19 +3039,10 @@ let _currentUsername = '';
     currentRole = 'user';
     sessionStorage.setItem('hp_token', token);
     sessionStorage.setItem('hp_role', 'user');
-    // Nettoyer l'URL sans recharger
     window.history.replaceState({}, '', window.location.pathname);
-    // Afficher une bannière d'impersonation
     document.addEventListener('DOMContentLoaded', () => {
       const banner = document.createElement('div');
-      banner.innerHTML = `
-        <div style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;
-                    background:rgba(124,58,237,.95);color:#fff;border-radius:10px;padding:10px 20px;
-                    font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:12px;
-                    box-shadow:0 8px 32px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15)">
-          <span>👤 Panel de <strong>${impUser}</strong> — session admin</span>
-          <button onclick="this.parentElement.parentElement.remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px">✕ Fermer</button>
-        </div>`;
+      banner.innerHTML = `<div style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(124,58,237,.95);color:#fff;border-radius:10px;padding:10px 20px;font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15)"><span>👤 Panel de <strong>${impUser}</strong> — session admin</span><button onclick="this.parentElement.parentElement.remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px">✕</button></div>`;
       document.body.appendChild(banner);
     });
   }
@@ -3027,17 +3111,27 @@ function showLoginError(msg) {
 
 // ── Thème multi ──────────────────────────────────────────────────────────────
 const THEME_ICONS = { light: '☀️', dark: '🌙', classic: '🖥️', macos: '🍎' };
+const THEME_CYCLE = ['dark', 'light', 'classic', 'macos'];
 
 function setTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   const btn = document.getElementById('themeToggleBtn');
   if (btn) btn.textContent = THEME_ICONS[theme] || '🌙';
+  const loginBtn = document.getElementById('loginThemeToggle');
+  if (loginBtn) loginBtn.textContent = THEME_ICONS[theme] || '🌙';
   localStorage.setItem('kazy-panel-theme', theme);
   ['light','dark','classic','macos'].forEach(t => {
     const el = document.getElementById('theme-opt-' + t);
     if (el) { el.style.background = t === theme ? 'var(--accent)' : ''; el.style.color = t === theme ? '#fff' : ''; }
   });
   closeThemeMenu();
+}
+
+function toggleLoginTheme() {
+  const current = localStorage.getItem('kazy-panel-theme') || 'dark';
+  const idx = THEME_CYCLE.indexOf(current);
+  const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+  setTheme(next);
 }
 
 function toggleThemeMenu() {
@@ -3061,6 +3155,8 @@ document.addEventListener('click', e => {
   document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('themeToggleBtn');
     if (btn) btn.textContent = THEME_ICONS[saved] || '🌙';
+    const loginBtn = document.getElementById('loginThemeToggle');
+    if (loginBtn) loginBtn.textContent = THEME_ICONS[saved] || '🌙';
     const el = document.getElementById('theme-opt-' + saved);
     if (el) { el.style.background = 'var(--accent)'; el.style.color = '#fff'; }
   });
@@ -3382,7 +3478,7 @@ function setTopbarSection(name) {
 // ── Helper : masque toutes les sections principales ──────────────────────────
 function hideAllMainSections() {
   ['domainsSection','ipSection','usersSection','statusSection','templatesSection',
-   'configSection','userCrontabSection','dnsPageSection','ufwPageSection','fail2banPageSection','loginsPageSection']
+   'configSection','userCrontabSection','dnsPageSection','ufwPageSection','fail2banPageSection','loginsPageSection','terminalPageSection']
     .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 }
 
@@ -4908,6 +5004,178 @@ function copyDomainConfig() {
 }
 
 // ─── PAGE CONNEXIONS ─────────────────────────────────────────────────────────
+// ─── TERMINAL SSH ─────────────────────────────────────────────────────────────
+let _termSessionId  = null;
+let _termHistory    = [];
+let _termHistoryIdx = -1;
+let _termStartTime  = null;
+let _termCwd        = '/home/debian';
+let _termRunning    = false;
+
+function showTerminalPage() {
+  hideAllMainSections();
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('navTerminal').classList.add('active');
+  document.getElementById('terminalPageSection').style.display = 'block';
+  setTopbarSection('Terminal SSH');
+}
+
+async function termOpen() {
+  try {
+    const res  = await fetch(`${API}/api/terminal/session`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    _termSessionId  = data.sessionId;
+    _termCwd        = data.cwd || '/home/debian';
+    _termStartTime  = Date.now();
+    _termHistory    = [];
+    _termHistoryIdx = -1;
+
+    document.getElementById('termConnect').style.display   = 'none';
+    document.getElementById('termActive').style.display    = 'block';
+    document.getElementById('termQuickCmds').style.display = 'grid';
+    document.getElementById('termClearBtn').style.display  = 'inline-flex';
+    document.getElementById('termCloseBtn').style.display  = 'inline-flex';
+
+    setInterval(() => {
+      if (!_termStartTime) return;
+      const s = Math.floor((Date.now() - _termStartTime) / 1000);
+      const m = Math.floor(s / 60), sec = s % 60;
+      const el = document.getElementById('termSessionTime');
+      if (el) el.textContent = `Session : ${m}m${sec.toString().padStart(2,'0')}s`;
+    }, 1000);
+
+    termPrintPrompt();
+    document.getElementById('termInput').focus();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function termPrintPrompt() {
+  const short = _termCwd.replace('/home/debian', '~');
+  termAppendHtml(`<span style="color:#22c55e;font-weight:700">debian@kazypanel</span><span style="color:#64748b">:</span><span style="color:#60a5fa">${short}</span><span style="color:#e2e8f0">$</span> `);
+}
+
+async function termSend() {
+  const input = document.getElementById('termInput');
+  if (!input || !_termSessionId || _termRunning) return;
+  const cmd = input.value.trim();
+  input.value = '';
+
+  // Afficher la commande tapée
+  termAppendHtml(`<span style="color:#e2e8f0">${escHtml(cmd)}</span>\n`);
+
+  if (!cmd) { termPrintPrompt(); return; }
+
+  // Historique
+  if (cmd) { _termHistory.unshift(cmd); if (_termHistory.length > 100) _termHistory.pop(); }
+  _termHistoryIdx = -1;
+
+  // Commande clear locale
+  if (cmd === 'clear') { termClear(); termPrintPrompt(); return; }
+
+  _termRunning = true;
+  document.getElementById('termInput').disabled = true;
+
+  try {
+    const res  = await fetch(`${API}/api/terminal/${_termSessionId}/exec`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    _termCwd = data.cwd || _termCwd;
+    if (data.output) termAppend(data.output);
+  } catch(e) {
+    termAppendHtml(`<span style="color:#ef4444">${escHtml(e.message)}</span>\n`);
+  } finally {
+    _termRunning = false;
+    document.getElementById('termInput').disabled = false;
+    document.getElementById('termInput').focus();
+    termPrintPrompt();
+  }
+}
+
+function termHandleKey(e) {
+  const input = document.getElementById('termInput');
+  if (e.key === 'Enter') { e.preventDefault(); termSend(); }
+  else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (_termHistoryIdx < _termHistory.length - 1) {
+      _termHistoryIdx++;
+      input.value = _termHistory[_termHistoryIdx];
+      setTimeout(() => input.setSelectionRange(input.value.length, input.value.length), 0);
+    }
+  }
+  else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (_termHistoryIdx > 0) { _termHistoryIdx--; input.value = _termHistory[_termHistoryIdx]; }
+    else { _termHistoryIdx = -1; input.value = ''; }
+  }
+  else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); termClear(); termPrintPrompt(); }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function termAppend(text) {
+  // Conversion basique ANSI → HTML
+  const html = escHtml(text)
+    .replace(/\x1b\[0m/g,  '</span>')
+    .replace(/\x1b\[1m/g,  '<span style="font-weight:700">')
+    .replace(/\x1b\[31m/g, '<span style="color:#ef4444">')
+    .replace(/\x1b\[32m/g, '<span style="color:#22c55e">')
+    .replace(/\x1b\[33m/g, '<span style="color:#f59e0b">')
+    .replace(/\x1b\[34m/g, '<span style="color:#60a5fa">')
+    .replace(/\x1b\[35m/g, '<span style="color:#a78bfa">')
+    .replace(/\x1b\[36m/g, '<span style="color:#22d3ee">')
+    .replace(/\x1b\[90m/g, '<span style="color:#64748b">')
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    .replace(/\x1b\[[A-HJK]/g, '')
+    .replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  termAppendHtml(html);
+}
+
+function termAppendHtml(html) {
+  const out = document.getElementById('termOutput');
+  if (!out) return;
+  out.innerHTML += html;
+  out.scrollTop = out.scrollHeight;
+}
+
+function termQuick(cmd) {
+  const input = document.getElementById('termInput');
+  if (input) { input.value = cmd; input.focus(); }
+}
+
+function termClear() {
+  const out = document.getElementById('termOutput');
+  if (out) out.innerHTML = '';
+}
+
+async function termClose() {
+  if (!confirm('Fermer la session terminal ?')) return;
+  if (_termSessionId) {
+    try {
+      await fetch(`${API}/api/terminal/${_termSessionId}`, {
+        method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
+      });
+    } catch {}
+    _termSessionId = null;
+  }
+  _termStartTime = null;
+  document.getElementById('termActive').style.display    = 'none';
+  document.getElementById('termConnect').style.display   = 'block';
+  document.getElementById('termQuickCmds').style.display = 'none';
+  document.getElementById('termClearBtn').style.display  = 'none';
+  document.getElementById('termCloseBtn').style.display  = 'none';
+  document.getElementById('termOutput').innerHTML = '';
+  showToast('Session terminal fermée', 'success');
+}
+
 async function showLoginsPage() {
   hideAllMainSections();
   document.getElementById('loginsPageSection').style.display = 'block';
@@ -4987,6 +5255,20 @@ async function loadLoginsPage() {
   } catch(e) {
     wrap.innerHTML = `<div style="color:var(--red);padding:20px">${e.message}</div>`;
   }
+}
+
+async function clearLoginLogs() {
+  if (!confirm('Effacer tous les logs de connexion ?\n\nCette action est irréversible.')) return;
+  try {
+    const res  = await fetch(`${API}/api/logins`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+    loadLoginsPage();
+  } catch(e) { showToast(e.message, 'error'); }
 }
 
 async function showFail2banPage() {
@@ -5907,7 +6189,7 @@ function renderUsers(users) {
            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
            ${u.templateName ? `<span style="font-family:var(--mono);font-size:9px;opacity:.8">${u.templateName}</span>` : 'Template'}
          </button>
-         <button class="btn btn-ghost btn-sm" style="color:var(--accent2);border-color:rgba(79,110,247,.25)" onclick="impersonateUser(${u.id},'${u.username}')" title="Visiter le panel de ${u.username} sans quitter votre session admin">
+         <button class="btn btn-ghost btn-sm" style="color:var(--accent2);border-color:rgba(79,110,247,.25)" onclick="impersonateUser(${u.id},'${u.username}')" title="Visiter le panel de ${u.username}">
            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
            Visiter panel
          </button>
@@ -5948,7 +6230,6 @@ async function impersonateUser(id, username) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    // Construire l'URL avec le token dans le fragment — ouverture dans un nouvel onglet
     const url = `${window.location.origin}/?impersonate=${encodeURIComponent(data.token)}&user=${encodeURIComponent(data.username)}`;
     window.open(url, '_blank');
     showToast(`Panel de "${username}" ouvert dans un nouvel onglet`, 'success');

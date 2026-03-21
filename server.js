@@ -2,7 +2,7 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
- * Dernière modification : 21/03/2026 08:53
+ * Dernière modification : 21/03/2026 11:53
  */
 
 const express = require('express');
@@ -766,6 +766,51 @@ app.post('/api/server-config/bashrc/apply', authMiddleware, adminOnly, async (re
   }
 });
 
+// GET /api/server-config/bashrc/backups — lister les fichiers .bashrc.bak.*
+app.get('/api/server-config/bashrc/backups', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const all = getBashrcPaths();
+    const backups = [];
+    for (const { label, path: bashrcPath } of all) {
+      const dir  = require('path').dirname(bashrcPath);
+      const base = require('path').basename(bashrcPath);
+      try {
+        const files = fs.readdirSync(dir)
+          .filter(f => f.startsWith(base + '.bak.'))
+          .map(f => {
+            const full = require('path').join(dir, f);
+            const stat = fs.statSync(full);
+            return { file: full, name: f, user: label, size: stat.size, mtime: stat.mtime.toISOString() };
+          })
+          .sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
+        backups.push(...files);
+      } catch {}
+    }
+    res.json({ backups, count: backups.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/server-config/bashrc/backups — supprimer tous les .bashrc.bak.*
+app.delete('/api/server-config/bashrc/backups', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const all = getBashrcPaths();
+    let deleted = 0;
+    for (const { path: bashrcPath } of all) {
+      const dir  = require('path').dirname(bashrcPath);
+      const base = require('path').basename(bashrcPath);
+      try {
+        const files = fs.readdirSync(dir).filter(f => f.startsWith(base + '.bak.'));
+        for (const f of files) {
+          await runCmd(`sudo rm -f "${require('path').join(dir, f)}"`);
+          deleted++;
+        }
+      } catch {}
+    }
+    log('BASHRC_BACKUPS', `${deleted} fichier(s) supprimé(s)`, 'OK');
+    res.json({ success: true, message: `${deleted} fichier(s) de sauvegarde supprimé(s)` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/server-config/maintenance — bannière de maintenance
 app.post('/api/server-config/maintenance', authMiddleware, adminOnly, (req, res) => {
   const { enabled, message } = req.body;
@@ -949,7 +994,29 @@ app.get('/api/logins', authMiddleware, async (req, res) => {
   res.json({ entries: filtered, stats, total: allEntries.length });
 });
 
-// ─── ROUTE: VERSION LOCALE ────────────────────────────────────────────────────
+// ─── ROUTE: EFFACER LES LOGS DE CONNEXION ────────────────────────────────────
+app.delete('/api/logins', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    // Lire le fichier log actuel
+    let logContent = '';
+    try { logContent = fs.readFileSync(CONFIG.LOG_FILE, 'utf8'); } catch {}
+
+    // Garder toutes les lignes sauf les LOGIN
+    const filtered = logContent
+      .split('\n')
+      .filter(l => !l.includes('] LOGIN:'))
+      .join('\n');
+
+    // Réécrire le fichier sans les lignes LOGIN
+    const tmpLog = `/tmp/kp_log_clean_${Date.now()}`;
+    fs.writeFileSync(tmpLog, filtered);
+    await runCmd(`sudo cp "${tmpLog}" "${CONFIG.LOG_FILE}" && sudo chmod 644 "${CONFIG.LOG_FILE}"`);
+    fs.unlinkSync(tmpLog);
+
+    log('LOGINS_CLEAR', `Logs de connexion effacés par ${req.user.username}`, 'OK');
+    res.json({ success: true, message: 'Logs de connexion effacés avec succès' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/version', (req, res) => {
   res.json({ version: KAZYPANEL_VERSION });
 });
@@ -4079,6 +4146,82 @@ app.delete('/api/me/dns/:domain', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ─── ROUTE: TERMINAL (admin seulement) ───────────────────────────────────────
+// Sessions : Map<sessionId, { cwd, env, lastActivity }>
+const termSessions = new Map();
+
+// POST /api/terminal/session — créer une session
+app.post('/api/terminal/session', authMiddleware, adminOnly, (req, res) => {
+  const sessionId = require('crypto').randomBytes(16).toString('hex');
+  termSessions.set(sessionId, {
+    cwd: '/home/debian',
+    env: { ...process.env, TERM: 'xterm-256color', HOME: '/home/debian', USER: 'debian' },
+    lastActivity: Date.now()
+  });
+  // Nettoyage auto après 30 min
+  const cleanup = setInterval(() => {
+    const s = termSessions.get(sessionId);
+    if (!s || Date.now() - s.lastActivity > 30 * 60 * 1000) {
+      termSessions.delete(sessionId);
+      clearInterval(cleanup);
+    }
+  }, 60000);
+  log('TERMINAL', `Session ouverte par ${req.user.username}`, 'OK');
+  res.json({ sessionId, cwd: '/home/debian' });
+});
+
+// POST /api/terminal/:id/exec — exécuter une commande
+app.post('/api/terminal/:id/exec', authMiddleware, adminOnly, async (req, res) => {
+  const session = termSessions.get(req.params.id);
+  if (!session) return res.status(404).json({ error: 'Session introuvable ou expirée' });
+
+  const { cmd } = req.body;
+  if (!cmd || typeof cmd !== 'string') return res.status(400).json({ error: 'cmd requis' });
+
+  session.lastActivity = Date.now();
+
+  // Commande cd spéciale — on change le cwd de la session
+  const cdMatch = cmd.trim().match(/^cd\s*(.*)?$/);
+  if (cdMatch) {
+    const target = (cdMatch[1] || '').trim() || '/home/debian';
+    const dest = target.startsWith('/') ? target
+      : target === '~' ? '/home/debian'
+      : require('path').resolve(session.cwd, target);
+    if (require('fs').existsSync(dest)) {
+      session.cwd = dest;
+      return res.json({ output: '', cwd: session.cwd });
+    } else {
+      return res.json({ output: `-bash: cd: ${target}: Aucun fichier ou dossier de ce type\n`, cwd: session.cwd });
+    }
+  }
+
+  // Wrapper : source bashrc + exécuter la commande avec sudo si nécessaire
+  const wrapped = `bash -c "source /home/debian/.bashrc 2>/dev/null; ${cmd.replace(/"/g, '\\"')}"`;
+  const finalCmd = needsSudo(cmd) ? `sudo ${wrapped}` : wrapped;
+
+  try {
+    const output = await new Promise((resolve) => {
+      require('child_process').exec(finalCmd, {
+        cwd: session.cwd,
+        env: session.env,
+        timeout: 30000,
+        maxBuffer: 512 * 1024
+      }, (err, stdout, stderr) => {
+        resolve((stdout || '') + (stderr || ''));
+      });
+    });
+    res.json({ output: output || '\n', cwd: session.cwd });
+  } catch (err) {
+    res.json({ output: `Erreur : ${err.message}\n`, cwd: session.cwd });
+  }
+});
+
+// DELETE /api/terminal/:id — fermer la session
+app.delete('/api/terminal/:id', authMiddleware, adminOnly, (req, res) => {
+  termSessions.delete(req.params.id);
+  res.json({ ok: true });
+});
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
