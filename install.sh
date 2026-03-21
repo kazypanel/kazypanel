@@ -141,10 +141,12 @@ apt-get install -y -qq \
   net-tools dnsutils htop
 ok "Paquets de base installés"
 
-# ── Node.js 20 ───────────────────────────────────────────────
-step "Installation de Node.js 20"
-if ! command -v node &>/dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 18 ]]; then
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+# ── Node.js 24 ───────────────────────────────────────────────
+step "Installation de Node.js 24"
+if ! command -v node &>/dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 24 ]]; then
+  curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/nodesource_setup.sh
+  bash /tmp/nodesource_setup.sh
+  rm -f /tmp/nodesource_setup.sh
   apt-get install -y -qq nodejs
   ok "Node.js $(node -v) installé"
 else
