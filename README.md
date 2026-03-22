@@ -601,10 +601,3 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 ## Changelog
 
 ### v1.3.0 — 2026-03-22
-- ✨ Nouveau — Migration complète server.js vers Node.js 24
-- ✨ Nouveau — Nettoyage auto de la Map anti-brute-force toutes les 10 minutes
-- ✨ Nouveau — Uptime affiché pour chaque service (Apache, PHP, MariaDB, vsftpd, Fail2ban, KazyPanel)
-- ✨ Nouveau — 3 nouveaux thèmes ajoutés : 🌊 Oceanic, 🌅 Sunset, 💜 Lavender
-- 🐛 Fix — fetch natif remplace https.get pour la vérification des mises à jour
-- 🔒 Sécurité — Headers sécurité Permissions-Policy + Referrer-Policy
-- 🐛 Fix — Cache navigateur 1h sur les assets statiques
