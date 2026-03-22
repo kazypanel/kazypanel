@@ -4,7 +4,7 @@
 
 > Panel d'administration web pour serveurs Apache/PHP — léger, rapide, sans dépendances lourdes.
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
@@ -600,6 +600,11 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ## Changelog
 
-### v1.2.0 — 2026-03-21
-- 🔒 Sécurité — Passage de la version Node version 24
-- 🐛 Fix — Correction de quelques bugs brute force.
+### v1.3.0 — 2026-03-22
+- ✨ Nouveau — Migration complète server.js vers Node.js 24
+- ✨ Nouveau — Nettoyage auto de la Map anti-brute-force toutes les 10 minutes
+- ✨ Nouveau — Uptime affiché pour chaque service (Apache, PHP, MariaDB, vsftpd, Fail2ban, KazyPanel)
+- ✨ Nouveau — 3 nouveaux thèmes ajoutés : 🌊 Oceanic, 🌅 Sunset, 💜 Lavender
+- 🐛 Fix — fetch natif remplace https.get pour la vérification des mises à jour
+- 🔒 Sécurité — Headers sécurité Permissions-Policy + Referrer-Policy
+- 🐛 Fix — Cache navigateur 1h sur les assets statiques

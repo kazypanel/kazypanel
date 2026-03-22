@@ -102,6 +102,18 @@
   [data-theme="macos"] .tb-action-btn { background:rgba(255,255,255,0.65); border:1px solid rgba(0,0,0,.10); border-radius:7px; }
   [data-theme="macos"] input,[data-theme="macos"] select,[data-theme="macos"] textarea { background:rgba(255,255,255,0.85); border:1px solid rgba(0,0,0,.15); border-radius:7px; }
   [data-theme="macos"] input:focus,[data-theme="macos"] select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,113,227,.18); outline:none; }
+
+  /* Curseur sombre forcé sur thèmes clairs pour visibilité */
+  [data-theme="macos"] #bashrcEditor,
+  [data-theme="macos"] #domainConfigEditor,
+  [data-theme="macos"] #phpRawEditor,
+  html.light #bashrcEditor,
+  html.light #domainConfigEditor,
+  html.light #phpRawEditor {
+    caret-color: #000;
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cline x1='10' y1='1' x2='10' y2='19' stroke='%23000000' stroke-width='2'/%3E%3Cline x1='6' y1='1' x2='14' y2='1' stroke='%23000000' stroke-width='2'/%3E%3Cline x1='6' y1='19' x2='14' y2='19' stroke='%23000000' stroke-width='2'/%3E%3C/svg%3E") 10 10, text;
+    color: #0f172a;
+  }
   [data-theme="macos"] #loginPage { background:linear-gradient(160deg,#dce8f8 0%,#d4dfe8 60%,#e2e8ee 100%); }
   [data-theme="macos"] .login-card { background:rgba(255,255,255,.78); backdrop-filter:blur(24px) saturate(200%); border:1px solid rgba(255,255,255,.9); border-radius:18px; box-shadow:0 24px 60px rgba(0,0,0,.15); }
   [data-theme="macos"] .login-card::before { display:none; }
@@ -110,6 +122,145 @@
   [data-theme="macos"] .login-title { background:linear-gradient(135deg,#1d1d1f 0%,#3a3a4a 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
   [data-theme="macos"] ::-webkit-scrollbar { width:8px; height:8px; }
   [data-theme="macos"] ::-webkit-scrollbar-thumb { background:rgba(0,0,0,.2); border-radius:10px; }
+
+  /* ══════════════════════════════════════════════════════════
+     THÈME DIRECTADMIN — Inspiré de DirectAdmin (bleu marine)
+     ══════════════════════════════════════════════════════════ */
+  [data-theme="oceanic"] {
+    --bg: #f0f4f8; --surface: #ffffff; --surface2: #e8eef5;
+    --border: #c5d3e0; --border2: #dce6ef;
+    --accent: #1a5276; --accent2: #2980b9;
+    --green: #1e8449; --red: #c0392b; --yellow: #d68910;
+    --text: #1a252f; --muted: #5d6d7e;
+    --mono: 'IBM Plex Mono',monospace;
+    --sans: 'Segoe UI',Arial,sans-serif;
+  }
+  [data-theme="oceanic"] body { background: #e8eef5; }
+  [data-theme="oceanic"] .topbar {
+    background: linear-gradient(180deg,#1a5276 0%,#154360 100%);
+    border-bottom: 2px solid #0e2f44;
+  }
+  [data-theme="oceanic"] .topbar-brand { border-right:1px solid #0e2f44; color:#fff; }
+  [data-theme="oceanic"] .brand-icon { background:linear-gradient(135deg,#2980b9,#1a5276); border:1px solid #0e2f44; }
+  [data-theme="oceanic"] .sidebar {
+    background: linear-gradient(180deg,#1c2e40 0%,#17263a 100%);
+    border-right: 1px solid #0e2232;
+  }
+  [data-theme="oceanic"] .sidebar-label { color:#7fb3d3; font-size:10px; letter-spacing:.1em; }
+  [data-theme="oceanic"] .nav-item { color:#a9cce3; border-radius:4px; margin:1px 6px; }
+  [data-theme="oceanic"] .nav-item:hover { background:rgba(41,128,185,.25); color:#d6eaf8; }
+  [data-theme="oceanic"] .nav-item.active { background:linear-gradient(90deg,#2980b9,#1a5276); color:#fff; border-radius:4px; border-left:3px solid #7fb3d3; }
+  [data-theme="oceanic"] .card { background:#fff; border:1px solid #c5d3e0; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+  [data-theme="oceanic"] .btn-primary { background:linear-gradient(180deg,#2980b9 0%,#1a5276 100%); border:1px solid #154360; border-radius:4px; color:#fff; }
+  [data-theme="oceanic"] .btn-primary:hover { background:linear-gradient(180deg,#3498db 0%,#2980b9 100%); }
+  [data-theme="oceanic"] .btn-ghost { background:#fff; border:1px solid #c5d3e0; border-radius:4px; color:#1a5276; }
+  [data-theme="oceanic"] .tb-action-btn { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.2); border-radius:4px; color:#fff; }
+  [data-theme="oceanic"] input,[data-theme="oceanic"] select,[data-theme="oceanic"] textarea { background:#fff; border:1px solid #aec6cf; border-radius:3px; color:#1a252f; }
+  [data-theme="oceanic"] input:focus,[data-theme="oceanic"] select:focus { border-color:#2980b9; box-shadow:0 0 0 2px rgba(41,128,185,.18); outline:none; }
+  [data-theme="oceanic"] .login-header { background:linear-gradient(180deg,#1a5276 0%,#154360 100%); border-bottom:1px solid #0e2f44; }
+  [data-theme="oceanic"] .login-title { -webkit-text-fill-color:#fff; color:#fff; }
+  [data-theme="oceanic"] .login-subtitle { color:#a9cce3; }
+  [data-theme="oceanic"] .login-card { border-radius:6px; box-shadow:0 4px 20px rgba(0,0,0,.15); }
+  [data-theme="oceanic"] #bashrcEditor,[data-theme="oceanic"] #domainConfigEditor { caret-color:#2980b9; color:#1a252f; }
+  [data-theme="oceanic"] ::-webkit-scrollbar { width:8px; }
+  [data-theme="oceanic"] ::-webkit-scrollbar-thumb { background:#aec6cf; border-radius:4px; }
+  [data-theme="oceanic"] .stat-card { background:#fff; border:1px solid #c5d3e0; }
+  [data-theme="oceanic"] .table-container { background:#fff; border:1px solid #c5d3e0; }
+  [data-theme="oceanic"] .badge-green { background:rgba(30,132,73,.12); color:#1e8449; border-color:rgba(30,132,73,.25); }
+
+  /* ══════════════════════════════════════════════════════════
+     THÈME CPANEL — Inspiré de cPanel (orange chaud)
+     ══════════════════════════════════════════════════════════ */
+  [data-theme="sunset"] {
+    --bg: #f5f5f5; --surface: #ffffff; --surface2: #f0f0f0;
+    --border: #ddd; --border2: #e8e8e8;
+    --accent: #d35400; --accent2: #e67e22;
+    --green: #27ae60; --red: #c0392b; --yellow: #f39c12;
+    --text: #2c2c2c; --muted: #7f8c8d;
+    --mono: 'Courier New',monospace;
+    --sans: 'Open Sans','Helvetica Neue',Arial,sans-serif;
+  }
+  [data-theme="sunset"] body { background:#f0f0f0; }
+  [data-theme="sunset"] .topbar {
+    background: linear-gradient(180deg,#ff6b35 0%,#d35400 100%);
+    border-bottom: 2px solid #a04000;
+    box-shadow: 0 2px 6px rgba(0,0,0,.2);
+  }
+  [data-theme="sunset"] .topbar-brand { border-right:1px solid rgba(0,0,0,.15); color:#fff; }
+  [data-theme="sunset"] .brand-icon { background:linear-gradient(135deg,#ff8c42,#d35400); border:1px solid #a04000; }
+  [data-theme="sunset"] .sidebar {
+    background: #2c2c2c;
+    border-right: 1px solid #1a1a1a;
+  }
+  [data-theme="sunset"] .sidebar-label { color:#e67e22; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+  [data-theme="sunset"] .nav-item { color:#ccc; border-radius:2px; margin:1px 4px; font-size:12px; }
+  [data-theme="sunset"] .nav-item:hover { background:rgba(211,84,0,.3); color:#ff8c42; }
+  [data-theme="sunset"] .nav-item.active { background:linear-gradient(90deg,#d35400,#a04000); color:#fff; border-left:3px solid #ff8c42; border-radius:2px; }
+  [data-theme="sunset"] .card { background:#fff; border:1px solid #ddd; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+  [data-theme="sunset"] .btn-primary { background:linear-gradient(180deg,#e67e22 0%,#d35400 100%); border:1px solid #a04000; border-radius:4px; color:#fff; font-weight:600; }
+  [data-theme="sunset"] .btn-primary:hover { background:linear-gradient(180deg,#f39c12 0%,#e67e22 100%); box-shadow:0 2px 8px rgba(211,84,0,.4); }
+  [data-theme="sunset"] .btn-ghost { background:#fff; border:1px solid #ccc; border-radius:4px; color:#555; }
+  [data-theme="sunset"] .tb-action-btn { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:3px; color:#fff; }
+  [data-theme="sunset"] input,[data-theme="sunset"] select,[data-theme="sunset"] textarea { background:#fff; border:1px solid #ccc; border-radius:3px; color:#2c2c2c; }
+  [data-theme="sunset"] input:focus,[data-theme="sunset"] select:focus { border-color:#e67e22; box-shadow:0 0 0 2px rgba(230,126,34,.2); outline:none; }
+  [data-theme="sunset"] .login-header { background:linear-gradient(180deg,#ff6b35 0%,#d35400 100%); border-bottom:1px solid #a04000; }
+  [data-theme="sunset"] .login-title { -webkit-text-fill-color:#fff; color:#fff; }
+  [data-theme="sunset"] .login-subtitle { color:#ffd5b8; }
+  [data-theme="sunset"] .login-card { border-radius:6px; box-shadow:0 4px 20px rgba(0,0,0,.15); }
+  [data-theme="sunset"] #bashrcEditor,[data-theme="sunset"] #domainConfigEditor { caret-color:#d35400; color:#2c2c2c; }
+  [data-theme="sunset"] ::-webkit-scrollbar { width:8px; }
+  [data-theme="sunset"] ::-webkit-scrollbar-thumb { background:#ccc; border-radius:4px; }
+  [data-theme="sunset"] .badge-green { background:rgba(39,174,96,.12); color:#27ae60; border-color:rgba(39,174,96,.25); }
+  [data-theme="sunset"] .stat-card { background:#fff; border:1px solid #ddd; }
+  [data-theme="sunset"] .table-container { background:#fff; border:1px solid #ddd; }
+
+  /* ══════════════════════════════════════════════════════════
+     THÈME PLESK — Inspiré de Plesk (violet élégant)
+     ══════════════════════════════════════════════════════════ */
+  [data-theme="lavender"] {
+    --bg: #f7f8fc; --surface: #ffffff; --surface2: #f0f1f8;
+    --border: #e0e3f0; --border2: #eceef8;
+    --accent: #5c6bc0; --accent2: #7986cb;
+    --green: #43a047; --red: #e53935; --yellow: #fb8c00;
+    --text: #1a1f3c; --muted: #6b7280;
+    --mono: 'Fira Mono','IBM Plex Mono',monospace;
+    --sans: 'Inter','Helvetica Neue',Arial,sans-serif;
+  }
+  [data-theme="lavender"] body { background:linear-gradient(135deg,#f0f1f8 0%,#f7f8fc 100%); }
+  [data-theme="lavender"] .topbar {
+    background: linear-gradient(90deg,#3949ab 0%,#5c6bc0 100%);
+    border-bottom: 1px solid #303f9f;
+    box-shadow: 0 2px 8px rgba(57,73,171,.25);
+  }
+  [data-theme="lavender"] .topbar-brand { border-right:1px solid rgba(255,255,255,.15); color:#fff; }
+  [data-theme="lavender"] .brand-icon { background:linear-gradient(135deg,#7986cb,#3949ab); border-radius:10px; box-shadow:0 2px 8px rgba(57,73,171,.4); }
+  [data-theme="lavender"] .sidebar {
+    background: #fff;
+    border-right: 1px solid #e0e3f0;
+    box-shadow: 2px 0 8px rgba(0,0,0,.04);
+  }
+  [data-theme="lavender"] .sidebar-label { color:#9fa8da; font-size:10px; letter-spacing:.1em; }
+  [data-theme="lavender"] .nav-item { color:#4a5568; border-radius:8px; margin:2px 8px; font-size:13px; font-weight:500; }
+  [data-theme="lavender"] .nav-item:hover { background:#f0f1f8; color:#3949ab; }
+  [data-theme="lavender"] .nav-item.active { background:linear-gradient(135deg,#5c6bc0,#3949ab); color:#fff; border-radius:8px; box-shadow:0 2px 8px rgba(57,73,171,.3); }
+  [data-theme="lavender"] .card { background:#fff; border:1px solid #e0e3f0; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  [data-theme="lavender"] .btn-primary { background:linear-gradient(135deg,#5c6bc0,#3949ab); border:none; border-radius:8px; color:#fff; font-weight:600; box-shadow:0 2px 8px rgba(57,73,171,.3); }
+  [data-theme="lavender"] .btn-primary:hover { background:linear-gradient(135deg,#7986cb,#5c6bc0); box-shadow:0 4px 12px rgba(57,73,171,.4); }
+  [data-theme="lavender"] .btn-ghost { background:#fff; border:1px solid #e0e3f0; border-radius:8px; color:#5c6bc0; }
+  [data-theme="lavender"] .btn-ghost:hover { background:#f0f1f8; border-color:#9fa8da; }
+  [data-theme="lavender"] .tb-action-btn { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.2); border-radius:7px; color:#fff; }
+  [data-theme="lavender"] input,[data-theme="lavender"] select,[data-theme="lavender"] textarea { background:#fff; border:1px solid #e0e3f0; border-radius:8px; color:#1a1f3c; }
+  [data-theme="lavender"] input:focus,[data-theme="lavender"] select:focus { border-color:#5c6bc0; box-shadow:0 0 0 3px rgba(92,107,192,.18); outline:none; }
+  [data-theme="lavender"] .login-header { background:linear-gradient(135deg,#3949ab 0%,#5c6bc0 100%); border-bottom:1px solid rgba(255,255,255,.1); }
+  [data-theme="lavender"] .login-title { -webkit-text-fill-color:#fff; color:#fff; }
+  [data-theme="lavender"] .login-subtitle { color:#c5cae9; }
+  [data-theme="lavender"] .login-card { border-radius:14px; box-shadow:0 8px 32px rgba(57,73,171,.15); border:1px solid #e0e3f0; }
+  [data-theme="lavender"] #bashrcEditor,[data-theme="lavender"] #domainConfigEditor { caret-color:#5c6bc0; color:#1a1f3c; }
+  [data-theme="lavender"] ::-webkit-scrollbar { width:8px; }
+  [data-theme="lavender"] ::-webkit-scrollbar-thumb { background:#c5cae9; border-radius:8px; }
+  [data-theme="lavender"] .badge-green { background:rgba(67,160,71,.12); color:#43a047; border-color:rgba(67,160,71,.25); }
+  [data-theme="lavender"] .stat-card { background:#fff; border:1px solid #e0e3f0; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+  [data-theme="lavender"] .table-container { background:#fff; border:1px solid #e0e3f0; }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; transition: background .2s, color .2s; }
 
   /* ── SUBTLE LIGHT TEXTURE ── */
@@ -539,6 +690,20 @@
   .cfg-card-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
   .cfg-card-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 
+  /* Curseur et sélection visibles dans les éditeurs de code */
+  #bashrcEditor, #domainConfigEditor, #phpRawEditor, #fmContent {
+    caret-color: #000;
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cline x1='10' y1='1' x2='10' y2='19' stroke='%23000000' stroke-width='2'/%3E%3Cline x1='6' y1='1' x2='14' y2='1' stroke='%23000000' stroke-width='2'/%3E%3Cline x1='6' y1='19' x2='14' y2='19' stroke='%23000000' stroke-width='2'/%3E%3C/svg%3E") 10 10, text;
+  }
+  #bashrcEditor:focus, #domainConfigEditor:focus, #phpRawEditor:focus {
+    border-color: rgba(79,110,247,.5) !important;
+    box-shadow: 0 0 0 2px rgba(79,110,247,.12);
+  }
+  #bashrcEditor::selection, #domainConfigEditor::selection, #phpRawEditor::selection {
+    background: rgba(79,110,247,.35);
+    color: #fff;
+  }
+
   .cfg-warn {
     display: flex; gap: 8px; align-items: flex-start;
     background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.2);
@@ -777,10 +942,13 @@
       <div style="position:relative;display:inline-flex;align-items:center">
         <button id="themeToggleBtn" onclick="toggleThemeMenu()" class="tb-action-btn" title="Changer le thème" style="width:34px;height:34px;padding:0;justify-content:center;font-size:15px">🌙</button>
         <div id="themeMenu" style="display:none;position:absolute;top:38px;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:999;min-width:150px;overflow:hidden">
-          <div onclick="setTheme('light')"   id="theme-opt-light"   style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">☀️ Light</div>
-          <div onclick="setTheme('dark')"    id="theme-opt-dark"    style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🌙 Dark</div>
-          <div onclick="setTheme('classic')" id="theme-opt-classic" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🖥️ Classic</div>
-          <div onclick="setTheme('macos')"   id="theme-opt-macos"   style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🍎 macOS</div>
+          <div onclick="setTheme('light')"         id="theme-opt-light"         style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">☀️ Light</div>
+          <div onclick="setTheme('dark')"          id="theme-opt-dark"          style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🌙 Dark</div>
+          <div onclick="setTheme('classic')"       id="theme-opt-classic"       style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🖥️ Classic</div>
+          <div onclick="setTheme('macos')"         id="theme-opt-macos"         style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🍎 macOS</div>
+          <div onclick="setTheme('oceanic')"   id="theme-opt-oceanic"   style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🌊 Oceanic</div>
+          <div onclick="setTheme('sunset')"        id="theme-opt-sunset"        style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">🌅 Sunset</div>
+          <div onclick="setTheme('lavender')"         id="theme-opt-lavender"         style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">💜 Lavender</div>
         </div>
       </div>
       <div class="user-chip">
@@ -2043,7 +2211,7 @@
               </div>
               <div class="cfg-card-body">
                 <textarea id="bashrcEditor"
-                  style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;resize:vertical;min-height:340px;outline:none"
+                  style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;resize:vertical;min-height:340px;outline:none;caret-color:var(--accent2);cursor:text"
                   placeholder="Chargement..." spellcheck="false"></textarea>
                 <div style="display:flex;gap:10px;margin-top:12px">
                   <button class="btn btn-primary" onclick="cfgSaveBashrc()" style="flex:1;justify-content:center">
@@ -3110,8 +3278,8 @@ function showLoginError(msg) {
 }
 
 // ── Thème multi ──────────────────────────────────────────────────────────────
-const THEME_ICONS = { light: '☀️', dark: '🌙', classic: '🖥️', macos: '🍎' };
-const THEME_CYCLE = ['dark', 'light', 'classic', 'macos'];
+const THEME_ICONS = { light: '☀️', dark: '🌙', classic: '🖥️', macos: '🍎', oceanic: '🌊', sunset: '🌅', lavender: '💜' };
+const THEME_CYCLE = ['dark', 'light', 'classic', 'macos', 'oceanic', 'sunset', 'lavender'];
 
 function setTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
@@ -3120,7 +3288,7 @@ function setTheme(theme) {
   const loginBtn = document.getElementById('loginThemeToggle');
   if (loginBtn) loginBtn.textContent = THEME_ICONS[theme] || '🌙';
   localStorage.setItem('kazy-panel-theme', theme);
-  ['light','dark','classic','macos'].forEach(t => {
+  ['light','dark','classic','macos','oceanic','sunset','lavender'].forEach(t => {
     const el = document.getElementById('theme-opt-' + t);
     if (el) { el.style.background = t === theme ? 'var(--accent)' : ''; el.style.color = t === theme ? '#fff' : ''; }
   });
@@ -3150,7 +3318,7 @@ document.addEventListener('click', e => {
 });
 
 (function() {
-  const saved = localStorage.getItem('kazy-panel-theme') || 'dark';
+  const saved = localStorage.getItem('kazy-panel-theme') || 'oceanic';
   document.documentElement.setAttribute('data-theme', saved);
   document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('themeToggleBtn');
