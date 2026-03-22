@@ -3,5 +3,10 @@
   "releaseDate": "2026-03-22",
   "downloadUrl": "https://github.com/kazypanel/kazypanel/archive/refs/heads/main.zip",
   "changelog": [
+    { "type": "new", "text": "Migration complète server.js vers Node.js 24" },
+    { "type": "new", "text": "Cache navigateur 1h sur les assets statiques" },
+    { "type": "new", "text": "KazyPanel ajouté dans la liste des services avec bouton Restart" },
+    { "type": "new", "text": "Uptime affiché pour chaque service (Apache, PHP, MariaDB, vsftpd, Fail2ban, KazyPanel)" },
+    { "type": "new", "text": "3 nouveaux thèmes ajoutés : 🌊 Oceanic, 🌅 Sunset, 💜 Lavender" }
   ]
 }

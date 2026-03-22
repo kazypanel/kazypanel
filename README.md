@@ -601,3 +601,8 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 ## Changelog
 
 ### v1.3.0 — 2026-03-22
+- ✨ Nouveau — Migration complète server.js vers Node.js 24
+- ✨ Nouveau — Cache navigateur 1h sur les assets statiques
+- ✨ Nouveau — KazyPanel ajouté dans la liste des services avec bouton Restart
+- ✨ Nouveau — Uptime affiché pour chaque service (Apache, PHP, MariaDB, vsftpd, Fail2ban, KazyPanel)
+- ✨ Nouveau — 3 nouveaux thèmes ajoutés : 🌊 Oceanic, 🌅 Sunset, 💜 Lavender
