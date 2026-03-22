@@ -1,5 +1,7 @@
 # 🖥️ KazyPanel
 
+![image](https://github.com/kazypanel/kazypanel/blob/main/accueil.png)
+
 > Panel d'administration web pour serveurs Apache/PHP — léger, rapide, sans dépendances lourdes.
 
 ![Version](https://img.shields.io/badge/version-1.2.0-blue)
