@@ -86,9 +86,7 @@
   [data-theme="macos"] #navTemplates::before   { content:'📋'; }
   [data-theme="macos"] #navConfig::before      { content:'⚙️'; }
   [data-theme="macos"] #navDns::before         { content:'🔗'; }
-  [data-theme="macos"] #navUfw::before         { content:'🛡️'; }
-  [data-theme="macos"] #navLogins::before      { content:'🔑'; }
-  [data-theme="macos"] #navFail2ban::before    { content:'🚫'; }
+  [data-theme="macos"] #navSecurite::before      { content:'🛡️'; }
   [data-theme="macos"] #navProfile::before     { content:'👤'; }
   [data-theme="macos"] #navUserDomains::before { content:'🌐'; }
   [data-theme="macos"] #navUserFtp::before     { content:'📁'; }
@@ -992,7 +990,7 @@
         Templates
       </div>
 
-      <div class="sidebar-label admin-only" style="margin-top:10px">Outils</div>
+      <div class="sidebar-label admin-only" style="margin-top:10px">Administration</div>
       <div class="nav-item admin-only" id="navConfig" onclick="openConfigPage()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         Configuration
@@ -1001,17 +999,9 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18M12 3v18"/></svg>
         Config DNS
       </div>
-      <div class="nav-item admin-only" id="navUfw" onclick="showUfwPage()">
+      <div class="nav-item admin-only" id="navSecurite" onclick="showSecuritePage('ufw')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Pare-feu (UFW)
-      </div>
-      <div class="nav-item admin-only" id="navLogins" onclick="showLoginsPage()">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-        <span>Connexions</span>
-      </div>
-      <div class="nav-item admin-only" id="navFail2ban" onclick="showFail2banPage()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-        Fail2ban
+        Sécurité
       </div>
       <div class="nav-item admin-only" id="navTerminal" onclick="showTerminalPage()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
@@ -1213,6 +1203,7 @@
             <thead>
               <tr>
                 <th>Domaine</th>
+                <th>SSL</th>
                 <th>Type</th>
                 <th>PHP</th>
                 <th>Répertoire</th>
@@ -1629,53 +1620,147 @@
         </div>
       </div>
 
-      <!-- ══ UFW PAGE SECTION ══ -->
-      <div id="ufwPageSection" style="display:none">
-        <div class="page-header">
-          <div>
-            <div class="page-title">Pare-feu — UFW</div>
-            <div class="page-subtitle">Gestion des règles de filtrage réseau du serveur</div>
+      <!-- ══ SÉCURITÉ PAGE SECTION ══ -->
+      <div id="securitePageSection" style="display:none">
+
+        <!-- HEADER PAGE -->
+        <div class="page-header" style="margin-bottom:24px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+            <div>
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                <div style="width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(var(--accent-rgb),.3)">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <div class="page-title" style="margin:0">Sécurité</div>
+              </div>
+              <div class="page-subtitle">Pare-feu, protection anti-brute-force et historique des connexions</div>
+            </div>
+            <!-- Indicateurs statut rapide -->
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-family:var(--mono);font-size:11px">
+                <span style="width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;flex-shrink:0"></span>
+                <span style="color:var(--muted)">UFW</span>
+                <span style="color:var(--text);font-weight:600">actif</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-family:var(--mono);font-size:11px">
+                <span style="width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;flex-shrink:0"></span>
+                <span style="color:var(--muted)">Fail2ban</span>
+                <span style="color:var(--text);font-weight:600">actif</span>
+              </div>
+            </div>
           </div>
-          <button class="btn btn-ghost" onclick="loadUfwStatus()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-            Actualiser
+        </div>
+
+        <!-- ONGLETS -->
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:28px">
+          <button id="secTab_ufw" onclick="secSwitchTab('ufw')"
+            style="display:flex;align-items:center;gap:8px;padding:11px 22px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;border-radius:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Pare-feu (UFW)
+          </button>
+          <button id="secTab_fail2ban" onclick="secSwitchTab('fail2ban')"
+            style="display:flex;align-items:center;gap:8px;padding:11px 22px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;border-radius:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            Fail2ban
+          </button>
+          <button id="secTab_logins" onclick="secSwitchTab('logins')"
+            style="display:flex;align-items:center;gap:8px;padding:11px 22px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;border-radius:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            Connexions
           </button>
         </div>
-        <div id="ufwBody">
-          <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto 12px"></div></div>
-        </div>
-      </div>
 
-      <!-- ══ CONNEXIONS PAGE SECTION ══ -->
-      <div id="loginsPageSection" style="display:none">
-        <div class="page-header">
-          <div>
-            <div class="page-title">Connexions</div>
-            <div class="page-subtitle" id="loginsSubtitle">Historique des accès au panel</div>
-          </div>
-          <div style="display:flex;gap:10px">
-            <select id="loginsFilter" onchange="loadLoginsPage()" style="font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer">
-              <option value="all">Toutes les connexions</option>
-              <option value="ok">Réussies uniquement</option>
-              <option value="fail">Échouées uniquement</option>
-            </select>
-            <button class="btn btn-ghost btn-sm" onclick="loadLoginsPage()">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        <!-- Panneau UFW -->
+        <div id="secPane_ufw">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Pare-feu — UFW
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:3px">Gestion des règles de filtrage réseau du serveur</div>
+            </div>
+            <button class="btn btn-ghost" onclick="loadUfwStatus()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
               Actualiser
             </button>
-            <button class="btn btn-ghost btn-sm admin-only" onclick="clearLoginLogs()" style="color:#ef4444;border-color:rgba(220,38,38,.3)">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-              Effacer les logs
+          </div>
+          <div id="ufwBody">
+            <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto 12px"></div></div>
+          </div>
+        </div>
+
+        <!-- Panneau Fail2ban -->
+        <div id="secPane_fail2ban" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                Fail2ban
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:3px">Protection anti brute-force — surveillance et configuration de <code style="font-size:11px">/etc/fail2ban/jail.local</code></div>
+            </div>
+          </div>
+          <!-- Sous-onglets Fail2ban -->
+          <div style="display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:22px;width:fit-content">
+            <button id="f2bTab_surveillance" onclick="f2bSwitchTab('surveillance')" class="cfg-tab active">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
+              Surveillance
+            </button>
+            <button id="f2bTab_jaillocal" onclick="f2bSwitchTab('jaillocal')" class="cfg-tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              jail.local
             </button>
           </div>
-        </div>
-        <div id="loginsStats" class="admin-only" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px"></div>
-        <div class="table-container">
-          <div id="loginsTableWrap">
-            <div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>Chargement…</div>
+          <div id="f2bPane_surveillance">
+            <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto"></div></div>
+          </div>
+          <div id="f2bPane_jaillocal" style="display:none">
+            <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto"></div></div>
           </div>
         </div>
+
+        <!-- Panneau Connexions -->
+        <div id="secPane_logins" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Connexions
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:3px" id="loginsSubtitle">Historique des accès au panel</div>
+            </div>
+            <div style="display:flex;gap:10px">
+              <select id="loginsFilter" onchange="loadLoginsPage()" style="font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer">
+                <option value="all">Toutes les connexions</option>
+                <option value="ok">Réussies uniquement</option>
+                <option value="fail">Échouées uniquement</option>
+              </select>
+              <button class="btn btn-ghost btn-sm" onclick="loadLoginsPage()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                Actualiser
+              </button>
+              <button class="btn btn-ghost btn-sm admin-only" onclick="clearLoginLogs()" style="color:#ef4444;border-color:rgba(220,38,38,.3)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                Effacer les logs
+              </button>
+            </div>
+          </div>
+          <div id="loginsStats" class="admin-only" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px"></div>
+          <div class="table-container">
+            <div id="loginsTableWrap">
+              <div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>Chargement…</div>
+            </div>
+          </div>
+        </div>
+
       </div>
+
+      <!-- ══ UFW PAGE SECTION (legacy — redirige vers Sécurité) ══ -->
+      <div id="ufwPageSection" style="display:none"></div>
+
+      <!-- ══ CONNEXIONS PAGE SECTION (legacy — redirige vers Sécurité) ══ -->
+      <div id="loginsPageSection" style="display:none"></div>
 
       <!-- ══ TERMINAL SSH PAGE SECTION ══ -->
       <div id="terminalPageSection" style="display:none">
@@ -1755,34 +1840,8 @@
         </div>
       </div>
 
-      <!-- ══ FAIL2BAN PAGE SECTION ══ -->
-      <div id="fail2banPageSection" style="display:none">
-        <div class="page-header">
-          <div>
-            <div class="page-title">Fail2ban</div>
-            <div class="page-subtitle">Protection anti brute-force — surveillance et configuration de <code style="font-size:11px">/etc/fail2ban/jail.local</code></div>
-          </div>
-        </div>
-
-        <!-- Onglets Fail2ban -->
-        <div style="display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:22px;width:fit-content">
-          <button id="f2bTab_surveillance" onclick="f2bSwitchTab('surveillance')" class="cfg-tab active">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
-            Surveillance
-          </button>
-          <button id="f2bTab_jaillocal" onclick="f2bSwitchTab('jaillocal')" class="cfg-tab">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            jail.local
-          </button>
-        </div>
-
-        <div id="f2bPane_surveillance">
-          <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto"></div></div>
-        </div>
-        <div id="f2bPane_jaillocal" style="display:none">
-          <div style="text-align:center;padding:48px"><div class="spinner" style="margin:0 auto"></div></div>
-        </div>
-      </div>
+      <!-- ══ FAIL2BAN PAGE SECTION (legacy — redirige vers Sécurité) ══ -->
+      <div id="fail2banPageSection" style="display:none"></div>
 
       <!-- IP ACCESS SECTION -->
       <div id="ipSection" style="display:none">
@@ -2455,6 +2514,7 @@
             <thead>
               <tr>
                 <th>Domaine</th>
+                <th>SSL</th>
                 <th>Racine web</th>
                 <th>PHP</th>
                 <th>Statut</th>
@@ -2462,7 +2522,7 @@
               </tr>
             </thead>
             <tbody id="domainsTable">
-              <tr><td colspan="5"><div class="empty-state"><div class="spinner" style="margin:0 auto 12px"></div></div></td></tr>
+              <tr><td colspan="6"><div class="empty-state"><div class="spinner" style="margin:0 auto 12px"></div></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -3014,62 +3074,159 @@
 
 <!-- MODAL : créer/éditer un template -->
 <div class="modal-overlay" id="templateModal">
-  <div class="modal" style="max-width:480px">
-    <div class="modal-header">
-      <div class="modal-title" id="templateModalTitle">📋 Nouveau template</div>
-      <button class="modal-close" onclick="closeTemplateModal()">✕</button>
+  <div class="modal" style="max-width:560px;border-radius:14px;overflow:hidden">
+
+    <!-- HEADER avec icône et gradient -->
+    <div style="padding:24px 28px 20px;background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%);position:relative;overflow:hidden">
+      <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
+      <div style="position:absolute;bottom:-20px;right:40px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.04)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;position:relative">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:20px;border:1px solid rgba(255,255,255,.2)">📋</div>
+          <div>
+            <div class="modal-title" id="templateModalTitle" style="color:#fff;font-size:17px;font-weight:800;margin-bottom:3px">Nouveau template</div>
+            <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.65);letter-spacing:.08em">Définissez les quotas et limites de ressources</div>
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeTemplateModal()" style="color:rgba(255,255,255,.7);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .15s" onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">✕</button>
+      </div>
     </div>
-    <div class="modal-body">
+
+    <div class="modal-body" style="padding:24px 28px">
       <input type="hidden" id="tplId">
-      <div class="form-group">
-        <label>Nom du template <span style="color:var(--red)">*</span></label>
-        <input type="text" id="tplName" placeholder="ex: Standard, Pro…" maxlength="40">
+
+      <!-- Nom + Description -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+        <div class="form-group" style="margin-bottom:0">
+          <label style="display:flex;align-items:center;gap:5px">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+            Nom du template <span style="color:var(--red);margin-left:2px">*</span>
+          </label>
+          <input type="text" id="tplName" placeholder="ex: Pro, Starter…" maxlength="40" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Description <span style="color:var(--muted);font-weight:400">(optionnel)</span></label>
+          <input type="text" id="tplDesc" placeholder="Description courte" maxlength="80" style="font-size:13px">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Description</label>
-        <input type="text" id="tplDesc" placeholder="Description courte (optionnel)" maxlength="80">
+
+      <!-- Séparateur avec titre section -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:5px">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Quotas &amp; Limites
+        </span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="form-group">
-          <label>Comptes FTP <span style="color:var(--muted);font-size:11px">(0=∞)</span></label>
-          <input type="number" id="tplFtp" value="1" min="0" max="100">
-        </div>
-        <div class="form-group">
-          <label>Bases de données <span style="color:var(--muted);font-size:11px">(0=∞)</span></label>
-          <input type="number" id="tplDb" value="5" min="0" max="100">
-        </div>
-        <div class="form-group">
-          <label>Domaines <span style="color:var(--muted);font-size:11px">(0=∞)</span></label>
-          <input type="number" id="tplDomain" value="3" min="0" max="100">
-        </div>
-        <div class="form-group">
-          <label>Sous-domaines <span style="color:var(--muted);font-size:11px">(0=∞)</span></label>
-          <input type="number" id="tplSub" value="5" min="0" max="100">
-        </div>
-        <div class="form-group" style="grid-column:1/-1">
-          <label>Quota disque <span style="color:var(--muted);font-size:11px">Mo (0=∞)</span></label>
+
+      <!-- Grille des quotas — 4 colonnes -->
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px">
+
+        <!-- FTP -->
+        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:10px;right:12px;font-size:18px;opacity:.12">📂</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;display:flex;align-items:center;gap:4px">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+            Comptes FTP
+          </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="number" id="tplDisk" value="1024" min="0" style="flex:1">
-            <span style="font-size:11px;color:var(--muted);white-space:nowrap" id="tplDiskLabel">= 1 Go</span>
+            <input type="number" id="tplFtp" value="1" min="0" max="100" style="width:70px;padding:7px 10px;font-size:16px;font-weight:700;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text)">
+            <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">0 = illimité</span>
           </div>
         </div>
-        <div class="form-group">
-          <label>Stockage max par base <span style="color:var(--muted);font-size:11px">Mo (0=∞)</span></label>
+
+        <!-- Bases de données -->
+        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:10px;right:12px;font-size:18px;opacity:.12">🗄️</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;display:flex;align-items:center;gap:4px">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            Bases de données
+          </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="number" id="tplDbStorage" value="500" min="0" style="flex:1">
-            <span style="font-size:11px;color:var(--muted);white-space:nowrap" id="tplDbStorageLabel">= 500 Mo</span>
+            <input type="number" id="tplDb" value="5" min="0" max="100" style="width:70px;padding:7px 10px;font-size:16px;font-weight:700;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text)">
+            <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">0 = illimité</span>
           </div>
         </div>
-        <div class="form-group">
-          <label>Tâches crontab <span style="color:var(--muted);font-size:11px">(0=∞)</span></label>
-          <input type="number" id="tplCron" value="10" min="0" max="999">
+
+        <!-- Domaines -->
+        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:10px;right:12px;font-size:18px;opacity:.12">🌐</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;display:flex;align-items:center;gap:4px">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+            Domaines
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" id="tplDomain" value="3" min="0" max="100" style="width:70px;padding:7px 10px;font-size:16px;font-weight:700;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text)">
+            <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">0 = illimité</span>
+          </div>
+        </div>
+
+        <!-- Sous-domaines -->
+        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:10px;right:12px;font-size:18px;opacity:.12">🏠</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;display:flex;align-items:center;gap:4px">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Sous-domaines
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" id="tplSub" value="5" min="0" max="100" style="width:70px;padding:7px 10px;font-size:16px;font-weight:700;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text)">
+            <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">0 = illimité</span>
+          </div>
         </div>
       </div>
+
+      <!-- Quota disque + stockage BDD + cron sur 1 ligne -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+        <!-- Disque -->
+        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:10px;right:12px;font-size:18px;opacity:.12">💾</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">
+            Quota disque
+          </div>
+          <input type="number" id="tplDisk" value="1024" min="0" oninput="document.getElementById('tplDiskLabel').textContent=this.value>0?(this.value>=1024?'= '+(this.value/1024).toFixed(1)+' Go':'= '+this.value+' Mo'):'∞ illimité'" style="width:100%;padding:7px 10px;font-size:14px;font-weight:700;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);margin-bottom:5px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent2);text-align:center" id="tplDiskLabel">= 1 Go</div>
+        </div>
+
+        <!-- Stockage BDD -->
+        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:10px;right:12px;font-size:18px;opacity:.12">📊</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">
+            Taille max / BDD
+          </div>
+          <input type="number" id="tplDbStorage" value="500" min="0" oninput="document.getElementById('tplDbStorageLabel').textContent=this.value>0?(this.value>=1024?'= '+(this.value/1024).toFixed(1)+' Go':'= '+this.value+' Mo'):'∞ illimité'" style="width:100%;padding:7px 10px;font-size:14px;font-weight:700;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);margin-bottom:5px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent2);text-align:center" id="tplDbStorageLabel">= 500 Mo</div>
+        </div>
+
+        <!-- Crontab -->
+        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:10px;right:12px;font-size:18px;opacity:.12">⏰</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">
+            Tâches cron
+          </div>
+          <input type="number" id="tplCron" value="10" min="0" max="999" style="width:100%;padding:7px 10px;font-size:14px;font-weight:700;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);margin-bottom:5px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center">0 = illimité</div>
+        </div>
+      </div>
+
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeTemplateModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="saveTemplate()">Enregistrer</button>
+
+    <!-- FOOTER -->
+    <div class="modal-footer" style="padding:16px 28px;background:var(--bg);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;gap:5px">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        0 dans un champ = illimité
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost" onclick="closeTemplateModal()" style="padding:9px 20px;font-size:13px">Annuler</button>
+        <button class="btn btn-primary" onclick="saveTemplate()" style="padding:9px 22px;font-size:13px;display:flex;align-items:center;gap:7px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Enregistrer
+        </button>
+      </div>
     </div>
+
   </div>
 </div>
 
@@ -3185,11 +3342,156 @@
   </div>
 </div>
 
+<!-- MODAL : SSL utilisateur -->
+<div class="modal-overlay" id="userSslModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title">🔒 SSL — Let's Encrypt</div>
+      <button class="modal-close" onclick="document.getElementById('userSslModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:10px 14px;background:rgba(79,110,247,.06);border:1px solid rgba(79,110,247,.2);border-radius:8px;margin-bottom:16px;font-size:12px;color:var(--muted)">
+        🌐 Domaine : <strong id="userSslDomainName" style="color:var(--text)"></strong><br>
+        <span style="font-size:11px">Certbot sera lancé avec <code>--apache --redirect</code>. Le domaine doit pointer sur ce serveur et être activé.</span>
+      </div>
+      <div class="form-group">
+        <label>Email Let's Encrypt <span style="color:var(--red)">*</span></label>
+        <input type="email" id="userSslEmail" placeholder="votre@email.com">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Utilisé pour les alertes d'expiration de certificat.</div>
+      </div>
+      <div id="userSslOutput" style="display:none;margin-top:12px;padding:10px 12px;background:#0f172a;border-radius:8px;font-family:var(--mono);font-size:11px;color:#94a3b8;max-height:140px;overflow-y:auto;white-space:pre-wrap"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('userSslModal').classList.remove('open')">Annuler</button>
+      <button class="btn btn-primary" id="userSslSubmitBtn" onclick="submitUserSSL()">🔒 Générer le certificat</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL : Visiter le panel d'un utilisateur -->
+<div class="modal-overlay" id="impersonateModal">
+  <div class="modal" style="max-width:440px;border-radius:14px;overflow:hidden">
+    <!-- Header gradient -->
+    <div style="padding:22px 26px 18px;background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%);position:relative;overflow:hidden">
+      <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;position:relative">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:18px;border:1px solid rgba(255,255,255,.2)">👤</div>
+          <div>
+            <div style="color:#fff;font-size:15px;font-weight:800;margin-bottom:2px">Visiter le panel</div>
+            <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.65)">Session admin temporaire</div>
+          </div>
+        </div>
+        <button onclick="document.getElementById('impersonateModal').classList.remove('open')" style="color:rgba(255,255,255,.7);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px" onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">✕</button>
+      </div>
+    </div>
+
+    <div class="modal-body" style="padding:22px 26px">
+      <!-- Carte utilisateur cible -->
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:18px">
+        <div id="impersonateAvatar" style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0">U</div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text)" id="impersonateUsername">utilisateur</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">Rôle Utilisateur · Token JWT 1h</div>
+        </div>
+        <div style="margin-left:auto">
+          <span style="font-family:var(--mono);font-size:9px;padding:3px 10px;border-radius:20px;background:rgba(79,110,247,.1);color:var(--accent2);border:1px solid rgba(79,110,247,.2)">1h</span>
+        </div>
+      </div>
+
+      <!-- Infos -->
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Votre session admin reste active dans cet onglet
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Le panel s'ouvre dans un nouvel onglet
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Une bannière indiquera que vous êtes en session admin
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer" style="padding:14px 26px;background:var(--bg)">
+      <button class="btn btn-ghost" onclick="document.getElementById('impersonateModal').classList.remove('open')" style="padding:9px 20px;font-size:13px">Annuler</button>
+      <button class="btn btn-primary" id="impersonateConfirmBtn" onclick="confirmImpersonate()" style="padding:9px 22px;font-size:13px;display:flex;align-items:center;gap:7px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Ouvrir le panel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL : Confirmation universelle -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="max-width:420px;border-radius:14px;overflow:hidden">
+    <div id="confirmModalHeader" style="padding:20px 24px 16px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-15px;right:-15px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.05)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;position:relative">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="confirmModalIcon" style="width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.15);flex-shrink:0"></div>
+          <div>
+            <div id="confirmModalTitle" style="color:#fff;font-size:15px;font-weight:800;margin-bottom:2px"></div>
+            <div id="confirmModalSubtitle" style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.6)"></div>
+          </div>
+        </div>
+        <button onclick="closeConfirmModal()" style="color:rgba(255,255,255,.7);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:7px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding:18px 24px">
+      <div id="confirmModalBody" style="font-size:13px;color:var(--text);line-height:1.6"></div>
+      <div id="confirmModalWarning" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;font-family:var(--mono);font-size:11px;color:#ef4444"></div>
+    </div>
+    <div class="modal-footer" style="padding:14px 24px;background:var(--bg)">
+      <button class="btn btn-ghost" onclick="closeConfirmModal()" style="padding:9px 20px;font-size:13px">Annuler</button>
+      <button id="confirmModalBtn" onclick="executeConfirm()" style="padding:9px 22px;font-size:13px;display:flex;align-items:center;gap:7px;border:none;border-radius:6px;cursor:pointer;font-weight:600;transition:all .15s"></button>
+    </div>
+  </div>
+</div>
+
 <!-- TOASTS -->
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
 const API = '';
+
+// ─── MODAL DE CONFIRMATION UNIVERSEL ─────────────────────────────────────────
+let _confirmCallback = null;
+const CONFIRM_THEMES = {
+  danger:  { bg:'linear-gradient(135deg,#dc2626,#b91c1c)', btn:'#ef4444', shadow:'rgba(220,38,38,.3)' },
+  warning: { bg:'linear-gradient(135deg,#d97706,#b45309)', btn:'#f59e0b', shadow:'rgba(217,119,6,.3)' },
+  info:    { bg:'linear-gradient(135deg,var(--accent),var(--accent2))', btn:'var(--accent)', shadow:'rgba(79,110,247,.3)' },
+  success: { bg:'linear-gradient(135deg,#059669,#047857)', btn:'#10b981', shadow:'rgba(5,150,105,.3)' }
+};
+function showConfirm({ title, subtitle='', body='', warning='', icon='❓', type='danger', confirmText='Confirmer', onConfirm }) {
+  const t = CONFIRM_THEMES[type] || CONFIRM_THEMES.danger;
+  _confirmCallback = onConfirm;
+  document.getElementById('confirmModalHeader').style.background = t.bg;
+  document.getElementById('confirmModalIcon').textContent = icon;
+  document.getElementById('confirmModalTitle').textContent = title;
+  document.getElementById('confirmModalSubtitle').textContent = subtitle;
+  document.getElementById('confirmModalBody').innerHTML = body;
+  const warn = document.getElementById('confirmModalWarning');
+  warn.style.display = warning ? 'block' : 'none';
+  if (warning) warn.innerHTML = '⚠️ ' + warning;
+  const btn = document.getElementById('confirmModalBtn');
+  btn.textContent = confirmText;
+  btn.style.cssText = `background:${t.btn};color:#fff;border-radius:6px;font-family:var(--sans);font-weight:600;font-size:13px;padding:9px 22px;cursor:pointer;box-shadow:0 4px 12px ${t.shadow};border:none;transition:all .15s`;
+  document.getElementById('confirmModal').classList.add('open');
+}
+function closeConfirmModal() {
+  document.getElementById('confirmModal').classList.remove('open');
+  _confirmCallback = null;
+}
+function executeConfirm() {
+  const cb = _confirmCallback;
+  closeConfirmModal();
+  if (cb) cb();
+}
 let token = sessionStorage.getItem('hp_token') || '';
 let _pmaUrl = '';
 let currentRole = sessionStorage.getItem('hp_role') || '';
@@ -3210,7 +3512,36 @@ let _currentUsername = '';
     window.history.replaceState({}, '', window.location.pathname);
     document.addEventListener('DOMContentLoaded', () => {
       const banner = document.createElement('div');
-      banner.innerHTML = `<div style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(124,58,237,.95);color:#fff;border-radius:10px;padding:10px 20px;font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15)"><span>👤 Panel de <strong>${impUser}</strong> — session admin</span><button onclick="this.parentElement.parentElement.remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px">✕</button></div>`;
+      banner.innerHTML = `
+        <div style="position:fixed;top:0;left:0;right:0;z-index:9999;
+          background:linear-gradient(135deg,rgba(124,58,237,.97),rgba(109,40,217,.97));
+          border-bottom:1px solid rgba(255,255,255,.15);
+          padding:10px 24px;
+          display:flex;align-items:center;justify-content:space-between;
+          box-shadow:0 4px 20px rgba(0,0,0,.3);
+          backdrop-filter:blur(8px)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:14px;border:1px solid rgba(255,255,255,.2)">👤</div>
+            <div>
+              <div style="color:#fff;font-size:12px;font-weight:700">Panel de <strong>${impUser}</strong></div>
+              <div style="color:rgba(255,255,255,.6);font-family:monospace;font-size:10px">Session admin temporaire · Token valide 1h</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-family:monospace;font-size:10px;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.15)">⚡ Admin</span>
+            <button onclick="window.close()" style="
+              display:flex;align-items:center;gap:6px;
+              background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);
+              color:#fff;border-radius:7px;padding:5px 14px;cursor:pointer;
+              font-size:11px;font-family:monospace;transition:all .15s"
+              onmouseover="this.style.background='rgba(239,68,68,.4)';this.style.borderColor='rgba(239,68,68,.5)'"
+              onmouseout="this.style.background='rgba(255,255,255,.12)';this.style.borderColor='rgba(255,255,255,.2)'">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Fermer la session
+            </button>
+          </div>
+        </div>
+        <div style="height:52px"></div>`;
       document.body.appendChild(banner);
     });
   }
@@ -3426,18 +3757,39 @@ async function loadDomains() {
 function renderDomains(domains) {
   const tbody = document.getElementById('domainsTable');
   if (!domains.length) {
-    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🌐</div><div class="empty-text">Aucun ${_currentDomainFilter === 'subdomains' ? 'sous-domaine' : 'domaine'} configuré</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🌐</div><div class="empty-text">Aucun ${_currentDomainFilter === 'subdomains' ? 'sous-domaine' : 'domaine'} configuré</div></div></td></tr>`;
     return;
   }
   tbody.innerHTML = domains.map(d => {
     const proto = d.ssl ? 'https' : 'http';
     const url   = `${proto}://${d.domain}`;
+
+    // Badge SSL avec jours restants
+    let sslBadge = '';
+    if (d.ssl) {
+      if (d.sslDaysLeft !== null && d.sslDaysLeft !== undefined) {
+        const days = d.sslDaysLeft;
+        let color, bg, border;
+        if (days <= 7) {
+          color = '#ef4444'; bg = 'rgba(239,68,68,.12)'; border = 'rgba(239,68,68,.35)';
+        } else if (days <= 20) {
+          color = '#f59e0b'; bg = 'rgba(245,158,11,.12)'; border = 'rgba(245,158,11,.35)';
+        } else {
+          color = 'var(--green)'; bg = 'rgba(34,197,94,.1)'; border = 'rgba(34,197,94,.3)';
+        }
+        sslBadge = `<span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:10px;background:${bg};border:1px solid ${border};color:${color};white-space:nowrap" title="Certificat SSL — expire dans ${days} jours">
+          🔒 ${days}j
+        </span>`;
+      } else {
+        sslBadge = `<span class="badge badge-green" style="font-size:10px">🔒 SSL</span>`;
+      }
+    }
+
     return `
     <tr>
       <td>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="domain-name ${d.isSubdomain ? 'domain-sub' : ''}">${d.domain}</span>
-          ${d.ssl ? '<span class="badge badge-green" style="font-size:10px">🔒 SSL</span>' : ''}
           <a href="${url}" target="_blank" rel="noopener"
              title="Visiter ${url}"
              style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--accent2);
@@ -3449,6 +3801,13 @@ function renderDomains(domains) {
             Visiter
           </a>
         </div>
+      </td>
+      <td>
+        ${d.ssl ? `
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px">
+            ${sslBadge}
+          </div>
+        ` : `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">— Aucun</span>`}
       </td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.docRoot}">${d.docRoot}</td>
       <td><span class="badge badge-blue">PHP ${d.phpVersion}</span></td>
@@ -3646,7 +4005,8 @@ function setTopbarSection(name) {
 // ── Helper : masque toutes les sections principales ──────────────────────────
 function hideAllMainSections() {
   ['domainsSection','ipSection','usersSection','statusSection','templatesSection',
-   'configSection','userCrontabSection','dnsPageSection','ufwPageSection','fail2banPageSection','loginsPageSection','terminalPageSection']
+   'configSection','userCrontabSection','dnsPageSection','securitePageSection',
+   'ufwPageSection','fail2banPageSection','loginsPageSection','terminalPageSection']
     .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 }
 
@@ -3998,7 +4358,7 @@ async function doCreateUserDb() {
 }
 
 async function deleteUserDb(name) {
-  if (!confirm(`Supprimer la base « ${name} » ?\n\n⚠️ Toutes les données seront perdues définitivement.`)) return;
+  showConfirm({title:'Supprimer la base de données',subtitle:`Base : ${name}`,body:`Suppression de la base <strong>${name}</strong>.`,warning:'Toutes les données seront perdues définitivement.',icon:'🗄️',type:'danger',confirmText:'Supprimer définitivement',onConfirm:async()=>{
   try {
     const res = await fetch(`${API}/api/me/databases/${name}`, {
       method: 'DELETE',
@@ -4011,6 +4371,7 @@ async function deleteUserDb(name) {
   } catch (e) {
     showToast(e.message, 'error');
   }
+  }});
 }
 
 // ── ADMIN DB LIMIT ────────────────────────────────────────────
@@ -4069,7 +4430,7 @@ async function saveDbLimit() {
 }
 
 async function adminDeleteDb(userId, dbName, username) {
-  if (!confirm(`Supprimer la base « ${dbName} » ?\n\n⚠️ Toutes les données seront perdues.`)) return;
+  showConfirm({title:'Supprimer la base de données',subtitle:`Base : ${dbName}`,body:`Suppression de la base <strong>${dbName}</strong>.`,warning:'Toutes les données seront perdues définitivement.',icon:'🗄️',type:'danger',confirmText:'Supprimer',onConfirm:async()=>{
   try {
     const res = await fetch(`${API}/api/users/${userId}/databases/${dbName}`, {
       method: 'DELETE',
@@ -4082,6 +4443,7 @@ async function adminDeleteDb(userId, dbName, username) {
   } catch (e) {
     showToast(e.message, 'error');
   }
+  }});
 }
 let userFtpDir = '';
 
@@ -4255,7 +4617,7 @@ async function loadUserDomains() {
 function renderUserDomains(domains) {
   const tbody = document.getElementById('userDomainsTbody');
   if (!domains.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
       <div class="empty-icon">🌐</div>
       <div class="empty-text">Aucun domaine configuré</div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Cliquez sur "Ajouter un domaine" pour commencer</div>
@@ -4265,15 +4627,29 @@ function renderUserDomains(domains) {
   tbody.innerHTML = domains.map(d => {
     const proto = d.hasSsl ? 'https' : 'http';
     const url   = `${proto}://${d.domain}`;
-    const sslBadge = d.hasSsl
-      ? `<span title="SSL actif (port 443)" style="font-size:10px;color:#10b981;font-weight:600">🔒 HTTPS</span>`
-      : `<span title="HTTP uniquement (port 80)" style="font-size:10px;color:var(--muted)">🔓 HTTP</span>`;
+
+    // Badge SSL avec jours restants
+    let sslCell;
+    if (d.hasSsl) {
+      if (d.sslDaysLeft !== null && d.sslDaysLeft !== undefined) {
+        const days = d.sslDaysLeft;
+        let color, bg, border;
+        if (days <= 7)       { color = '#ef4444'; bg = 'rgba(239,68,68,.12)';   border = 'rgba(239,68,68,.35)'; }
+        else if (days <= 20) { color = '#f59e0b'; bg = 'rgba(245,158,11,.12)';  border = 'rgba(245,158,11,.35)'; }
+        else                 { color = 'var(--green)'; bg = 'rgba(34,197,94,.1)'; border = 'rgba(34,197,94,.3)'; }
+        sslCell = `<span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:10px;background:${bg};border:1px solid ${border};color:${color};white-space:nowrap" title="Certificat SSL — expire dans ${days} jours">🔒 ${days}j</span>`;
+      } else {
+        sslCell = `<span style="font-size:10px;color:#10b981;font-weight:600">🔒 HTTPS</span>`;
+      }
+    } else {
+      sslCell = `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">— Aucun</span>`;
+    }
+
     return `
     <tr>
       <td>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="domain-name">${d.domain}</span>
-          ${sslBadge}
           <a href="${url}" target="_blank" rel="noopener"
              title="Visiter ${url}"
              style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--accent2);
@@ -4286,6 +4662,7 @@ function renderUserDomains(domains) {
           </a>
         </div>
       </td>
+      <td>${sslCell}</td>
       <td><span class="badge ${d.isSubdomain ? 'badge-blue' : 'badge-green'}">${d.isSubdomain ? 'Sous-domaine' : 'Domaine'}</span></td>
       <td><span style="font-family:var(--mono);font-size:11px">PHP ${d.phpVersion}</span></td>
       <td style="font-family:var(--mono);font-size:10px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.docRoot}">${d.docRoot}</td>
@@ -4293,6 +4670,9 @@ function renderUserDomains(domains) {
       <td>
         <div class="actions">
           <button class="btn btn-ghost btn-sm" onclick="viewDomainConfig('${d.name}', 'user')">⚙️ Config</button>
+          <button class="btn btn-ghost btn-sm" style="${d.hasSsl ? 'color:var(--green);border-color:rgba(5,150,105,.3)' : 'color:#f59e0b;border-color:rgba(245,158,11,.3)'}" onclick="openUserSslModal('${d.name}', '${d.domain}', ${d.hasSsl})">
+            ${d.hasSsl ? '🔒 SSL ✓' : '🔓 SSL'}
+          </button>
           <button class="btn btn-danger btn-sm" onclick="deleteUserDomain('${d.name}', '${d.domain}')">Supprimer</button>
         </div>
       </td>
@@ -4386,7 +4766,7 @@ async function doCreateUserDomain() {
 }
 
 async function deleteUserDomain(name, domain) {
-  if (!confirm(`Supprimer le domaine « ${domain} » ?\n\n⚠️ Les fichiers du site seront également supprimés définitivement.`)) return;
+  showConfirm({title:'Supprimer le domaine',subtitle:`Domaine : ${domain}`,body:`Suppression du domaine <strong>${domain}</strong>.`,warning:'Les fichiers du site seront supprimés définitivement.',icon:'🌐',type:'danger',confirmText:'Supprimer le domaine',onConfirm:async()=>{
   try {
     const res = await fetch(`${API}/api/me/domains/${name}`, {
       method: 'DELETE',
@@ -4399,6 +4779,7 @@ async function deleteUserDomain(name, domain) {
   } catch (e) {
     showToast(e.message, 'error');
   }
+  }});
 }
 
 // ── Helpers : masquer toutes les sections utilisateur ────────
@@ -4622,7 +5003,7 @@ async function cronAdd() {
 }
 
 async function cronDelete(id) {
-  if (!confirm('Supprimer cette tâche planifiée ?')) return;
+  showConfirm({title:'Supprimer la tâche planifiée',subtitle:'Crontab',body:'Cette tâche planifiée sera supprimée.',icon:'⏰',type:'danger',confirmText:'Supprimer',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/me/crontab/${id}`, {
       method: 'DELETE',
@@ -4633,6 +5014,7 @@ async function cronDelete(id) {
     showToast(data.message, 'success');
     loadCrontabList();
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 function openLogsModal() {
@@ -5033,7 +5415,7 @@ async function saveRecord() {
 }
 
 async function deleteRecord(domain, id) {
-  if (!confirm('Supprimer cet enregistrement et recharger la zone ?')) return;
+  showConfirm({title:'Supprimer l&#39;enregistrement DNS',subtitle:'Zone DNS',body:'Cet enregistrement sera supprimé et la zone rechargée.',icon:'🔗',type:'danger',confirmText:'Supprimer',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/me/dns/${encodeURIComponent(domain)}/records/${id}`, {
       method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
@@ -5043,10 +5425,11 @@ async function deleteRecord(domain, id) {
     showToast(`✅ ${data.message}`, 'success');
     loadUserDns();
   } catch (e) { showToast(e.message, 'error'); }
+  }});
 }
 
 async function applyDefaultNs(domain) {
-  if (!confirm(`Réappliquer les serveurs de noms par défaut sur la zone ${domain} ?\nLes records NS personnalisés seront retirés.`)) return;
+  showConfirm({title:'Réinitialiser les serveurs de noms',subtitle:`Zone : ${domain}`,body:`Réinitialisation des NS par défaut sur <strong>${domain}</strong>.`,warning:'Les records NS personnalisés seront retirés.',icon:'🔗',type:'warning',confirmText:'Réinitialiser',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/me/dns/${encodeURIComponent(domain)}/apply-ns`, {
       method: 'POST', headers: { Authorization: 'Bearer ' + token }
@@ -5056,10 +5439,11 @@ async function applyDefaultNs(domain) {
     showToast(`✅ ${data.message}`, 'success');
     loadUserDns();
   } catch (e) { showToast(e.message, 'error'); }
+  }});
 }
 
 async function deleteDnsZone(domain) {
-  if (!confirm(`Supprimer définitivement la zone DNS de ${domain} ?\nLes enregistrements seront perdus.`)) return;
+  showConfirm({title:'Supprimer la zone DNS',subtitle:`Zone : ${domain}`,body:`Suppression de la zone DNS <strong>${domain}</strong>.`,warning:'Les enregistrements seront perdus définitivement.',icon:'🔗',type:'danger',confirmText:'Supprimer la zone',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/me/dns/${encodeURIComponent(domain)}`, {
       method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
@@ -5069,6 +5453,7 @@ async function deleteDnsZone(domain) {
     showToast(`✅ ${data.message}`, 'success');
     loadUserDns();
   } catch (e) { showToast(e.message, 'error'); }
+  }});
 }
 
 // ── Config DNS (admin) ────────────────────────────────────────────────────────
@@ -5082,12 +5467,46 @@ async function showDnsPage() {
 }
 
 async function showUfwPage() {
+  showSecuritePage('ufw');
+}
+
+// ─── PAGE SÉCURITÉ — onglets UFW / Fail2ban / Connexions ─────────────────────
+let _secActiveTab = 'ufw';
+
+async function showSecuritePage(tab) {
+  tab = tab || _secActiveTab || 'ufw';
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.getElementById('navUfw').classList.add('active');
+  const navSec = document.getElementById('navSecurite');
+  if (navSec) navSec.classList.add('active');
+  // Garder aussi les anciens navs actifs pour compatibilité
+  const legacyMap = { ufw: 'navUfw', fail2ban: 'navFail2ban', logins: 'navLogins' };
   hideAllMainSections();
-  document.getElementById('ufwPageSection').style.display = 'block';
-  setTopbarSection('Pare-feu (UFW)');
-  await loadUfwStatus();
+  document.getElementById('securitePageSection').style.display = 'block';
+  setTopbarSection('Sécurité');
+  secSwitchTab(tab);
+}
+
+async function secSwitchTab(tab) {
+  _secActiveTab = tab;
+  ['ufw','fail2ban','logins'].forEach(t => {
+    const btn  = document.getElementById('secTab_' + t);
+    const pane = document.getElementById('secPane_' + t);
+    if (btn) {
+      if (t === tab) {
+        btn.style.color = 'var(--accent)';
+        btn.style.borderBottomColor = 'var(--accent)';
+        btn.style.background = 'transparent';
+      } else {
+        btn.style.color = 'var(--muted)';
+        btn.style.borderBottomColor = 'transparent';
+        btn.style.background = 'transparent';
+      }
+    }
+    if (pane) pane.style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'ufw')      await loadUfwStatus();
+  if (tab === 'fail2ban') { _f2bActiveTab = 'surveillance'; await f2bSwitchTab('surveillance'); }
+  if (tab === 'logins')   await loadLoginsPage();
 }
 
 // ─── CONFIG VHOST DOMAINE ────────────────────────────────────────────────────
@@ -5337,7 +5756,7 @@ function termClear() {
 }
 
 async function termClose() {
-  if (!confirm('Fermer la session terminal ?')) return;
+  showConfirm({title:'Fermer le terminal',subtitle:'Session SSH',body:'La session terminal sera fermée.',icon:'🖥️',type:'warning',confirmText:'Fermer',onConfirm:async()=>{
   if (_termSessionId) {
     try {
       await fetch(`${API}/api/terminal/${_termSessionId}`, {
@@ -5354,15 +5773,11 @@ async function termClose() {
   document.getElementById('termCloseBtn').style.display  = 'none';
   document.getElementById('termOutput').innerHTML = '';
   showToast('Session terminal fermée', 'success');
+  }});
 }
 
 async function showLoginsPage() {
-  hideAllMainSections();
-  document.getElementById('loginsPageSection').style.display = 'block';
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.getElementById('navLogins').classList.add('active');
-  setTopbarSection('Connexions');
-  loadLoginsPage();
+  showSecuritePage('logins');
 }
 
 async function loadLoginsPage() {
@@ -5438,7 +5853,7 @@ async function loadLoginsPage() {
 }
 
 async function clearLoginLogs() {
-  if (!confirm('Effacer tous les logs de connexion ?\n\nCette action est irréversible.')) return;
+  showConfirm({title:'Effacer les logs',subtitle:'Historique des connexions',body:'Tous les logs de connexion seront supprimés.',warning:'Cette action est irréversible.',icon:'🗑️',type:'danger',confirmText:'Effacer',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/logins`, {
       method: 'DELETE',
@@ -5449,16 +5864,11 @@ async function clearLoginLogs() {
     showToast(data.message, 'success');
     loadLoginsPage();
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 async function showFail2banPage() {
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.getElementById('navFail2ban').classList.add('active');
-  hideAllMainSections();
-  document.getElementById('fail2banPageSection').style.display = 'block';
-  setTopbarSection('Fail2ban');
-  _f2bActiveTab = 'surveillance';
-  await f2bSwitchTab('surveillance');
+  showSecuritePage('fail2ban');
 }
 
 // Rewire: les appels depuis d'autres endroits restent fonctionnels
@@ -5646,6 +6056,68 @@ async function submitSSL() {
     out.textContent = '✅ ' + d.message + (d.output ? '\n\n' + d.output : '');
     showToast(d.message, 'success');
     await loadDomains();
+  } catch(e) {
+    out.style.color = '#fca5a5';
+    out.textContent = '❌ ' + e.message;
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+// ─── SSL UTILISATEUR ──────────────────────────────────────────────────────────
+let _userSslDomainName = null;
+
+function openUserSslModal(name, domain, hasSSL) {
+  _userSslDomainName = name;
+  document.getElementById('userSslDomainName').textContent = domain;
+  document.getElementById('userSslEmail').value = '';
+  document.getElementById('userSslOutput').style.display = 'none';
+  document.getElementById('userSslOutput').textContent = '';
+
+  const submitBtn = document.getElementById('userSslSubmitBtn');
+  if (hasSSL) {
+    submitBtn.textContent = '🔄 Renouveler le certificat';
+    submitBtn.className = 'btn btn-ghost';
+    submitBtn.style.color = 'var(--green)';
+    submitBtn.style.borderColor = 'rgba(5,150,105,.4)';
+  } else {
+    submitBtn.textContent = '🔒 Générer le certificat';
+    submitBtn.className = 'btn btn-primary';
+    submitBtn.style.color = '';
+    submitBtn.style.borderColor = '';
+  }
+
+  document.getElementById('userSslModal').classList.add('open');
+}
+
+async function submitUserSSL() {
+  const email = document.getElementById('userSslEmail').value.trim();
+  if (!email) { showToast('Email requis', 'error'); return; }
+
+  const btn = document.getElementById('userSslSubmitBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></div> Certbot en cours…';
+
+  const out = document.getElementById('userSslOutput');
+  out.style.display = 'block';
+  out.textContent = '⏳ Exécution de certbot, cela peut prendre quelques secondes…';
+
+  try {
+    const res = await fetch(`${API}/api/me/domains/${encodeURIComponent(_userSslDomainName)}/ssl`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ email })
+    });
+    const d = await res.json();
+    if (!res.ok) { throw new Error(d.error || 'Erreur SSL'); }
+    out.style.color = '#86efac';
+    out.textContent = '✅ ' + d.message;
+    showToast(d.message, 'success');
+    document.getElementById('userSslModal').classList.remove('open');
+    await showUserDomainsSection();
   } catch(e) {
     out.style.color = '#fca5a5';
     out.textContent = '❌ ' + e.message;
@@ -5848,7 +6320,8 @@ async function savePhpConfig() {
 }
 
 async function resetPhpConfig() {
-  if (!_phpConfigDomain || !confirm('Réinitialiser la config PHP aux valeurs par défaut ?')) return;
+  if (!_phpConfigDomain) return;
+  showConfirm({title:'Réinitialiser la config PHP',subtitle:`Domaine : ${_phpConfigDomain}`,body:'La configuration PHP sera remplacée par les valeurs par défaut.',icon:'🐘',type:'warning',confirmText:'Réinitialiser',onConfirm:async()=>{
   try {
     const res = await fetch(`${API}/api/domains/${encodeURIComponent(_phpConfigDomain)}/phpconfig`, {
       method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
@@ -5861,6 +6334,7 @@ async function resetPhpConfig() {
       switchPhpTab(_phpCurrentTab);
     }
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 // ── DB CONFIG ─────────────────────────────────────────────────
@@ -6133,7 +6607,7 @@ async function saveTemplate() {
 }
 
 async function deleteTemplate(id, name) {
-  if (!confirm(`Supprimer le template "${name}" ?`)) return;
+  showConfirm({title:'Supprimer le template',subtitle:`Template : ${name}`,body:`Suppression du template <strong>${name}</strong>.`,icon:'📋',type:'danger',confirmText:'Supprimer',onConfirm:async()=>{
   try {
     const res = await fetch(`${API}/api/templates/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
     const d   = await res.json();
@@ -6141,6 +6615,7 @@ async function deleteTemplate(id, name) {
     showToast(d.message, 'success');
     await loadTemplates();
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 // ── APPLIQUER UN TEMPLATE À UN UTILISATEUR ────────────────────
@@ -6401,10 +6876,25 @@ function renderUsers(users) {
   }).join('');
 }
 
-async function impersonateUser(id, username) {
-  if (!confirm(`Visiter le panel de "${username}" dans un nouvel onglet ?\n\nVotre session admin reste active dans cet onglet.`)) return;
+let _impersonateId = null;
+let _impersonateUsername = null;
+
+function impersonateUser(id, username) {
+  _impersonateId = id;
+  _impersonateUsername = username;
+  // Initiales
+  const initials = username.slice(0, 2).toUpperCase();
+  document.getElementById('impersonateAvatar').textContent = initials;
+  document.getElementById('impersonateUsername').textContent = username;
+  document.getElementById('impersonateModal').classList.add('open');
+}
+
+async function confirmImpersonate() {
+  const btn = document.getElementById('impersonateConfirmBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></div> Ouverture…';
   try {
-    const res  = await fetch(`${API}/api/users/${id}/impersonate`, {
+    const res  = await fetch(`${API}/api/users/${_impersonateId}/impersonate`, {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token }
     });
@@ -6412,8 +6902,14 @@ async function impersonateUser(id, username) {
     if (!res.ok) throw new Error(data.error);
     const url = `${window.location.origin}/?impersonate=${encodeURIComponent(data.token)}&user=${encodeURIComponent(data.username)}`;
     window.open(url, '_blank');
-    showToast(`Panel de "${username}" ouvert dans un nouvel onglet`, 'success');
-  } catch(e) { showToast(e.message, 'error'); }
+    document.getElementById('impersonateModal').classList.remove('open');
+    showToast(`Panel de "${_impersonateUsername}" ouvert dans un nouvel onglet`, 'success');
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Ouvrir le panel';
+  }
 }
 
 function openFtpModalById(userId) {
@@ -6565,7 +7061,7 @@ function openGmail() {
 }
 
 async function deleteUser(id, username) {
-  if (!confirm(`Supprimer l'utilisateur « ${username} » ?\n\n⚠️ Cette action supprimera définitivement :\n• Tous ses comptes FTP\n• Toutes ses bases de données\n• Tous ses domaines et sous-domaines\n• Son dossier /var/www/${username}`)) return;
+  showConfirm({title:'Supprimer l&#39;utilisateur',subtitle:`Compte : ${username}`,body:`Suppression définitive de <strong>${username}</strong> et toutes ses ressources.`,warning:`Comptes FTP, bases de données, domaines et /var/www/${username} seront supprimés.`,icon:'👤',type:'danger',confirmText:'Supprimer l&#39;utilisateur',onConfirm:async()=>{
   try {
     const res = await fetch(`${API}/api/users/${id}`, {
       method: 'DELETE',
@@ -6578,6 +7074,7 @@ async function deleteUser(id, username) {
   } catch (e) {
     showToast(e.message, 'error');
   }
+  }});
 }
 
 // ── FTP MANAGEMENT (admin) ────────────────────────────────────
@@ -6672,13 +7169,14 @@ function openAdminFtpPwModal(userId, ftpUser) {
 
 // Admin : supprimer un compte FTP spécifique
 async function deleteAdminFtpAccount(userId, ftpUser) {
-  if (!confirm(`Supprimer le compte FTP "${ftpUser}" ?`)) return;
+  showConfirm({title:'Supprimer le compte FTP',subtitle:`Compte : ${ftpUser}`,body:`Le compte FTP <strong>${ftpUser}</strong> sera supprimé.`,icon:'📂',type:'danger',confirmText:'Supprimer',onConfirm:async()=>{
   const res = await fetch(`${API}/api/users/${userId}/ftp/${ftpUser}`, {
     method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
   });
   const data = await res.json();
   showToast(data.message || data.error, data.message ? 'success' : 'error');
   if (data.message) { closeFtpModal(); loadUsers(); }
+  }});
 }
 
 // Admin : définir la limite FTP
@@ -6794,13 +7292,14 @@ async function doChangeMyFtpPassword() {
 }
 
 async function deleteMyFtpAccount(ftpUser) {
-  if (!confirm(`Supprimer le compte FTP "${ftpUser}" ? Les fichiers seront conservés.`)) return;
+  showConfirm({title:'Supprimer le compte FTP',subtitle:`Compte : ${ftpUser}`,body:`Le compte FTP <strong>${ftpUser}</strong> sera supprimé. Les fichiers seront conservés.`,icon:'📂',type:'warning',confirmText:'Supprimer',onConfirm:async()=>{
   const res = await fetch(`${API}/api/me/ftp/${ftpUser}`, {
     method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
   });
   const data = await res.json();
   showToast(data.message || data.error, data.message ? 'success' : 'error');
   if (data.message) loadUserFtpSection();
+  }});
 }
 
 // ── IP ACCESS MANAGEMENT ─────────────────────────────────────
@@ -6917,7 +7416,7 @@ async function rejectIpRequest(id, ip) {
 }
 
 async function revokeIp(ip, username) {
-  if (!confirm(`Révoquer l'accès pour ${ip} (${username}) ?`)) return;
+  showConfirm({title:'Révoquer l&#39;accès SSH',subtitle:`IP : ${ip}`,body:`Révocation de l&#39;accès SSH pour <strong>${ip}</strong> (${username}).`,icon:'🔑',type:'danger',confirmText:'Révoquer',onConfirm:async()=>{
   try {
     const res = await fetch(`${API}/api/ip-access/whitelist`, {
       method: 'DELETE',
@@ -6929,6 +7428,7 @@ async function revokeIp(ip, username) {
     showToast(`IP ${ip} révoquée`, 'success');
     loadIpAccess();
   } catch (e) { showToast(e.message, 'error'); }
+  }});
 }
 
 function openAddIpModal() {
@@ -7312,7 +7812,7 @@ async function ufwAddRule() {
 }
 
 async function ufwDeleteRule(num) {
-  if (!confirm(`Supprimer la règle #${num} ?`)) return;
+  showConfirm({title:'Supprimer la règle UFW',subtitle:`Règle #${num}`,body:`La règle <strong>#${num}</strong> sera supprimée du pare-feu.`,icon:'🛡️',type:'danger',confirmText:'Supprimer',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/ufw/rules/${num}`, {
       method: 'DELETE',
@@ -7323,6 +7823,7 @@ async function ufwDeleteRule(num) {
     showToast(data.message, 'success');
     await loadUfwStatus();
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 // ── Page Configuration (admin) ───────────────────────────────────────────────
@@ -7517,7 +8018,7 @@ function cfgRenderBashrcTemplates() {
 }
 
 function cfgApplyBashrcTemplate(id) {
-  if (!confirm("Charger ce template dans l'editeur ?")) return;
+  showConfirm({title:'Charger le template',subtitle:'Éditeur .bashrc',body:'Le contenu actuel sera remplacé par ce template.',icon:'📋',type:'info',confirmText:'Charger',onConfirm:()=>{
   if (id === '__kazypanel__') {
     document.getElementById('bashrcEditor').value = BASHRC_TEMPLATE;
     showToast('Template KazyPanel charge - cliquez sur Enregistrer pour appliquer', 'success');
@@ -7527,6 +8028,7 @@ function cfgApplyBashrcTemplate(id) {
   if (!tpl) return showToast('Template introuvable', 'error');
   document.getElementById('bashrcEditor').value = tpl.content;
   showToast('Template "' + tpl.name + '" charge', 'success');
+  }});
 }
 
 async function cfgSaveBashrcTemplate() {
@@ -7550,7 +8052,7 @@ async function cfgSaveBashrcTemplate() {
 }
 
 async function cfgDeleteBashrcTemplate(id) {
-  if (!confirm('Supprimer ce template ?')) return;
+  showConfirm({title:'Supprimer le template .bashrc',subtitle:'Templates',body:'Ce template sera supprimé définitivement.',icon:'🗑️',type:'danger',confirmText:'Supprimer',onConfirm:async()=>{
   try {
     const res  = await fetch(API + '/api/server-config/bashrc/templates/' + id, {
       method: 'DELETE',
@@ -7562,6 +8064,7 @@ async function cfgDeleteBashrcTemplate(id) {
     _bashrcTemplates = data.templates;
     cfgRenderBashrcTemplates();
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 async function cfgSaveBashrc() {
@@ -7579,7 +8082,7 @@ async function cfgSaveBashrc() {
 }
 
 async function cfgApplyBashrc() {
-  if (!confirm('Appliquer le .bashrc via source ?')) return;
+  showConfirm({title:'Appliquer le .bashrc',subtitle:'Source ~/.bashrc',body:'Le fichier .bashrc sera rechargé via source.',icon:'⚡',type:'info',confirmText:'Appliquer',onConfirm:async()=>{
   try {
     const res  = await fetch(API + '/api/server-config/bashrc/apply', {
       method: 'POST',
@@ -7590,6 +8093,7 @@ async function cfgApplyBashrc() {
     if (!res.ok) throw new Error(data.error);
     showToast(data.message, 'success');
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 // ── HTTPS / Sous-domaine panel ────────────────────────────────────────────────
@@ -7853,7 +8357,7 @@ async function cfgChangePassword() {
 
 async function cfgSaveSshPort() {
   const port = document.getElementById('cfgSshPort').value;
-  if (!confirm(`Changer le port SSH vers ${port} ?\n\nReconnectez-vous immédiatement sur le nouveau port. Assurez-vous que UFW autorise ce port.`)) return;
+  showConfirm({title:'Changer le port SSH',subtitle:`Nouveau port : ${port}`,body:`Le port SSH sera changé vers <strong>${port}</strong>.`,warning:'Reconnectez-vous IMMÉDIATEMENT sur le nouveau port après confirmation.',icon:'🔑',type:'warning',confirmText:`Changer vers ${port}`,onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/server-config/ssh-port`, {
       method: 'POST',
@@ -7865,6 +8369,7 @@ async function cfgSaveSshPort() {
     showToast(data.message, 'warning');
     document.getElementById('cfgSshPortBadge').textContent = `actuel : ${port}`;
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 async function cfgLoadSshAllowUsers() {
@@ -7892,7 +8397,7 @@ async function cfgSaveSshAllowUsers() {
   const msg   = users.length
     ? `Restreindre SSH aux utilisateurs : ${users.join(', ')} ?\n\nTout autre compte sera bloqué en SSH.`
     : 'Supprimer la restriction SSH (AllowUsers) ?\n\nTous les utilisateurs système pourront se connecter.';
-  if (!confirm(msg)) return;
+  showConfirm({title:'Mode maintenance',subtitle:'Serveur',body:msg,icon:'🔧',type:'warning',confirmText:'Confirmer',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/server-config/ssh-allowusers`, {
       method: 'POST',
@@ -7904,6 +8409,7 @@ async function cfgSaveSshAllowUsers() {
     showToast(data.message, 'success');
     cfgLoadSshAllowUsers();
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 async function cfgSaveMotd() {
@@ -7936,8 +8442,9 @@ async function cfgSaveFail2ban() {
 }
 
 function cfgFail2banReset() {
-  if (!confirm('Remplacer le contenu par le template KazyPanel recommandé ?')) return;
+  showConfirm({title:'Charger le template Fail2ban',subtitle:'Template recommandé',body:'Le contenu actuel sera remplacé par le template Fail2ban KazyPanel.',icon:'🚫',type:'warning',confirmText:'Charger',onConfirm:()=>{
   document.getElementById('cfgFail2banContent').value = FAIL2BAN_TEMPLATE;
+  }});
 }
 
 function cfgFail2banInsertTemplate() {
@@ -8004,7 +8511,7 @@ async function cfgLoadHostname() {
 async function cfgSaveHostname() {
   const hostname = document.getElementById('cfgHostname').value.trim();
   if (!hostname) return showToast('Hostname requis', 'error');
-  if (!confirm(`Changer le hostname en "${hostname}" ?`)) return;
+  showConfirm({title:'Changer le hostname',subtitle:`Nouveau : ${hostname}`,body:`Le hostname sera changé en <strong>${hostname}</strong>.`,icon:'🖥️',type:'warning',confirmText:'Changer',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/server-config/hostname`, {
       method: 'POST',
@@ -8016,6 +8523,7 @@ async function cfgSaveHostname() {
     showToast(data.message, 'success');
     document.getElementById('cfgHostnameBadge').textContent = `actuel : ${hostname}`;
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 async function cfgSaveTimezone() {
@@ -8303,7 +8811,7 @@ function f2bJailInsertKazy() {
 }
 
 function f2bJailInsertDefault() {
-  if (!confirm('Remplacer le contenu par le template KazyPanel recommandé ?')) return;
+  showConfirm({title:'Charger le template jail.local',subtitle:'Template recommandé',body:'Le contenu actuel sera remplacé par le template jail.local KazyPanel.',icon:'🚫',type:'warning',confirmText:'Charger',onConfirm:()=>{
   const ta = document.getElementById('f2bJailLocalEditor');
   if (!ta) return;
   ta.value = `[DEFAULT]
@@ -8374,10 +8882,11 @@ bantime  = 7200
   f2bMarkDirty();
   const pane = document.getElementById('f2bPane_jaillocal');
   if (pane) pane.innerHTML = renderJailLocalEditor(ta.value);
+  }});
 }
 
 async function fail2banUnban(jail, ip) {
-  if (!confirm(`Débannir ${ip} du jail ${jail} ?`)) return;
+  showConfirm({title:'Débannir l&#39;IP',subtitle:`Jail : ${jail}`,body:`L&#39;IP <strong>${ip}</strong> sera débannie du jail <strong>${jail}</strong>.`,icon:'🚫',type:'info',confirmText:'Débannir',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/fail2ban/unban`, {
       method: 'POST',
@@ -8389,10 +8898,11 @@ async function fail2banUnban(jail, ip) {
     showToast(data.message, 'success');
     await loadFail2banStatus();
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 async function fail2banFlush(jail) {
-  if (!confirm(`Débannir toutes les IPs du jail ${jail} ?`)) return;
+  showConfirm({title:'Débannir toutes les IPs',subtitle:`Jail : ${jail}`,body:`Toutes les IPs bannies du jail <strong>${jail}</strong> seront débannis.`,icon:'🚫',type:'warning',confirmText:'Tout débannir',onConfirm:async()=>{
   try {
     const res  = await fetch(`${API}/api/fail2ban/banall`, {
       method: 'POST',
@@ -8404,6 +8914,7 @@ async function fail2banFlush(jail) {
     showToast(data.message, 'success');
     await loadFail2banStatus();
   } catch(e) { showToast(e.message, 'error'); }
+  }});
 }
 
 // ══════════════════════════════════════════════════════

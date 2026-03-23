@@ -27,7 +27,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.3.0';
+const KAZYPANEL_VERSION = '1.5.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -1151,7 +1151,7 @@ app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
     try {
       if (fs.existsSync(CONFIG.APACHE_SITES_PATH)) {
         const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
-          .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f));
+          .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'));
         for (const file of files) {
           const conf    = fs.readFileSync(path.join(CONFIG.APACHE_SITES_PATH, file), 'utf8');
           const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
@@ -1354,7 +1354,7 @@ app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
       const allDirs = ftpDirs.length ? ftpDirs : [primaryDir];
 
       const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
-        .filter(f => f.endsWith('.conf') && !['000-default.conf', 'default-ssl.conf'].includes(f));
+        .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'));
 
       for (const file of files) {
         try {
@@ -1682,7 +1682,7 @@ app.post('/api/me/ftp', authMiddleware, async (req, res) => {
     try {
       if (fs.existsSync(CONFIG.APACHE_SITES_PATH)) {
         const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
-          .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f));
+          .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'));
         for (const file of files) {
           const parts = file.replace('.conf','').split('.');
           if (parts.length <= 2) continue; // pas un sous-domaine
@@ -1858,7 +1858,7 @@ app.get('/api/me', authMiddleware, async (req, res) => {
   try {
     if (fs.existsSync(CONFIG.APACHE_SITES_PATH)) {
       const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
-        .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f));
+        .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'));
       for (const file of files) {
         const conf    = fs.readFileSync(path.join(CONFIG.APACHE_SITES_PATH, file), 'utf8');
         const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
@@ -2246,7 +2246,7 @@ app.get('/api/me/domains', authMiddleware, (req, res) => {
   try {
     if (!fs.existsSync(CONFIG.APACHE_SITES_PATH)) return res.json({ domains: [] });
     const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
-      .filter(f => f.endsWith('.conf') && !['000-default.conf', 'default-ssl.conf'].includes(f));
+      .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'));
 
     const domains = files
       .map(file => {
@@ -2256,6 +2256,21 @@ app.get('/api/me/domains', authMiddleware, (req, res) => {
         const isEnabled = fs.existsSync(path.join(CONFIG.APACHE_ENABLED_PATH, file));
         const ports = [...conf.matchAll(/<VirtualHost\s+[^:>]+:(\d+)/gi)].map(m => parseInt(m[1]));
         const hasSsl = ports.includes(443);
+
+        // Jours SSL restants
+        let sslDaysLeft = null;
+        if (hasSsl) {
+          const sslCertPath = `/etc/letsencrypt/live/${name}/fullchain.pem`;
+          if (fs.existsSync(sslCertPath)) {
+            try {
+              const { execSync } = require('child_process');
+              const out = execSync(`openssl x509 -enddate -noout -in "${sslCertPath}" 2>/dev/null`, { timeout: 5000 }).toString().trim();
+              const match = out.match(/notAfter=(.+)/);
+              if (match) sslDaysLeft = Math.max(0, Math.ceil((new Date(match[1]).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+            } catch {}
+          }
+        }
+
         return {
           name,
           domain: (conf.match(/ServerName\s+(.+)/) || [])[1]?.trim() || name,
@@ -2264,6 +2279,7 @@ app.get('/api/me/domains', authMiddleware, (req, res) => {
           enabled: isEnabled,
           isSubdomain: name.split('.').length > 2,
           hasSsl,
+          sslDaysLeft,
           ports
         };
       })
@@ -2300,7 +2316,7 @@ app.post('/api/me/domains', authMiddleware, async (req, res) => {
   // ── Vérification des limites ──
   if (fs.existsSync(CONFIG.APACHE_SITES_PATH)) {
     const allFiles = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
-      .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f));
+      .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'));
     const userDomains = allFiles.filter(f => {
       try {
         const c = fs.readFileSync(path.join(CONFIG.APACHE_SITES_PATH, f), 'utf8');
@@ -2532,12 +2548,32 @@ app.get('/api/domains', authMiddleware, adminOnly, (req, res) => {
   try {
     if (!fs.existsSync(CONFIG.APACHE_SITES_PATH)) return res.json({ domains: getDemoDomains() });
     const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
-      .filter(f => f.endsWith('.conf') && !['000-default.conf', 'default-ssl.conf'].includes(f));
+      .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'));
     const domains = files.map(file => {
       const name = file.replace('.conf', '');
       const conf = fs.readFileSync(path.join(CONFIG.APACHE_SITES_PATH, file), 'utf8');
       const isEnabled = fs.existsSync(path.join(CONFIG.APACHE_ENABLED_PATH, file));
       const sslCertPath = `/etc/letsencrypt/live/${name}/fullchain.pem`;
+      const hasSsl = conf.includes('VirtualHost *:443') || fs.existsSync(sslCertPath);
+
+      // Calcul des jours restants avant expiration SSL (via openssl x509)
+      let sslDaysLeft = null;
+      if (hasSsl && fs.existsSync(sslCertPath)) {
+        try {
+          const { execSync } = require('child_process');
+          const out = execSync(
+            `openssl x509 -enddate -noout -in "${sslCertPath}" 2>/dev/null`,
+            { timeout: 5000 }
+          ).toString().trim();
+          // Format: notAfter=Mar 22 12:00:00 2026 GMT
+          const match = out.match(/notAfter=(.+)/);
+          if (match) {
+            const expDate = new Date(match[1]);
+            sslDaysLeft = Math.max(0, Math.ceil((expDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+          }
+        } catch {}
+      }
+
       return {
         name,
         domain: (conf.match(/ServerName\s+(.+)/) || [])[1]?.trim() || name,
@@ -2545,7 +2581,8 @@ app.get('/api/domains', authMiddleware, adminOnly, (req, res) => {
         phpVersion: (conf.match(/php(\d+\.\d+)-fpm/) || [])[1] || CONFIG.PHP_VERSION,
         enabled: isEnabled,
         isSubdomain: name.split('.').length > 2,
-        ssl: conf.includes('VirtualHost *:443') || fs.existsSync(sslCertPath)
+        ssl: hasSsl,
+        sslDaysLeft
       };
     });
     res.json({ domains });
@@ -2922,7 +2959,7 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   try { s.hostname = await runCmd('hostname'); } catch { s.hostname = 'N/A'; }
   try { s.os = await runCmd('lsb_release -d -s 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d \'"\''); } catch { s.os = 'N/A'; }
   try { s.nodeVersion = process.version; } catch {}
-  try { s.domains = fs.existsSync(CONFIG.APACHE_SITES_PATH) ? fs.readdirSync(CONFIG.APACHE_SITES_PATH).filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f)).length : 0; } catch { s.domains = 0; }
+  try { s.domains = fs.existsSync(CONFIG.APACHE_SITES_PATH) ? fs.readdirSync(CONFIG.APACHE_SITES_PATH).filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin')).length : 0; } catch { s.domains = 0; }
   s.users = USERS.length;
   res.json(s);
 });
@@ -3020,6 +3057,40 @@ app.post('/api/domains/:name/ssl', authMiddleware, adminOnly, async (req, res) =
 });
 
 // Renouveler tous les certificats
+// ─── ROUTE: SSL UTILISATEUR ───────────────────────────────────────────────────
+app.post('/api/me/domains/:name/ssl', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+
+  const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+  const confFile = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
+  if (!fs.existsSync(confFile)) return res.status(404).json({ error: 'Domaine introuvable' });
+
+  // Vérifier que le domaine appartient à l'utilisateur
+  const conf    = fs.readFileSync(confFile, 'utf8');
+  const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
+  if (!userOwnsDocRoot(user, docRoot))
+    return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
+
+  const domain = (conf.match(/ServerName\s+(.+)/) || [])[1]?.trim();
+  if (!domain) return res.status(400).json({ error: 'ServerName introuvable dans le VirtualHost' });
+
+  if (!fs.existsSync(path.join(CONFIG.APACHE_ENABLED_PATH, `${safeName}.conf`)))
+    return res.status(400).json({ error: 'Le domaine doit être activé avant de générer un certificat SSL' });
+
+  const { email } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return res.status(400).json({ error: "Email valide requis pour Let's Encrypt" });
+
+  if (!findCertbot())
+    return res.status(400).json({ error: 'Certbot non installé sur ce serveur' });
+
+  const result = await tryIssueSsl(domain, email);
+  log('SSL_USER', `${user.username} → ${domain}`, result.success ? 'OK' : 'FAIL');
+  if (result.success) return res.json({ success: true, message: result.message });
+  res.status(500).json({ error: result.message });
+});
+
 // ─── ROUTE: CONFIG PHPMYADMIN URL ────────────────────────────────────────────
 const PANEL_CONFIG_FILE = path.join(__dirname, 'panel_config.json');
 let PANEL_CONFIG = { pmaUrl: CONFIG.PMA_URL };
