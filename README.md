@@ -604,6 +604,8 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ### v1.3.2 — 2026-03-24
 
+### v1.3.2 — 2026-03-24
+
 ### v1.3.1 — 2026-03-24
 
 ### v1.3.1 — 2026-03-23
