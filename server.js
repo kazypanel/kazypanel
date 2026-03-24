@@ -937,8 +937,17 @@ app.get('/api/server-config/usage', authMiddleware, adminOnly, async (req, res) 
 
 // ─── ROUTE: VÉRIFICATION DE MISE À JOUR ──────────────────────────────────────
 app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
+  // Lire le version.json local pour avoir la version et la date d'installation réelles
+  let current = KAZYPANEL_VERSION;
+  let installedDate = null;
   try {
-    // Node 24 — fetch natif stable, plus besoin du module https
+    const localVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'version.json'), 'utf8'));
+    if (localVersion.version) current = localVersion.version;
+    installedDate = localVersion.releaseDate || null;
+  } catch {}
+
+  try {
+    // Node 24 — fetch natif stable
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     let remoteData;
@@ -948,15 +957,7 @@ app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
       remoteData = await response.json();
     } finally { clearTimeout(timeout); }
 
-    const latest   = remoteData.version || '0.0.0';
-    const current  = KAZYPANEL_VERSION;
-
-    // Date d'installation locale (depuis version.json local)
-    let installedDate = null;
-    try {
-      const localVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'version.json'), 'utf8'));
-      installedDate = localVersion.releaseDate || null;
-    } catch {}
+    const latest = remoteData.version || '0.0.0';
 
     // Comparaison semver simple
     const toNum = v => v.split('.').map(Number).reduce((a, n, i) => a + n * Math.pow(1000, 2 - i), 0);
@@ -970,8 +971,39 @@ app.get('/api/update/check', authMiddleware, adminOnly, async (req, res) => {
       releaseNotes: remoteData.releaseNotes || '',
     });
   } catch (err) {
-    res.json({ current: KAZYPANEL_VERSION, latest: null, hasUpdate: false, error: err.message });
+    res.json({ current, latest: null, hasUpdate: false, installedDate, error: err.message });
   }
+});
+
+// ─── ROUTE: APPLIQUER LA MISE À JOUR ─────────────────────────────────────────
+// Exécute git pull + npm install + systemctl restart en séquentiel
+// Retourne les logs de chaque étape
+app.post('/api/update/apply', authMiddleware, adminOnly, async (req, res) => {
+  const installDir = path.resolve(__dirname);
+  const steps = [
+    { label: 'Récupération des fichiers (git pull)',   cmd: `git -C "${installDir}" pull origin main` },
+    { label: 'Mise à jour des dépendances (npm install)', cmd: `npm install --production --prefix "${installDir}"` },
+    { label: 'Redémarrage du service',                cmd: 'systemctl restart kazypanel' },
+  ];
+
+  const results = [];
+  for (const step of steps) {
+    try {
+      const { stdout, stderr } = await execAsync(
+        needsSudo(step.cmd) ? `sudo ${step.cmd}` : step.cmd,
+        { timeout: 120000, maxBuffer: 2 * 1024 * 1024 }
+      );
+      results.push({ label: step.label, success: true, output: (stdout + stderr).trim() });
+    } catch (err) {
+      results.push({ label: step.label, success: false, output: (err.stderr || err.message || '').trim() });
+      log('UPDATE_APPLY', `Échec : ${step.label}`, 'FAIL');
+      return res.json({ success: false, results });
+    }
+  }
+
+  // Invalider le cache de version côté serveur (sera relu au prochain check)
+  log('UPDATE_APPLY', 'Mise à jour appliquée avec succès', 'OK');
+  res.json({ success: true, results });
 });
 
 // ─── ROUTE: HISTORIQUE DES CONNEXIONS ───────────────────────────────────────

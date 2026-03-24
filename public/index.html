@@ -9077,6 +9077,15 @@ function renderUpdateModal(data) {
           <div style="font-size:11px;color:var(--muted)">${data.error}</div>
         </div>
       </div>`;
+  } else if (data.error && data.latest) {
+    bannerHtml = `
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);margin-bottom:20px">
+        <span style="font-size:22px">⚠️</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#fcd34d;margin-bottom:3px">Erreur partielle lors de la vérification</div>
+          <div style="font-size:11px;color:var(--muted)">${data.error}</div>
+        </div>
+      </div>`;
   } else if (data.hasUpdate) {
     bannerHtml = `
       <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);margin-bottom:20px">
@@ -9118,9 +9127,12 @@ function renderUpdateModal(data) {
   // Changelog
   let changelogHtml = '';
   if (data.changelog && data.changelog.length > 0) {
+    const changelogTitle = data.hasUpdate
+      ? `📋 Nouveautés de la version ${data.latest}`
+      : `📋 Notes de la version ${data.current}`;
     changelogHtml = `
       <div style="margin-bottom:20px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px">📋 Nouveautés de la version ${data.latest}</div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px">${changelogTitle}</div>
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">
           ${data.changelog.map((item, i) => `
             <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;${i < data.changelog.length-1 ? 'border-bottom:1px solid var(--border)' : ''}">
@@ -9134,54 +9146,20 @@ function renderUpdateModal(data) {
       </div>`;
   }
 
-  // Instructions de mise à jour (sans bouton téléchargement)
+  // Mise à jour one-click
   let actionsHtml = '';
   if (data.hasUpdate) {
     actionsHtml = `
-      <div style="background:rgba(79,110,247,.05);border:1px solid rgba(79,110,247,.15);border-radius:10px;padding:16px">
-        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:14px">🔄 Comment mettre à jour ?</div>
-
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:rgba(79,110,247,.2);color:var(--accent2);font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px">1</span>
-            <div>
-              <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Se connecter au serveur en SSH</div>
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:#a5b4fc">
-                ssh root@votre-ip
-              </div>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:rgba(79,110,247,.2);color:var(--accent2);font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px">2</span>
-            <div>
-              <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Télécharger la nouvelle version</div>
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:#a5b4fc;line-height:1.9">
-                cd /opt/kazypanel<br>
-                git pull origin main
-              </div>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:rgba(79,110,247,.2);color:var(--accent2);font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px">3</span>
-            <div>
-              <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Mettre à jour les dépendances</div>
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:#a5b4fc">
-                npm install
-              </div>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:rgba(79,110,247,.2);color:var(--accent2);font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px">4</span>
-            <div>
-              <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Redémarrer le panel</div>
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:#a5b4fc">
-                systemctl restart kazypanel
-              </div>
-            </div>
-          </div>
+      <div id="updateApplyBox" style="background:rgba(79,110,247,.05);border:1px solid rgba(79,110,247,.15);border-radius:10px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:12px;font-weight:700;color:var(--text)">🔄 Mettre à jour automatiquement</div>
+          <button id="updateApplyBtn" class="btn btn-primary" style="font-size:11px;padding:6px 14px" onclick="applyUpdate()">
+            🚀 Lancer la mise à jour
+          </button>
+        </div>
+        <div id="updateApplyLog" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:var(--mono);font-size:11px;line-height:1.8;max-height:220px;overflow-y:auto"></div>
+        <div style="margin-top:10px;font-size:10px;color:var(--muted)">
+          ⚠️ Le panel va redémarrer automatiquement — la page se rechargera dans 5 secondes après la mise à jour.
         </div>
       </div>`;
   }
@@ -9205,6 +9183,66 @@ async function checkUpdateSilent() {
       }
     }
   } catch (e) { /* silencieux */ }
+}
+
+// ── Mise à jour one-click ─────────────────────────────────────────────────────
+async function applyUpdate() {
+  const btn = document.getElementById('updateApplyBtn');
+  const log = document.getElementById('updateApplyLog');
+  if (!btn || !log) return;
+
+  // Désactiver le bouton + afficher la zone de log
+  btn.disabled = true;
+  btn.textContent = '⏳ Mise à jour en cours…';
+  log.style.display = 'block';
+  log.innerHTML = '';
+
+  const addLine = (text, color = 'var(--text)') => {
+    log.innerHTML += `<div style="color:${color}">${text}</div>`;
+    log.scrollTop = log.scrollHeight;
+  };
+
+  addLine('⏳ Démarrage de la mise à jour…', 'var(--muted)');
+
+  try {
+    const res  = await fetch(`${API}/api/update/apply`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+
+    for (const step of data.results) {
+      if (step.success) {
+        addLine(`✅ ${step.label}`, '#6ee7b7');
+        if (step.output) addLine(step.output.replace(/\n/g, '<br>'), 'var(--muted)');
+      } else {
+        addLine(`❌ ${step.label}`, '#f87171');
+        if (step.output) addLine(step.output.replace(/\n/g, '<br>'), '#f87171');
+        addLine('⛔ Mise à jour interrompue. Vérifiez les erreurs ci-dessus.', '#f87171');
+        btn.disabled = false;
+        btn.textContent = '🔁 Réessayer';
+        return;
+      }
+    }
+
+    if (data.success) {
+      addLine('', '');
+      addLine('🎉 Mise à jour appliquée avec succès !', '#6ee7b7');
+      addLine('♻️ Rechargement de la page dans 6 secondes…', 'var(--muted)');
+      // Invalider le cache update
+      _updateCache = null;
+      let countdown = 6;
+      const iv = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) { clearInterval(iv); location.reload(); }
+        else addLine(`↩️ Rechargement dans ${countdown}s…`, 'var(--muted)');
+      }, 1000);
+    }
+  } catch (e) {
+    addLine(`❌ Erreur réseau : ${e.message}`, '#f87171');
+    btn.disabled = false;
+    btn.textContent = '🔁 Réessayer';
+  }
 }
 
 // ── Mot de passe aléatoire ────────────────────────────────────────────────────
