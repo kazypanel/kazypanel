@@ -6,8 +6,13 @@
 
 > Panel d'administration web pour serveurs Apache/PHP — léger, rapide, sans dépendances lourdes.
 
-![Version](https://img.shields.io/badge/version-1.3.2-blue)
+<<<<<<< HEAD
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green)
+=======
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
+![Node](https://img.shields.io/badge/node-%3E%3D24.0.0-green)
+>>>>>>> 2732245378a40b4dc0b7e8cc9babe3fbec311abe
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
 
@@ -83,7 +88,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 ### Services requis
 | Service | Version minimale |
 |---------|-----------------|
-| Node.js | 18.x ou supérieur |
+| Node.js | 24.x ou supérieur |
 | Apache2 | 2.4+ |
 | PHP-FPM | 8.4 (configurable) |
 | MariaDB | 10.6+ |
@@ -123,8 +128,8 @@ Le script pose quelques questions simples : le port du panel (8080 par défaut),
 **3. Mise à jour du système**
 `apt-get update && apt-get upgrade` pour partir sur une base propre.
 
-**4. Node.js 20**
-Ajout automatique du dépôt officiel NodeSource et installation de Node.js 20 LTS — la version minimale requise pour les API `fetch` natives utilisées par KazyPanel.
+**4. Node.js 24**
+Ajout automatique du dépôt officiel NodeSource et installation de Node.js 24 LTS — la version minimale requise pour les API `fetch` natives utilisées par KazyPanel.
 
 **5. Apache2**
 Installation et activation des modules nécessaires : `rewrite`, `ssl`, `proxy`, `proxy_http`, `proxy_fcgi`, `headers`, `setenvif`. Un vhost par défaut minimal est créé.
@@ -145,7 +150,7 @@ Installation du serveur DNS avec création du répertoire `/etc/bind/zones` et d
 Installation de Certbot avec le plugin Apache pour la génération de certificats SSL Let's Encrypt en 1 clic depuis le panel.
 
 **11. phpMyAdmin**
-Téléchargement de la dernière version stable (5.2.1) directement depuis le site officiel. Configuration automatique avec une clé `blowfish_secret` générée aléatoirement. Si une URL personnalisée a été fournie (ex: `pma.mondomaine.fr`), un vhost Apache dédié est créé. Sinon, phpMyAdmin est accessible via `/phpmyadmin` sur l'IP du serveur. L'URL est automatiquement injectée dans le `.env` de KazyPanel pour que le bouton phpMyAdmin dans le panel fonctionne directement.
+Téléchargement de la dernière version stable (récupérée automatiquement depuis phpmyadmin.net) directement depuis le site officiel. Configuration automatique avec une clé `blowfish_secret` générée aléatoirement. Si une URL personnalisée a été fournie (ex: `pma.mondomaine.fr`), un vhost Apache dédié est créé. Sinon, phpMyAdmin est accessible via `/phpmyadmin` sur l'IP du serveur. L'URL est automatiquement injectée dans le `.env` de KazyPanel pour que le bouton phpMyAdmin dans le panel fonctionne directement.
 
 **11. UFW (pare-feu)**
 Configuration et activation d'UFW avec les règles essentielles : SSH, HTTP (80), HTTPS (443), port du panel, FTP (21), plage passif FTP (40000-50000), DNS (53). Toute autre connexion entrante est bloquée par défaut.
@@ -180,7 +185,7 @@ Le script affiche l'URL d'accès, les identifiants admin, la liste des services 
   Répertoire d'installation [/opt/kazypanel] :
 
 ▶ Mise à jour du système ...
-▶ Installation de Node.js 20 ...
+▶ Installation de Node.js 24 ...
 ▶ Installation d'Apache2 ...
 ▶ Installation de PHP 8.4-FPM ...
 ▶ Installation de MariaDB ...
@@ -565,7 +570,7 @@ Le panel vérifie automatiquement les nouvelles versions au démarrage et affich
 
 **Le panel ne démarre pas**
 → Vérifiez les logs : `journalctl -u kazypanel -f`
-→ Vérifiez que Node.js ≥ 18 est installé : `node --version`
+→ Vérifiez que Node.js ≥ 24 est installé : `node --version`
 
 **Impossible de créer un domaine**
 → Vérifiez qu'Apache est bien installé et que `/etc/apache2/sites-available` existe
@@ -598,10 +603,13 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ---
 
-*KazyPanel v1.1.0 — Dernière mise à jour : Mars 2026*
+*KazyPanel v1.3.0 — Dernière mise à jour : Mars 2026*
 
 ## Changelog
 
+### v1.3.0 — 2026-03-24
+
+<<<<<<< HEAD
 ### v1.3.2 — 2026-03-24
 
 ### v1.3.2 — 2026-03-24
@@ -610,4 +618,6 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ### v1.3.1 — 2026-03-23
 
+=======
+>>>>>>> 2732245378a40b4dc0b7e8cc9babe3fbec311abe
 ### v1.3.0 — 2026-03-23

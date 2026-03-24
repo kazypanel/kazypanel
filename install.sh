@@ -28,10 +28,10 @@ cat << 'EOF'
   ██║  ██╗██║  ██║   ██║     ██║   ██║     ██║  ██║██║ ╚████║███████╗███████╗
   ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝     ╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 EOF
-echo -e "${NC}${BOLD}                     Panel d'hébergement — v1.1.0${NC}"
+echo -e "${NC}${BOLD}                     Panel d'hébergement — v1.3.0${NC}"
 echo -e "${CYAN}                        github.com/kazypanel/kazypanel${NC}\n"
 echo -e "  ${YELLOW}Ce script va installer et configurer :${NC}"
-echo -e "  Node.js 20, Apache2, PHP 8.4, MariaDB, vsftpd,"
+echo -e "  Node.js 24, Apache2, PHP 8.4, MariaDB, vsftpd,"
 echo -e "  BIND9, Certbot, phpMyAdmin, UFW, Fail2ban et KazyPanel\n"
 echo -e "  ${RED}⚠  Exécuter uniquement sur un serveur vierge en root.${NC}\n"
 
@@ -81,9 +81,9 @@ PANEL_PORT=${PANEL_PORT:-8080}
 
 # Mot de passe admin
 while true; do
-  read -rsp "  $(echo -e "${CYAN}Mot de passe admin${NC} (min 8 car., maj+min+chiffre+spécial) : ")" ADMIN_PASSWORD
+  read -rsp "  $(echo -e "${CYAN}Mot de passe admin${NC} (min 5 car., maj+min+chiffre+spécial) : ")" ADMIN_PASSWORD
   echo ""
-  if [[ ${#ADMIN_PASSWORD} -ge 8 ]] && \
+  if [[ ${#ADMIN_PASSWORD} -ge 5 ]] && \
      [[ "$ADMIN_PASSWORD" =~ [A-Z] ]] && \
      [[ "$ADMIN_PASSWORD" =~ [a-z] ]] && \
      [[ "$ADMIN_PASSWORD" =~ [0-9] ]] && \
@@ -141,10 +141,10 @@ apt-get install -y -qq \
   net-tools dnsutils htop
 ok "Paquets de base installés"
 
-# ── Node.js 20 ───────────────────────────────────────────────
-step "Installation de Node.js 20"
-if ! command -v node &>/dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 18 ]]; then
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+# ── Node.js 24 ───────────────────────────────────────────────
+step "Installation de Node.js 24"
+if ! command -v node &>/dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 24 ]]; then
+  curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
   apt-get install -y -qq nodejs
   ok "Node.js $(node -v) installé"
 else
@@ -347,11 +347,17 @@ step "Installation de phpMyAdmin"
 apt-get install -y -qq php-mbstring php-xml php-zip php-json php-curl dbconfig-no-thanks
 
 # Télécharger phpMyAdmin (dernière version stable)
-PMA_VERSION="5.2.1"
 PMA_DIR="/var/www/html/phpmyadmin"
 PMA_ARCHIVE="/tmp/phpmyadmin.tar.gz"
 
-info "Téléchargement de phpMyAdmin ${PMA_VERSION}..."
+info "Récupération de la dernière version de phpMyAdmin..."
+PMA_VERSION=$(curl -s https://www.phpmyadmin.net/home_page/version.txt 2>/dev/null | head -1 | tr -d '[:space:]')
+if [[ -z "$PMA_VERSION" ]]; then
+  warn "Impossible de récupérer la dernière version — utilisation de la version de secours 5.2.2"
+  PMA_VERSION="5.2.2"
+fi
+info "Version phpMyAdmin : ${PMA_VERSION}"
+
 wget -q "https://files.phpmyadmin.net/phpMyAdmin/${PMA_VERSION}/phpMyAdmin-${PMA_VERSION}-all-languages.tar.gz" \
   -O "$PMA_ARCHIVE" || {
   warn "Téléchargement phpMyAdmin échoué — installation via apt..."
