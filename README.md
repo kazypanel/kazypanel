@@ -6,7 +6,15 @@
 
 > Panel d'administration web pour serveurs Apache/PHP — léger, rapide, sans dépendances lourdes.
 
+<<<<<<< HEAD
 ![Version](https://img.shields.io/badge/version-1.3.0-blue)
+=======
+<<<<<<< HEAD
+![Version](https://img.shields.io/badge/version-1.4.0-blue)
+![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green)
+=======
+![Version](https://img.shields.io/badge/version-1.4.0-blue)
+>>>>>>> 0aa6e27 (🚀 Release v1.4.0)
 ![Node](https://img.shields.io/badge/node-%3E%3D24.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
@@ -646,6 +654,7 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ## Changelog
 
+<<<<<<< HEAD
 ### v1.3.0 — 2026-03-25
 - ✨ **Explorateur de fichiers utilisateur** — navigation arborescence, vue liste/grille, fil d'Ariane
 - ✏️ **Éditeur de fichiers intégré** — édition en ligne avec coloration (PHP, HTML, CSS, JS, JSON, .htaccess…)
@@ -657,5 +666,10 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 - 🐛 Fix : `named-checkconf` / `named-checkzone` — résolution dynamique du chemin (`which` + `find`)
 - 🐛 Fix : modal Mise à jour — version lue depuis `version.json` local en priorité
 - 🐛 Fix : suppression des fichiers `.bak` inutiles (éditeur .bashrc et config Fail2ban)
+=======
+### v1.4.0 — 2026-03-25
+
+### v1.3.0 — 2026-03-24
+>>>>>>> 0aa6e27 (🚀 Release v1.4.0)
 
 ### v1.3.0 — 2026-03-23

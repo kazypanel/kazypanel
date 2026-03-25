@@ -1038,6 +1038,10 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/></svg>
         Crontab
       </div>
+      <div class="nav-item user-only" id="navUserFiles" style="display:none" onclick="showUserFilesSection()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        Fichiers
+      </div>
 
       <div class="sidebar-footer">
         <div class="sidebar-footer-user">
@@ -1450,6 +1454,132 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- SECTION : EXPLORATEUR DE FICHIERS -->
+      <div id="userFilesSection" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Explorateur de fichiers</div>
+            <div class="page-subtitle" id="filesSubtitle">Gérez les fichiers de votre hébergement</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="filesRefresh()" title="Actualiser">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="filesMkdir()" title="Nouveau dossier">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              Dossier
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="filesNewFile()" title="Nouveau fichier">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Fichier
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="filesUploadClick()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+              Upload
+            </button>
+            <input type="file" id="filesUploadInput" multiple style="display:none" onchange="filesUpload(this)">
+          </div>
+        </div>
+
+        <!-- Fil d'Ariane -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:6px;font-size:12px;overflow-x:auto;white-space:nowrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+          <div id="filesBreadcrumb" style="display:flex;align-items:center;gap:6px"></div>
+        </div>
+
+        <!-- Layout explorateur -->
+        <div style="display:grid;grid-template-columns:220px 1fr;gap:14px;min-height:500px">
+
+          <!-- Sidebar arborescence -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+            <div style="padding:12px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Arborescence</div>
+            <div id="filesTree" style="padding:8px;overflow-y:auto;max-height:520px;font-size:12px"></div>
+          </div>
+
+          <!-- Zone principale -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column">
+            <!-- Toolbar liste -->
+            <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:11px;color:var(--muted)" id="filesCount">—</div>
+              <div style="display:flex;gap:6px">
+                <button onclick="filesToggleView('grid')" id="filesViewGrid" class="btn btn-ghost btn-sm" title="Grille" style="padding:4px 8px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                </button>
+                <button onclick="filesToggleView('list')" id="filesViewList" class="btn btn-ghost btn-sm" title="Liste" style="padding:4px 8px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+            <!-- Contenu -->
+            <div id="filesGrid" style="padding:14px;flex:1;overflow-y:auto;min-height:400px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL ÉDITEUR DE FICHIER -->
+      <div class="modal-overlay" id="fileEditorModal" onclick="if(event.target===this)closeFileEditor()">
+        <div class="modal" style="width:900px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column">
+          <div class="modal-header">
+            <div style="display:flex;align-items:center;gap:10px">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <div class="modal-title" id="fileEditorTitle">Éditeur</div>
+            </div>
+            <button class="modal-close" onclick="closeFileEditor()">✕</button>
+          </div>
+          <div style="flex:1;overflow:hidden;position:relative">
+            <textarea id="fileEditorContent" style="width:100%;height:100%;min-height:420px;padding:16px;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;line-height:1.7;border:none;resize:none;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div class="modal-footer" style="justify-content:space-between">
+            <div style="font-size:11px;color:var(--muted)" id="fileEditorInfo"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost" onclick="closeFileEditor()">Annuler</button>
+              <button class="btn btn-primary" id="fileEditorSaveBtn" onclick="saveFileEditor()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13"/><polyline points="7 3 7 8 15 8"/></svg>
+                Sauvegarder
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL CHMOD -->
+      <div class="modal-overlay" id="chmodModal" onclick="if(event.target===this)closeChmodModal()">
+        <div class="modal" style="width:380px">
+          <div class="modal-header">
+            <div class="modal-title">🔒 Permissions (chmod)</div>
+            <button class="modal-close" onclick="closeChmodModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="font-size:12px;color:var(--muted);margin-bottom:16px" id="chmodFileName"></div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+              <div style="text-align:center;background:var(--surface2);border-radius:10px;padding:12px">
+                <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">Propriétaire</div>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><input type="checkbox" id="chmodOr"> Lecture</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><input type="checkbox" id="chmodOw"> Écriture</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px"><input type="checkbox" id="chmodOx"> Exécution</label>
+              </div>
+              <div style="text-align:center;background:var(--surface2);border-radius:10px;padding:12px">
+                <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">Groupe</div>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><input type="checkbox" id="chmodGr"> Lecture</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><input type="checkbox" id="chmodGw"> Écriture</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px"><input type="checkbox" id="chmodGx"> Exécution</label>
+              </div>
+              <div style="text-align:center;background:var(--surface2);border-radius:10px;padding:12px">
+                <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">Autres</div>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><input type="checkbox" id="chmodPr"> Lecture</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px"><input type="checkbox" id="chmodPw"> Écriture</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px"><input type="checkbox" id="chmodPx"> Exécution</label>
+              </div>
+            </div>
+            <div style="text-align:center;font-family:var(--mono);font-size:24px;font-weight:700;color:var(--accent2)" id="chmodPreview">644</div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeChmodModal()">Annuler</button>
+            <button class="btn btn-primary" onclick="applyChmod()">Appliquer</button>
+          </div>
+        </div>
       </div>
 
       <!-- USERS SECTION -->
@@ -3700,6 +3830,7 @@ function applyRoleUI() {
     document.getElementById('userDomainsSection').style.display   = 'none';
     document.getElementById('userDnsSection').style.display       = 'none';
     document.getElementById('userCrontabSection').style.display   = 'none';
+    document.getElementById('userFilesSection').style.display     = 'none';
   } else {
     // Utilisateur limité : masquer les sections admin
     document.getElementById('domainsSection').style.display    = 'none';
@@ -4065,6 +4196,7 @@ async function loadStatusSection() {
       { key: 'mariadb',   svc: 'mariadb',                         label: 'MariaDB',         icon: '🗄️', ver: d.mariadbVersion },
       { key: 'ufw',       svc: 'ufw',                             label: 'UFW',             icon: '🛡️', noRestart: true },
       { key: 'fail2ban',  svc: 'fail2ban',                        label: 'Fail2ban',        icon: '🚫' },
+      { key: 'bind9',     svc: 'bind9',                           label: 'BIND9 (DNS)',      icon: '🔗' },
     ];
 
     let running = 0;
@@ -9243,6 +9375,462 @@ async function applyUpdate() {
     btn.disabled = false;
     btn.textContent = '🔁 Réessayer';
   }
+}
+
+// ── Explorateur de fichiers ───────────────────────────────────────────────────
+let _filesCurrentPath = '';
+let _filesView = 'list'; // 'grid' | 'list'
+let _filesEditorPath = null;
+let _chmodTarget = null;
+
+function showUserFilesSection() {
+  document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+  document.getElementById('navUserFiles').classList.add('active');
+  document.querySelectorAll('#app .page-header').forEach(() => {});
+  ['userProfileSection','userFtpSection','userDbSection','userDomainsSection',
+   'userDnsSection','userLogsSection','userCrontabSection'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById('userFilesSection').style.display = 'block';
+  setTopbarSection('Fichiers');
+  filesLoad('');
+}
+
+async function filesLoad(reqPath) {
+  _filesCurrentPath = reqPath || '';
+  const grid = document.getElementById('filesGrid');
+  grid.innerHTML = `<div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto 12px"></div><div style="font-size:12px;color:var(--muted)">Chargement…</div></div>`;
+
+  try {
+    const res  = await fetch(`${API}/api/me/files?path=${encodeURIComponent(_filesCurrentPath)}`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) { grid.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red);font-size:13px">❌ ${data.error}</div>`; return; }
+
+    // Fil d'Ariane
+    filesBreadcrumb(data.path || '');
+    // Arbre latéral
+    filesTreeBuild(data.path || '', data.entries.filter(e => e.type === 'dir'));
+    // Compteur
+    const nb = data.entries.length;
+    document.getElementById('filesCount').textContent = `${nb} élément${nb > 1 ? 's' : ''}`;
+    document.getElementById('filesSubtitle').textContent = data.path ? data.path : 'Racine';
+
+    if (!data.entries.length) {
+      grid.innerHTML = `<div style="text-align:center;padding:48px;color:var(--muted);font-size:13px">📂 Dossier vide</div>`;
+      return;
+    }
+    filesRender(data.entries, data.path || '');
+  } catch (e) {
+    grid.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red);font-size:13px">❌ ${e.message}</div>`;
+  }
+}
+
+function filesBreadcrumb(relPath) {
+  const bc = document.getElementById('filesBreadcrumb');
+  const parts = relPath ? relPath.split('/').filter(Boolean) : [];
+  let html = `<span onclick="filesLoad('')" style="cursor:pointer;color:var(--accent2);font-weight:600">Racine</span>`;
+  let acc = '';
+  parts.forEach((p, i) => {
+    acc += (acc ? '/' : '') + p;
+    const captured = acc;
+    html += `<span style="color:var(--muted);margin:0 2px">/</span>`;
+    if (i === parts.length - 1) {
+      html += `<span style="color:var(--text);font-weight:600">${p}</span>`;
+    } else {
+      html += `<span onclick="filesLoad('${captured}')" style="cursor:pointer;color:var(--accent2)">${p}</span>`;
+    }
+  });
+  bc.innerHTML = html;
+}
+
+function filesTreeBuild(currentPath, dirs) {
+  const tree = document.getElementById('filesTree');
+  let html = `<div onclick="filesLoad('')" style="cursor:pointer;padding:5px 8px;border-radius:6px;display:flex;align-items:center;gap:7px;${currentPath===''?'background:rgba(79,110,247,.12);color:var(--accent2)':'color:var(--text)'}">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg> /
+  </div>`;
+  dirs.forEach(d => {
+    const p = (currentPath ? currentPath + '/' : '') + d.name;
+    html += `<div onclick="filesLoad('${p}')" style="cursor:pointer;padding:5px 8px 5px 20px;border-radius:6px;display:flex;align-items:center;gap:7px;font-size:11px;${currentPath && currentPath.startsWith(p)?'color:var(--accent2)':'color:var(--muted)'}">
+      📁 ${d.name}
+    </div>`;
+  });
+  tree.innerHTML = html;
+}
+
+function filesRender(entries, currentPath) {
+  const grid = document.getElementById('filesGrid');
+
+  // Stocker les entries dans un registre indexé pour les callbacks
+  window._filesEntries = {};
+  entries.forEach((e, i) => { window._filesEntries[i] = e; });
+
+  if (_filesView === 'grid') {
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(110px,1fr))';
+    grid.style.gap = '10px';
+    grid.innerHTML = '';
+    entries.forEach((e, i) => {
+      const icon = fileIcon(e);
+      const p = (currentPath ? currentPath + '/' : '') + e.name;
+      const div = document.createElement('div');
+      div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:border-color .15s';
+      div.title = e.name;
+      div.innerHTML = '<div style="font-size:28px;margin-bottom:6px">' + icon + '</div>' +
+        '<div style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">' + e.name + '</div>' +
+        (e.size != null ? '<div style="font-size:9px;color:var(--muted);margin-top:2px">' + fmtSize(e.size) + '</div>' : '');
+      div.ondblclick = (function(path, editable, isDir) { return function() { isDir ? filesLoad(path) : filesOpen(path, editable); }; })(p, e.editable, e.type === 'dir');
+      div.oncontextmenu = (function(path, idx) { return function(ev) { filesCtxMenuByIdx(ev, path, idx); return false; }; })(p, i);
+      div.onmouseover = function() { this.style.borderColor = 'var(--accent2)'; };
+      div.onmouseout  = function() { this.style.borderColor = 'var(--border)'; };
+      grid.appendChild(div);
+    });
+  } else {
+    grid.style.display = 'block';
+    grid.style.gridTemplateColumns = '';
+    grid.style.gap = '';
+    const table = document.createElement('div');
+    table.style.cssText = 'display:table;width:100%;font-size:12px';
+    // En-tête
+    table.innerHTML = '<div style="display:table-row;border-bottom:1px solid var(--border);font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase">' +
+      '<div style="display:table-cell;padding:8px 12px">Nom</div>' +
+      '<div style="display:table-cell;padding:8px 12px;width:80px">Taille</div>' +
+      '<div style="display:table-cell;padding:8px 12px;width:70px">Perms</div>' +
+      '<div style="display:table-cell;padding:8px 12px;width:140px">Modifié</div>' +
+      '<div style="display:table-cell;padding:8px 12px;width:100px">Actions</div></div>';
+    entries.forEach((e, i) => {
+      const icon = fileIcon(e);
+      const p = (currentPath ? currentPath + '/' : '') + e.name;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:table-row;border-bottom:1px solid var(--border);transition:background .1s';
+      row.onmouseover = function() { this.style.background = 'var(--surface2)'; };
+      row.onmouseout  = function() { this.style.background = ''; };
+
+      // Colonne nom
+      const tdName = document.createElement('div');
+      tdName.style.cssText = 'display:table-cell;padding:9px 12px;vertical-align:middle';
+      const nameSpan = document.createElement('span');
+      nameSpan.style.cssText = 'cursor:pointer;display:flex;align-items:center;gap:8px';
+      nameSpan.innerHTML = '<span style="font-size:16px">' + icon + '</span>' +
+        '<span style="color:' + (e.type === 'dir' ? 'var(--accent2)' : 'var(--text)') + ';font-weight:' + (e.type === 'dir' ? '600' : '400') + '">' + e.name + '</span>';
+      nameSpan.ondblclick = (function(path, editable, isDir) { return function() { isDir ? filesLoad(path) : filesOpen(path, editable); }; })(p, e.editable, e.type === 'dir');
+      tdName.appendChild(nameSpan);
+
+      // Colonne taille
+      const tdSize = document.createElement('div');
+      tdSize.style.cssText = 'display:table-cell;padding:9px 12px;vertical-align:middle;color:var(--muted);font-family:var(--mono);font-size:11px';
+      tdSize.textContent = e.size != null ? fmtSize(e.size) : '—';
+
+      // Colonne perms
+      const tdPerms = document.createElement('div');
+      tdPerms.style.cssText = 'display:table-cell;padding:9px 12px;vertical-align:middle;color:var(--muted);font-family:var(--mono);font-size:11px';
+      tdPerms.textContent = e.perms || '—';
+
+      // Colonne date
+      const tdDate = document.createElement('div');
+      tdDate.style.cssText = 'display:table-cell;padding:9px 12px;vertical-align:middle;color:var(--muted);font-size:11px';
+      tdDate.textContent = fmtDate(e.mtime);
+
+      // Colonne actions
+      const tdAct = document.createElement('div');
+      tdAct.style.cssText = 'display:table-cell;padding:9px 12px;vertical-align:middle';
+      const actDiv = document.createElement('div');
+      actDiv.style.cssText = 'display:flex;gap:4px';
+      if (e.type === 'file') {
+        const btnDl = document.createElement('button');
+        btnDl.className = 'btn btn-ghost btn-sm'; btnDl.style.cssText = 'padding:3px 7px;font-size:10px'; btnDl.title = 'Télécharger'; btnDl.textContent = '↓';
+        btnDl.onclick = (function(path) { return function() { filesDownload(path); }; })(p);
+        actDiv.appendChild(btnDl);
+      }
+      if (e.editable) {
+        const btnEd = document.createElement('button');
+        btnEd.className = 'btn btn-ghost btn-sm'; btnEd.style.cssText = 'padding:3px 7px;font-size:10px'; btnEd.title = 'Éditer'; btnEd.textContent = '✏️';
+        btnEd.onclick = (function(path) { return function() { filesOpen(path, true); }; })(p);
+        actDiv.appendChild(btnEd);
+      }
+      const btnRn = document.createElement('button');
+      btnRn.className = 'btn btn-ghost btn-sm'; btnRn.style.cssText = 'padding:3px 7px;font-size:10px'; btnRn.title = 'Renommer'; btnRn.textContent = '✎';
+      btnRn.onclick = (function(path, name) { return function() { filesRename(path, name); }; })(p, e.name);
+      const btnDel = document.createElement('button');
+      btnDel.className = 'btn btn-ghost btn-sm'; btnDel.style.cssText = 'padding:3px 7px;font-size:10px;color:var(--red)'; btnDel.title = 'Supprimer'; btnDel.textContent = '✕';
+      btnDel.onclick = (function(path, name) { return function() { filesDelete(path, name); }; })(p, e.name);
+      actDiv.appendChild(btnRn);
+      actDiv.appendChild(btnDel);
+      tdAct.appendChild(actDiv);
+
+      row.appendChild(tdName); row.appendChild(tdSize); row.appendChild(tdPerms); row.appendChild(tdDate); row.appendChild(tdAct);
+      table.appendChild(row);
+    });
+    grid.innerHTML = '';
+    grid.appendChild(table);
+  }
+}
+
+// Menu contextuel via index (évite les problèmes d'échappement)
+function filesCtxMenuByIdx(e, filePath, idx) {
+  const entry = window._filesEntries[idx];
+  if (!entry) return;
+  filesCtxMenu(e, filePath, entry);
+}
+
+function fileIcon(e) {
+  if (e.type === 'dir') return '📁';
+  const ext = e.ext || '';
+  if (['.php'].includes(ext)) return '🐘';
+  if (['.html','.htm'].includes(ext)) return '🌐';
+  if (['.css'].includes(ext)) return '🎨';
+  if (['.js','.ts','.jsx','.tsx'].includes(ext)) return '⚡';
+  if (['.json'].includes(ext)) return '{}';
+  if (['.sql'].includes(ext)) return '🗄️';
+  if (['.jpg','.jpeg','.png','.gif','.webp','.svg'].includes(ext)) return '🖼️';
+  if (['.zip','.tar','.gz','.rar'].includes(ext)) return '📦';
+  if (['.sh'].includes(ext)) return '⚙️';
+  if (['.md'].includes(ext)) return '📝';
+  if (['.env','.htaccess','.htpasswd'].includes(ext)) return '🔒';
+  if (['.log'].includes(ext)) return '📋';
+  return '📄';
+}
+
+function fmtDate(d) {
+  return d ? new Date(d).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' }) : '—';
+}
+
+function fmtSize(bytes) {
+  if (bytes === null || bytes === undefined) return '—';
+  if (bytes < 1024) return bytes + ' o';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' Ko';
+  return (bytes/(1024*1024)).toFixed(1) + ' Mo';
+}
+
+function filesToggleView(v) {
+  _filesView = v;
+  document.getElementById('filesViewGrid').style.color = v==='grid' ? 'var(--accent2)' : '';
+  document.getElementById('filesViewList').style.color = v==='list' ? 'var(--accent2)' : '';
+  filesLoad(_filesCurrentPath);
+}
+
+function filesRefresh() { filesLoad(_filesCurrentPath); }
+
+// Ouvrir / éditer
+async function filesOpen(filePath, editable) {
+  if (!editable) {
+    filesDownload(filePath); return;
+  }
+  const res  = await fetch(`${API}/api/me/files/content?path=${encodeURIComponent(filePath)}`, { headers: { Authorization: 'Bearer ' + token } });
+  const data = await res.json();
+  if (!res.ok) { showToast(data.error, 'error'); return; }
+  _filesEditorPath = filePath;
+  document.getElementById('fileEditorTitle').textContent = filePath.split('/').pop();
+  document.getElementById('fileEditorContent').value = data.content;
+  document.getElementById('fileEditorInfo').textContent = `${filePath}  ·  ${fmtSize(data.size)}  ·  ${fmtDate(data.mtime)}`;
+  document.getElementById('fileEditorModal').classList.add('open');
+}
+
+function closeFileEditor() {
+  document.getElementById('fileEditorModal').classList.remove('open');
+  _filesEditorPath = null;
+}
+
+async function saveFileEditor() {
+  const btn = document.getElementById('fileEditorSaveBtn');
+  const content = document.getElementById('fileEditorContent').value;
+  btn.disabled = true; btn.textContent = '⏳ Sauvegarde…';
+  try {
+    const res  = await fetch(`${API}/api/me/files/content`, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: _filesEditorPath, content })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error, 'error'); }
+    else { showToast('Fichier sauvegardé ✓', 'success'); closeFileEditor(); filesLoad(_filesCurrentPath); }
+  } catch (e) { showToast(e.message, 'error'); }
+  btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13"/><polyline points="7 3 7 8 15 8"/></svg> Sauvegarder';
+}
+
+// Télécharger
+function filesDownload(filePath) {
+  const a = document.createElement('a');
+  a.href = `${API}/api/me/files/download?path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
+  a.download = filePath.split('/').pop();
+  a.click();
+}
+
+// Nouveau dossier
+async function filesMkdir() {
+  const name = prompt('Nom du nouveau dossier :');
+  if (!name || !name.trim()) return;
+  const fullPath = (_filesCurrentPath ? _filesCurrentPath + '/' : '') + name.trim();
+  const res  = await fetch(`${API}/api/me/files/mkdir`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: fullPath })
+  });
+  const data = await res.json();
+  if (!res.ok) showToast(data.error, 'error');
+  else { showToast('Dossier créé ✓', 'success'); filesLoad(_filesCurrentPath); }
+}
+
+// Nouveau fichier
+async function filesNewFile() {
+  const name = prompt('Nom du nouveau fichier :');
+  if (!name || !name.trim()) return;
+  const fullPath = (_filesCurrentPath ? _filesCurrentPath + '/' : '') + name.trim();
+  const res  = await fetch(`${API}/api/me/files/touch`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: fullPath })
+  });
+  const data = await res.json();
+  if (!res.ok) showToast(data.error, 'error');
+  else { showToast('Fichier créé ✓', 'success'); filesLoad(_filesCurrentPath); }
+}
+
+// Renommer
+async function filesRename(filePath, oldName) {
+  const newName = prompt('Nouveau nom :', oldName);
+  if (!newName || !newName.trim() || newName === oldName) return;
+  const res  = await fetch(`${API}/api/me/files/rename`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: filePath, newName: newName.trim() })
+  });
+  const data = await res.json();
+  if (!res.ok) showToast(data.error, 'error');
+  else { showToast('Renommé ✓', 'success'); filesLoad(_filesCurrentPath); }
+}
+
+// Supprimer
+function filesDelete(filePath, name) {
+  showConfirm({
+    title: `Supprimer « ${name} »`,
+    subtitle: 'Explorateur de fichiers',
+    body: 'Cette action est irréversible. Tous les fichiers contenus seront supprimés.',
+    icon: '🗑️', type: 'danger', confirmText: 'Supprimer',
+    onConfirm: async () => {
+      const res  = await fetch(`${API}/api/me/files`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath })
+      });
+      const data = await res.json();
+      if (!res.ok) showToast(data.error, 'error');
+      else { showToast('Supprimé ✓', 'success'); filesLoad(_filesCurrentPath); }
+    }
+  });
+}
+
+// Upload
+function filesUploadClick() {
+  document.getElementById('filesUploadInput').click();
+}
+
+async function filesUpload(input) {
+  if (!input.files.length) return;
+  const form = new FormData();
+  Array.from(input.files).forEach(f => form.append('files', f));
+  showToast(`Upload de ${input.files.length} fichier(s)…`, 'info');
+  try {
+    const res  = await fetch(`${API}/api/me/files/upload?path=${encodeURIComponent(_filesCurrentPath)}`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+      body: form
+    });
+    const data = await res.json();
+    if (!res.ok) showToast(data.error, 'error');
+    else {
+      showToast(`${data.uploaded.length} fichier(s) uploadé(s) ✓`, 'success');
+      filesLoad(_filesCurrentPath);
+    }
+  } catch (e) { showToast(e.message, 'error'); }
+  input.value = '';
+}
+
+// chmod
+function filesChmod(filePath, currentPerms) {
+  _chmodTarget = filePath;
+  const mode = parseInt(currentPerms, 8);
+  document.getElementById('chmodFileName').textContent = filePath;
+  document.getElementById('chmodOr').checked = !!(mode & 0o400);
+  document.getElementById('chmodOw').checked = !!(mode & 0o200);
+  document.getElementById('chmodOx').checked = !!(mode & 0o100);
+  document.getElementById('chmodGr').checked = !!(mode & 0o040);
+  document.getElementById('chmodGw').checked = !!(mode & 0o020);
+  document.getElementById('chmodGx').checked = !!(mode & 0o010);
+  document.getElementById('chmodPr').checked = !!(mode & 0o004);
+  document.getElementById('chmodPw').checked = !!(mode & 0o002);
+  document.getElementById('chmodPx').checked = !!(mode & 0o001);
+  chmodUpdatePreview();
+  document.getElementById('chmodModal').classList.add('open');
+  ['chmodOr','chmodOw','chmodOx','chmodGr','chmodGw','chmodGx','chmodPr','chmodPw','chmodPx']
+    .forEach(id => document.getElementById(id).onchange = chmodUpdatePreview);
+}
+
+function chmodUpdatePreview() {
+  const v = n => document.getElementById(n).checked;
+  const oct = (v('chmodOr')?4:0)+(v('chmodOw')?2:0)+(v('chmodOx')?1:0);
+  const grp = (v('chmodGr')?4:0)+(v('chmodGw')?2:0)+(v('chmodGx')?1:0);
+  const oth = (v('chmodPr')?4:0)+(v('chmodPw')?2:0)+(v('chmodPx')?1:0);
+  document.getElementById('chmodPreview').textContent = `${oct}${grp}${oth}`;
+}
+
+function closeChmodModal() { document.getElementById('chmodModal').classList.remove('open'); _chmodTarget = null; }
+
+async function applyChmod() {
+  const mode = document.getElementById('chmodPreview').textContent;
+  const res  = await fetch(`${API}/api/me/files/chmod`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: _chmodTarget, mode })
+  });
+  const data = await res.json();
+  if (!res.ok) showToast(data.error, 'error');
+  else { showToast(`Permissions : ${mode} ✓`, 'success'); closeChmodModal(); filesLoad(_filesCurrentPath); }
+}
+
+// Menu contextuel clic droit
+function filesCtxMenu(e, filePath, entry) {
+  document.querySelectorAll('.files-ctx-menu').forEach(m => m.remove());
+  const menu = document.createElement('div');
+  menu.className = 'files-ctx-menu';
+  menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;min-width:160px;box-shadow:0 8px 30px rgba(0,0,0,.3);font-size:12px`;
+  const items = [];
+  if (entry.type === 'dir') items.push(['📂 Ouvrir', () => filesLoad(filePath)]);
+  if (entry.editable)       items.push(['✏️ Éditer', () => filesOpen(filePath, true)]);
+  if (entry.type === 'file') items.push(['⬇️ Télécharger', () => filesDownload(filePath)]);
+  items.push(['✎ Renommer', () => filesRename(filePath, entry.name)]);
+  items.push(['🔒 Permissions', () => filesChmod(filePath, entry.perms || '644')]);
+  items.push(['🗑️ Supprimer', () => filesDelete(filePath, entry.name)]);
+  items.forEach(([label, action]) => {
+    const item = document.createElement('div');
+    item.textContent = label;
+    item.style.cssText = 'padding:7px 12px;border-radius:6px;cursor:pointer;transition:background .1s';
+    item.onmouseover = () => item.style.background = 'var(--surface2)';
+    item.onmouseout  = () => item.style.background = '';
+    item.onclick = () => { menu.remove(); action(); };
+    menu.appendChild(item);
+  });
+  document.body.appendChild(menu);
+  const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } };
+  setTimeout(() => document.addEventListener('click', close), 10);
+}
+
+// ── Toast helper ─────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  const colors = { success:'rgba(16,185,129,.15)', error:'rgba(239,68,68,.15)', info:'rgba(79,110,247,.15)', warn:'rgba(245,158,11,.15)' };
+  const borders = { success:'rgba(16,185,129,.4)', error:'rgba(239,68,68,.4)', info:'rgba(79,110,247,.4)', warn:'rgba(245,158,11,.4)' };
+  toast.style.cssText = `background:${colors[type]||colors.info};border:1px solid ${borders[type]||borders.info};backdrop-filter:blur(8px);color:var(--text);border-radius:10px;padding:12px 18px;font-size:12px;max-width:300px;animation:fadeIn .2s ease`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
 }
 
 // ── Mot de passe aléatoire ────────────────────────────────────────────────────

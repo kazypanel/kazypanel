@@ -27,7 +27,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.3.0';
+const KAZYPANEL_VERSION = '1.4.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -2203,6 +2203,238 @@ app.delete('/api/me/crontab/:id', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── ROUTE: EXPLORATEUR DE FICHIERS UTILISATEUR ──────────────────────────────
+
+// Helper : résoudre et sécuriser un chemin dans le répertoire FTP de l'utilisateur
+function safeUserPath(user, reqPath) {
+  const baseDir = path.resolve(getPrimaryFtpDir(user));
+  const target  = reqPath ? path.resolve(baseDir, reqPath.replace(/^\/+/, '')) : baseDir;
+  if (!target.startsWith(baseDir + path.sep) && target !== baseDir)
+    throw new Error('Accès refusé — chemin hors de votre répertoire');
+  return target;
+}
+
+// Extensions éditables en texte
+const TEXT_EXTS = new Set([
+  '.php','.html','.htm','.css','.js','.ts','.json','.xml','.txt','.md',
+  '.env','.htaccess','.htpasswd','.ini','.conf','.yaml','.yml','.sh',
+  '.sql','.csv','.log','.twig','.blade','.vue','.jsx','.tsx','.svg'
+]);
+
+// GET /api/me/files — lister un dossier
+app.get('/api/me/files', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  try {
+    const dir = safeUserPath(user, req.query.path || '');
+    if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Dossier introuvable' });
+    const stat = fs.statSync(dir);
+    if (!stat.isDirectory()) return res.status(400).json({ error: 'Ce chemin n\'est pas un dossier' });
+
+    const entries = fs.readdirSync(dir).map(name => {
+      try {
+        const full = path.join(dir, name);
+        const s    = fs.statSync(full);
+        const ext  = path.extname(name).toLowerCase();
+        return {
+          name,
+          type:     s.isDirectory() ? 'dir' : 'file',
+          size:     s.isFile() ? s.size : null,
+          mtime:    s.mtime.toISOString(),
+          ext:      s.isFile() ? ext : null,
+          editable: s.isFile() && TEXT_EXTS.has(ext),
+          perms:    (s.mode & 0o777).toString(8)
+        };
+      } catch { return null; }
+    }).filter(Boolean);
+
+    // Dossiers en premier, puis fichiers, tri alphabétique
+    entries.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    const baseDir = path.resolve(getPrimaryFtpDir(user));
+    const relPath = path.relative(baseDir, dir);
+    res.json({ path: relPath || '', entries, base: baseDir });
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
+// GET /api/me/files/content — lire un fichier
+app.get('/api/me/files/content', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  try {
+    const file = safeUserPath(user, req.query.path || '');
+    if (!fs.existsSync(file)) return res.status(404).json({ error: 'Fichier introuvable' });
+    const s = fs.statSync(file);
+    if (!s.isFile()) return res.status(400).json({ error: 'Ce chemin n\'est pas un fichier' });
+    if (s.size > 2 * 1024 * 1024) return res.status(400).json({ error: 'Fichier trop grand pour l\'éditeur (2 Mo max)' });
+    const ext = path.extname(file).toLowerCase();
+    if (!TEXT_EXTS.has(ext)) return res.status(400).json({ error: 'Type de fichier non éditable' });
+    const content = fs.readFileSync(file, 'utf8');
+    res.json({ content, path: req.query.path, size: s.size, mtime: s.mtime.toISOString() });
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
+// PUT /api/me/files/content — sauvegarder un fichier édité
+app.put('/api/me/files/content', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const { path: reqPath, content } = req.body;
+  if (content === undefined) return res.status(400).json({ error: 'Contenu requis' });
+  try {
+    const file = safeUserPath(user, reqPath);
+    const ext  = path.extname(file).toLowerCase();
+    if (!TEXT_EXTS.has(ext)) return res.status(400).json({ error: 'Type de fichier non éditable' });
+    fs.writeFileSync(file, content, 'utf8');
+    log('FILE_EDIT', `${user.username}: ${reqPath}`, 'OK');
+    res.json({ success: true, message: 'Fichier sauvegardé' });
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
+// POST /api/me/files/mkdir — créer un dossier
+app.post('/api/me/files/mkdir', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const { path: reqPath } = req.body;
+  if (!reqPath) return res.status(400).json({ error: 'Chemin requis' });
+  try {
+    const dir = safeUserPath(user, reqPath);
+    if (fs.existsSync(dir)) return res.status(409).json({ error: 'Ce dossier existe déjà' });
+    fs.mkdirSync(dir, { recursive: true });
+    log('FILE_MKDIR', `${user.username}: ${reqPath}`, 'OK');
+    res.json({ success: true, message: 'Dossier créé' });
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
+// POST /api/me/files/touch — créer un fichier vide
+app.post('/api/me/files/touch', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const { path: reqPath } = req.body;
+  if (!reqPath) return res.status(400).json({ error: 'Chemin requis' });
+  try {
+    const file = safeUserPath(user, reqPath);
+    if (fs.existsSync(file)) return res.status(409).json({ error: 'Ce fichier existe déjà' });
+    fs.writeFileSync(file, '', 'utf8');
+    log('FILE_TOUCH', `${user.username}: ${reqPath}`, 'OK');
+    res.json({ success: true, message: 'Fichier créé' });
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
+// POST /api/me/files/rename — renommer
+app.post('/api/me/files/rename', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const { path: reqPath, newName } = req.body;
+  if (!reqPath || !newName) return res.status(400).json({ error: 'Chemin et nouveau nom requis' });
+  if (newName.includes('/') || newName.includes('\\')) return res.status(400).json({ error: 'Nom invalide' });
+  try {
+    const src  = safeUserPath(user, reqPath);
+    const dest = path.join(path.dirname(src), newName);
+    safeUserPath(user, path.relative(path.resolve(getPrimaryFtpDir(user)), dest));
+    if (!fs.existsSync(src)) return res.status(404).json({ error: 'Source introuvable' });
+    if (fs.existsSync(dest)) return res.status(409).json({ error: 'Un fichier avec ce nom existe déjà' });
+    fs.renameSync(src, dest);
+    log('FILE_RENAME', `${user.username}: ${reqPath} → ${newName}`, 'OK');
+    res.json({ success: true, message: 'Renommé avec succès' });
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
+// DELETE /api/me/files — supprimer un fichier ou dossier
+app.delete('/api/me/files', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const reqPath = req.body.path || req.query.path;
+  if (!reqPath) return res.status(400).json({ error: 'Chemin requis' });
+  try {
+    const target = safeUserPath(user, reqPath);
+    const base   = path.resolve(getPrimaryFtpDir(user));
+    if (target === base) return res.status(403).json({ error: 'Impossible de supprimer le répertoire racine' });
+    if (!fs.existsSync(target)) return res.status(404).json({ error: 'Fichier introuvable' });
+    fs.rmSync(target, { recursive: true, force: true });
+    log('FILE_DELETE', `${user.username}: ${reqPath}`, 'OK');
+    res.json({ success: true, message: 'Supprimé avec succès' });
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
+// GET /api/me/files/download — télécharger un fichier
+app.get('/api/me/files/download', async (req, res) => {
+  // Accepter le token en query string pour les téléchargements directs
+  let userId;
+  try {
+    const t = req.query.token || (req.headers.authorization || '').replace('Bearer ', '');
+    const decoded = require('jsonwebtoken').verify(t, CONFIG.JWT_SECRET);
+    userId = decoded.id;
+  } catch { return res.status(401).json({ error: 'Token invalide' }); }
+  const user = USERS.find(u => u.id === parseInt(userId));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  try {
+    const file = safeUserPath(user, req.query.path || '');
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile())
+      return res.status(404).json({ error: 'Fichier introuvable' });
+    res.download(file);
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
+// POST /api/me/files/upload — uploader un ou plusieurs fichiers
+app.post('/api/me/files/upload', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+
+  // Récupérer les données multipart manuellement avec busboy
+  let busboy;
+  try { busboy = require('busboy')({ headers: req.headers, limits: { fileSize: 100 * 1024 * 1024 } }); }
+  catch { return res.status(500).json({ error: 'Module busboy non disponible — npm install busboy' }); }
+
+  const targetDir = safeUserPath(user, req.query.path || '');
+  if (!fs.existsSync(targetDir)) return res.status(404).json({ error: 'Dossier cible introuvable' });
+
+  const uploaded = [];
+  const errors   = [];
+
+  busboy.on('file', (fieldname, file, info) => {
+    const { filename } = info;
+    if (!filename) { file.resume(); return; }
+    const safeName = path.basename(filename);
+    let destPath;
+    try { destPath = safeUserPath(user, path.join(req.query.path || '', safeName)); }
+    catch { file.resume(); errors.push(`${safeName}: accès refusé`); return; }
+
+    const ws = fs.createWriteStream(destPath);
+    file.pipe(ws);
+    ws.on('finish', () => uploaded.push(safeName));
+    ws.on('error', e => errors.push(`${safeName}: ${e.message}`));
+  });
+
+  busboy.on('finish', () => {
+    log('FILE_UPLOAD', `${user.username}: ${uploaded.length} fichier(s) → ${req.query.path || '/'}`, 'OK');
+    res.json({ success: true, uploaded, errors });
+  });
+
+  busboy.on('error', err => res.status(500).json({ error: err.message }));
+  req.pipe(busboy);
+});
+
+// POST /api/me/files/chmod — changer les permissions
+app.post('/api/me/files/chmod', authMiddleware, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const { path: reqPath, mode } = req.body;
+  if (!reqPath || !mode) return res.status(400).json({ error: 'Chemin et mode requis' });
+  const modeNum = parseInt(mode, 8);
+  if (isNaN(modeNum) || modeNum < 0 || modeNum > 0o777)
+    return res.status(400).json({ error: 'Mode invalide (ex: 644, 755)' });
+  try {
+    const target = safeUserPath(user, reqPath);
+    if (!fs.existsSync(target)) return res.status(404).json({ error: 'Fichier introuvable' });
+    fs.chmodSync(target, modeNum);
+    log('FILE_CHMOD', `${user.username}: ${reqPath} → ${mode}`, 'OK');
+    res.json({ success: true, message: `Permissions modifiées : ${mode}` });
+  } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
+});
+
 // ─── ROUTE ADMIN : lister les bases d'un utilisateur ────────────────────────
 app.get('/api/users/:id/databases', authMiddleware, adminOnly, async (req, res) => {
   const user = USERS.find(u => u.id === parseInt(req.params.id));
@@ -2933,9 +3165,10 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   try { const ufwOut = await runCmd('ufw status 2>/dev/null | head -1'); s.ufw = ufwOut.includes('active') ? 'active' : 'inactive'; } catch { s.ufw = 'unknown'; }
   try { await runCmd('systemctl is-active fail2ban'); s.fail2ban = 'running'; } catch { s.fail2ban = 'stopped'; }
   try { await runCmd('systemctl is-active kazypanel'); s.kazypanel = 'running'; } catch { s.kazypanel = 'stopped'; }
+  try { await runCmd('systemctl is-active named 2>/dev/null || systemctl is-active bind9'); s.bind9 = 'running'; } catch { s.bind9 = 'stopped'; }
 
   // Uptime par service via systemctl show
-  const svcList = ['apache2', `php${CONFIG.PHP_VERSION}-fpm`, 'vsftpd', 'mariadb', 'fail2ban', 'kazypanel'];
+  const svcList = ['apache2', `php${CONFIG.PHP_VERSION}-fpm`, 'vsftpd', 'mariadb', 'fail2ban', 'kazypanel', 'named'];
   s.uptimes = {};
   for (const svc of svcList) {
     try {
@@ -3003,6 +3236,7 @@ const ALLOWED_SERVICES = {
   mariadb:  'MariaDB',
   fail2ban: 'Fail2ban',
   ufw:      'UFW',
+  bind9:    'BIND9',
   kazypanel:'KazyPanel'
 };
 const ALLOWED_ACTIONS = ['start', 'stop', 'restart', 'reload'];
@@ -3946,10 +4180,13 @@ async function writeAndReload(domain, records, existingSerial) {
   fs.writeFileSync(tmpFile, content);
 
   // Valider avec named-checkzone si disponible
-  const checkzoneAvailable = await new Promise(r => exec('which named-checkzone', e => r(!e)));
-  if (checkzoneAvailable) {
+  const checkzonePath = await new Promise(r => exec(
+    'which named-checkzone 2>/dev/null || find /usr /sbin /bin -name named-checkzone 2>/dev/null | head -1',
+    (e, out) => r(out.trim() || null)
+  ));
+  if (checkzonePath) {
     await new Promise((resolve, reject) => {
-      exec(`named-checkzone "${domain}" "${tmpFile}"`, (error, stdout, stderr) => {
+      exec(`"${checkzonePath}" "${domain}" "${tmpFile}"`, (error, stdout, stderr) => {
         if (error) {
           try { fs.unlinkSync(tmpFile); } catch {}
           const detail = (stdout || stderr || error.message).trim().split('\n').slice(-3).join(' | ');
@@ -3994,8 +4231,11 @@ async function ensureZoneInConf(domain) {
   fs.writeFileSync(tmpNamed, content + entry);
   await runCmd(`sudo cp "${tmpNamed}" "${BIND_CONF_LOCAL}" && sudo chmod 644 "${BIND_CONF_LOCAL}"`);
   fs.unlinkSync(tmpNamed);
-  const checkconfAvailable = await new Promise(r => exec('which named-checkconf', e => r(!e)));
-  if (checkconfAvailable) {
+  const checkconfPath = await new Promise(r => exec(
+    'which named-checkconf 2>/dev/null || find /usr /sbin /bin -name named-checkconf 2>/dev/null | head -1',
+    (e, out) => r(out.trim() || null)
+  ));
+  if (checkconfPath) {
     let tmpCreated = false;
     if (!fs.existsSync(file)) {
       try {
@@ -4008,7 +4248,7 @@ async function ensureZoneInConf(domain) {
       } catch {}
     }
     try {
-      await runCmd('named-checkconf');
+      await runCmd(`"${checkconfPath}"`);
     } catch (e) {
       const cleaned = fs.readFileSync(BIND_CONF_LOCAL, 'utf8').replace(entry, '');
       const tmpNamedClean = `/tmp/kp_named_clean_${Date.now()}`;
