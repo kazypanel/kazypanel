@@ -7,7 +7,7 @@
 > Panel d'administration web pour serveurs Apache/PHP — léger, rapide, sans dépendances lourdes.
 
 <<<<<<< HEAD
-![Version](https://img.shields.io/badge/version-1.3.0-blue)
+![Version](https://img.shields.io/badge/version-1.4.0-blue)
 =======
 <<<<<<< HEAD
 ![Version](https://img.shields.io/badge/version-1.4.0-blue)
@@ -653,6 +653,8 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 *KazyPanel v1.3.0 — Dernière mise à jour : Mars 2026*
 
 ## Changelog
+
+### v1.4.0 — 2026-03-25
 
 <<<<<<< HEAD
 ### v1.3.0 — 2026-03-25
