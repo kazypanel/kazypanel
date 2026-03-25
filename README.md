@@ -7,7 +7,7 @@
 > Panel d'administration web pour serveurs Apache/PHP — léger, rapide, sans dépendances lourdes.
 
 ![Version](https://img.shields.io/badge/version-1.3.0-blue)
-![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green)
+![Node](https://img.shields.io/badge/node-%3E%3D24.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
 
@@ -27,6 +27,7 @@
 - [API REST](#-api-rest)
 - [Thèmes](#-thèmes)
 - [Gestion des utilisateurs](#-gestion-des-utilisateurs)
+- [Explorateur de fichiers](#-explorateur-de-fichiers)
 - [Templates de ressources](#-templates-de-ressources)
 - [Sécurité](#-sécurité)
 - [Mise à jour](#-mise-à-jour)
@@ -89,7 +90,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 ### Services requis
 | Service | Version minimale |
 |---------|-----------------|
-| Node.js | 18.x ou supérieur |
+| Node.js | 24.x ou supérieur |
 | Apache2 | 2.4+ |
 | PHP-FPM | 8.4 (configurable) |
 | MariaDB | 10.6+ |
@@ -129,8 +130,8 @@ Le script pose quelques questions simples : le port du panel (8080 par défaut),
 **3. Mise à jour du système**
 `apt-get update && apt-get upgrade` pour partir sur une base propre.
 
-**4. Node.js 20**
-Ajout automatique du dépôt officiel NodeSource et installation de Node.js 20 LTS — la version minimale requise pour les API `fetch` natives utilisées par KazyPanel.
+**4. Node.js 24**
+Ajout automatique du dépôt officiel NodeSource et installation de Node.js 24 LTS — la version minimale requise pour les API `fetch` natives utilisées par KazyPanel.
 
 **5. Apache2**
 Installation et activation des modules nécessaires : `rewrite`, `ssl`, `proxy`, `proxy_http`, `proxy_fcgi`, `headers`, `setenvif`. Un vhost par défaut minimal est créé.
@@ -151,7 +152,7 @@ Installation du serveur DNS avec création du répertoire `/etc/bind/zones` et d
 Installation de Certbot avec le plugin Apache pour la génération de certificats SSL Let's Encrypt en 1 clic depuis le panel.
 
 **11. phpMyAdmin**
-Téléchargement de la dernière version stable (5.2.1) directement depuis le site officiel. Configuration automatique avec une clé `blowfish_secret` générée aléatoirement. Si une URL personnalisée a été fournie (ex: `pma.mondomaine.fr`), un vhost Apache dédié est créé. Sinon, phpMyAdmin est accessible via `/phpmyadmin` sur l'IP du serveur. L'URL est automatiquement injectée dans le `.env` de KazyPanel pour que le bouton phpMyAdmin dans le panel fonctionne directement.
+Téléchargement de la dernière version stable (récupérée automatiquement depuis phpmyadmin.net) directement depuis le site officiel. Configuration automatique avec une clé `blowfish_secret` générée aléatoirement. Si une URL personnalisée a été fournie (ex: `pma.mondomaine.fr`), un vhost Apache dédié est créé. Sinon, phpMyAdmin est accessible via `/phpmyadmin` sur l'IP du serveur. L'URL est automatiquement injectée dans le `.env` de KazyPanel pour que le bouton phpMyAdmin dans le panel fonctionne directement.
 
 **11. UFW (pare-feu)**
 Configuration et activation d'UFW avec les règles essentielles : SSH, HTTP (80), HTTPS (443), port du panel, FTP (21), plage passif FTP (40000-50000), DNS (53). Toute autre connexion entrante est bloquée par défaut.
@@ -186,7 +187,7 @@ Le script affiche l'URL d'accès, les identifiants admin, la liste des services 
   Répertoire d'installation [/opt/kazypanel] :
 
 ▶ Mise à jour du système ...
-▶ Installation de Node.js 20 ...
+▶ Installation de Node.js 24 ...
 ▶ Installation d'Apache2 ...
 ▶ Installation de PHP 8.4-FPM ...
 ▶ Installation de MariaDB ...
@@ -440,6 +441,16 @@ Authorization: Bearer <token>
 | POST | `/api/me/crontab` | Ajouter une tâche cron |
 | DELETE | `/api/me/crontab/:id` | Supprimer une tâche cron |
 | GET | `/api/me/diskusage` | Mon utilisation disque |
+| GET | `/api/me/files` | Lister un dossier |
+| GET | `/api/me/files/content` | Lire un fichier |
+| PUT | `/api/me/files/content` | Sauvegarder un fichier |
+| POST | `/api/me/files/mkdir` | Créer un dossier |
+| POST | `/api/me/files/touch` | Créer un fichier vide |
+| POST | `/api/me/files/rename` | Renommer |
+| DELETE | `/api/me/files` | Supprimer |
+| GET | `/api/me/files/download` | Télécharger un fichier |
+| POST | `/api/me/files/upload` | Uploader des fichiers |
+| POST | `/api/me/files/chmod` | Changer les permissions |
 
 ### Serveur & sécurité (admin)
 
@@ -482,7 +493,7 @@ Le thème choisi est sauvegardé dans le `localStorage` du navigateur.
 | Rôle | Accès |
 |------|-------|
 | **Admin** | Accès complet — gestion serveur, utilisateurs, configuration |
-| **Utilisateur** | Accès limité — ses domaines, BDD, FTP, DNS, crontab |
+| **Utilisateur** | Accès limité — ses domaines, BDD, FTP, DNS, crontab, explorateur de fichiers |
 
 ### Création d'un compte
 
@@ -496,6 +507,26 @@ Lors de la création, l'admin peut :
 ### Mot de passe aléatoire
 
 Le générateur produit un mot de passe de 12 caractères respectant toutes les règles de sécurité (majuscule, minuscule, chiffre, caractère spécial).
+
+---
+
+## 📂 Explorateur de fichiers
+
+Chaque utilisateur dispose d'un explorateur de fichiers accessible depuis la sidebar, limité à son répertoire FTP (`/var/www/username/`).
+
+### Fonctionnalités
+
+- **Navigation** — arborescence latérale, fil d'Ariane cliquable, vue liste ou grille
+- **Gestion** — créer, renommer, supprimer fichiers et dossiers
+- **Éditeur intégré** — édition en ligne des fichiers texte (`.php`, `.html`, `.css`, `.js`, `.json`, `.env`, `.htaccess`, etc.)
+- **Upload** — multi-fichiers depuis le navigateur
+- **Téléchargement** — télécharger n'importe quel fichier
+- **Permissions** — chmod avec interface visuelle (cases à cocher rwx)
+- **Menu contextuel** — clic droit sur chaque élément
+
+### Sécurité
+
+Toutes les opérations passent par `safeUserPath()` qui vérifie que le chemin cible reste dans le répertoire de l'utilisateur. Toute tentative de path traversal (`../`) est rejetée avec une erreur 403.
 
 ---
 
@@ -556,6 +587,10 @@ ADMIN_PASSWORD=VotreMotDePasseTresSécurisé!123
 
 ## 🔄 Mise à jour
 
+**Via le panel (recommandé)** — cliquer sur le bouton 🔔 dans la topbar puis "Lancer la mise à jour". Le panel exécute `git pull`, `npm install` et redémarre automatiquement avec les logs en temps réel.
+
+**Via SSH :**
+
 ```bash
 cd /opt/kazypanel
 git pull origin main
@@ -571,7 +606,7 @@ Le panel vérifie automatiquement les nouvelles versions au démarrage et affich
 
 **Le panel ne démarre pas**
 → Vérifiez les logs : `journalctl -u kazypanel -f`
-→ Vérifiez que Node.js ≥ 18 est installé : `node --version`
+→ Vérifiez que Node.js ≥ 24 est installé : `node --version`
 
 **Impossible de créer un domaine**
 → Vérifiez qu'Apache est bien installé et que `/etc/apache2/sites-available` existe
