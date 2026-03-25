@@ -647,6 +647,8 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 ## Changelog
 
 ### v1.3.0 — 2026-03-25
+
+### v1.3.0 — 2026-03-25
 - ✨ **Explorateur de fichiers utilisateur** — navigation arborescence, vue liste/grille, fil d'Ariane
 - ✏️ **Éditeur de fichiers intégré** — édition en ligne avec coloration (PHP, HTML, CSS, JS, JSON, .htaccess…)
 - 🔒 **Gestion des permissions** (chmod) — interface visuelle avec cases à cocher
