@@ -67,7 +67,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 - 🖱️ **Menu contextuel** — clic droit sur chaque fichier/dossier
 
 ### Interface
-- 🎨 **4 thèmes** — Dark, Light, Classic (Windows XP), macOS (Ventura)
+- 🎨 **7 thèmes** — Dark, Light, Classic (Windows XP), macOS, Oceanic, Sunset, Lavender
 - 📱 Responsive — adapté desktop et mobile
 - 🌙 Préférence de thème sauvegardée localement
 - 🔄 Vérification automatique des mises à jour
@@ -473,7 +473,7 @@ Authorization: Bearer <token>
 
 ## 🎨 Thèmes
 
-KazyPanel propose 4 thèmes sélectionnables depuis la topbar :
+KazyPanel propose 7 thèmes sélectionnables depuis la topbar :
 
 | Thème | Description |
 |-------|-------------|
@@ -481,6 +481,9 @@ KazyPanel propose 4 thèmes sélectionnables depuis la topbar :
 | 🌙 **Dark** | Interface sombre, idéale pour un usage prolongé |
 | 🖥️ **Classic** | Style Windows XP / OpenPanel, look rétro |
 | 🍎 **macOS** | Style Ventura/Sonoma, glassmorphism, icônes emoji |
+| 🌊 **Oceanic** | Tons bleu océan, ambiance marine |
+| 🌅 **Sunset** | Tons chauds orange et brun, ambiance coucher de soleil |
+| 💜 **Lavender** | Tons violet pastel, interface douce |
 
 Le thème choisi est sauvegardé dans le `localStorage` du navigateur.
 
