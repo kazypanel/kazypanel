@@ -937,6 +937,10 @@
         Mise à jour
         <span id="updateBadge" style="display:none;position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:#f59e0b;border:2px solid var(--surface);animation:pulse 2s infinite"></span>
       </button>
+      <button id="topbarAlertBtn" onclick="openPanelLogsModal()" class="admin-only tb-action-btn" style="display:none;position:relative" title="Alertes sécurité">
+        🚨 Alertes
+        <span id="alertBadge" style="display:none;position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;border:2px solid var(--surface);font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px"></span>
+      </button>
       <div style="position:relative;display:inline-flex;align-items:center">
         <button id="themeToggleBtn" onclick="toggleThemeMenu()" class="tb-action-btn" title="Changer le thème" style="width:34px;height:34px;padding:0;justify-content:center;font-size:15px">🌙</button>
         <div id="themeMenu" style="display:none;position:absolute;top:38px;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:999;min-width:150px;overflow:hidden">
@@ -1798,6 +1802,21 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
             Connexions
           </button>
+          <button id="secTab_score" onclick="secSwitchTab('score')"
+            style="display:flex;align-items:center;gap:8px;padding:11px 22px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;border-radius:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Vue d'ensemble
+          </button>
+          <button id="secTab_banned" onclick="secSwitchTab('banned')"
+            style="display:flex;align-items:center;gap:8px;padding:11px 22px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;border-radius:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            IPs bloquées
+          </button>
+          <button id="secTab_ssh" onclick="secSwitchTab('ssh')"
+            style="display:flex;align-items:center;gap:8px;padding:11px 22px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;border-radius:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Audit SSH
+          </button>
         </div>
 
         <!-- Panneau UFW -->
@@ -1884,6 +1903,81 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- ══ PANNEAU : VUE D'ENSEMBLE SÉCURITÉ ══ -->
+      <div id="secPane_score" style="display:none">
+        <div style="display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start">
+          <!-- Score -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;text-align:center">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:16px">Score de sécurité</div>
+            <div id="secScoreCircle" style="position:relative;width:120px;height:120px;margin:0 auto 16px">
+              <svg width="120" height="120" style="transform:rotate(-90deg)">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" stroke-width="10"/>
+                <circle id="secScoreArc" cx="60" cy="60" r="50" fill="none" stroke="var(--green)" stroke-width="10" stroke-dasharray="314" stroke-dashoffset="314" style="transition:stroke-dashoffset 1s ease"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                <div id="secScoreVal" style="font-size:28px;font-weight:800;color:var(--text)">—</div>
+                <div id="secScoreGrade" style="font-size:14px;font-weight:700;color:var(--muted)">—</div>
+              </div>
+            </div>
+            <div id="secScoreLabel" style="font-size:12px;color:var(--muted)">Chargement…</div>
+          </div>
+          <!-- Checks -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+              <div style="font-size:13px;font-weight:700">Points de contrôle</div>
+              <button onclick="loadSecScore()" class="btn btn-ghost btn-sm">🔄 Actualiser</button>
+            </div>
+            <div id="secChecks" style="padding:8px"></div>
+          </div>
+        </div>
+        <!-- Graphique connexions 7 jours -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:20px">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+            <div style="font-size:13px;font-weight:700">Connexions — 7 derniers jours</div>
+          </div>
+          <div id="loginChart" style="padding:20px;display:flex;align-items:flex-end;gap:8px;height:140px"></div>
+        </div>
+      </div>
+
+      <!-- ══ PANNEAU : IPs BLOQUÉES ══ -->
+      <div id="secPane_banned" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:14px;font-weight:700">IPs actuellement bannies</div>
+          <div style="display:flex;gap:8px">
+            <input id="banIpInput" class="form-input" placeholder="1.2.3.4" style="width:160px;font-family:var(--mono);font-size:12px">
+            <select id="banJailInput" class="form-input" style="width:120px;font-size:12px">
+              <option value="sshd">sshd</option>
+              <option value="apache-auth">apache-auth</option>
+              <option value="vsftpd">vsftpd</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="secBanIp()">🚫 Bannir</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadBanned()">🔄</button>
+          </div>
+        </div>
+        <div id="bannedList" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+      </div>
+
+      <!-- ══ PANNEAU : AUDIT SSH ══ -->
+      <div id="secPane_ssh" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;margin-bottom:16px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+              <div style="font-size:13px;font-weight:700">Tentatives SSH récentes</div>
+              <span id="sshVersion" style="font-family:var(--mono);font-size:10px;color:var(--muted)"></span>
+            </div>
+            <div id="sshAttempts" style="max-height:420px;overflow-y:auto;font-family:var(--mono);font-size:11px"></div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:700">Top IPs attaquantes</div>
+            </div>
+            <div id="sshTopIps" style="padding:12px"></div>
+          </div>
+        </div>
       </div>
 
       <!-- ══ UFW PAGE SECTION (legacy — redirige vers Sécurité) ══ -->
@@ -2164,6 +2258,22 @@
           <button class="cfg-tab" data-tab="bashrc" onclick="switchCfgTab('bashrc')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
             Bashrc
+          </button>
+          <button class="cfg-tab" data-tab="smtp" onclick="switchCfgTab('smtp')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Emails
+          </button>
+          <button class="cfg-tab" data-tab="backup-sched" onclick="switchCfgTab('backup-sched')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Sauvegardes
+          </button>
+          <button class="cfg-tab" data-tab="network" onclick="switchCfgTab('network')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="6" height="6"/><rect x="16" y="2" width="6" height="6"/><rect x="9" y="16" width="6" height="6"/><path d="M5 8v4h14V8M12 12v4"/></svg>
+            Réseau
+          </button>
+          <button class="cfg-tab" data-tab="sshkeys" onclick="switchCfgTab('sshkeys')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            Clés SSH
           </button>
         </div>
 
@@ -2603,6 +2713,224 @@
           </div>
         </div>
 
+        <!-- ═══ ONGLET : EMAILS (SMTP) ═══ -->
+        <div id="cfgTab-smtp" class="cfg-tab-content" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Serveur SMTP</div><div class="cfg-card-sub">Relay pour les notifications du panel</div></div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group"><label class="form-label">Hôte SMTP</label><input class="form-input" id="smtpHost" placeholder="smtp.gmail.com" style="font-family:var(--mono)"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <div class="form-group"><label class="form-label">Port</label><input class="form-input" id="smtpPort" type="number" value="587" style="font-family:var(--mono)"></div>
+                  <div class="form-group"><label class="form-label">TLS</label>
+                    <select class="form-input" id="smtpTls"><option value="1">Activé (STARTTLS)</option><option value="0">Désactivé</option></select>
+                  </div>
+                </div>
+                <div class="form-group"><label class="form-label">Utilisateur</label><input class="form-input" id="smtpUser" placeholder="user@gmail.com" style="font-family:var(--mono)"></div>
+                <div class="form-group"><label class="form-label">Mot de passe</label><input class="form-input" type="password" id="smtpPassword" placeholder="••••••••"></div>
+                <div class="form-group"><label class="form-label">Expéditeur (From)</label><input class="form-input" id="smtpFrom" placeholder="KazyPanel <noreply@mondomaine.fr>" style="font-family:var(--mono)"></div>
+                <button class="btn btn-primary" onclick="cfgSaveSmtp()" style="width:100%;justify-content:center">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Test d'envoi</div><div class="cfg-card-sub">Vérifier la configuration SMTP</div></div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group"><label class="form-label">Adresse destinataire</label><input class="form-input" id="smtpTestTo" type="email" placeholder="test@gmail.com"></div>
+                <div id="smtpTestResult" style="display:none;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:12px"></div>
+                <button class="btn btn-primary" onclick="cfgTestSmtp()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#10b981,#059669)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Envoyer un mail de test
+                </button>
+              </div>
+            </div>
+            <!-- Général : limites par défaut + expiration JWT -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Limites par défaut</div><div class="cfg-card-sub">Appliquées aux nouveaux utilisateurs sans template</div></div>
+              </div>
+              <div class="cfg-card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <div class="form-group"><label class="form-label">FTP max</label><input class="form-input" id="defFtp" type="number" min="0" style="font-family:var(--mono)"></div>
+                  <div class="form-group"><label class="form-label">BDD max</label><input class="form-input" id="defDb" type="number" min="0" style="font-family:var(--mono)"></div>
+                  <div class="form-group"><label class="form-label">Domaines max</label><input class="form-input" id="defDomain" type="number" min="0" style="font-family:var(--mono)"></div>
+                  <div class="form-group"><label class="form-label">Sous-domaines max</label><input class="form-input" id="defSubdomain" type="number" min="0" style="font-family:var(--mono)"></div>
+                  <div class="form-group"><label class="form-label">Disque (Mo)</label><input class="form-input" id="defDisk" type="number" min="0" style="font-family:var(--mono)"></div>
+                  <div class="form-group"><label class="form-label">Tâches cron max</label><input class="form-input" id="defCron" type="number" min="0" style="font-family:var(--mono)"></div>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-bottom:8px">0 = illimité</div>
+                <button class="btn btn-primary" onclick="cfgSaveDefaults()" style="width:100%;justify-content:center">Enregistrer</button>
+              </div>
+            </div>
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Expiration des sessions JWT</div><div class="cfg-card-sub">Durée de validité des tokens de connexion</div></div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label class="form-label">Durée</label>
+                  <select class="form-input" id="jwtExpiry">
+                    <option value="1h">1 heure</option>
+                    <option value="4h">4 heures</option>
+                    <option value="8h" selected>8 heures (défaut)</option>
+                    <option value="24h">24 heures</option>
+                    <option value="7d">7 jours</option>
+                    <option value="30d">30 jours</option>
+                  </select>
+                  <div style="font-size:10px;color:var(--muted);margin-top:4px">Les sessions actives ne sont pas affectées — prend effet à la prochaine connexion</div>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveJwt()" style="width:100%;justify-content:center">Enregistrer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ ONGLET : SAUVEGARDES PLANIFIÉES ═══ -->
+        <div id="cfgTab-backup-sched" class="cfg-tab-content" style="display:none">
+          <div style="max-width:700px;display:flex;flex-direction:column;gap:16px">
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Sauvegardes automatiques</div><div class="cfg-card-sub">Planification via crontab root</div></div>
+              </div>
+              <div class="cfg-card-body">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px">
+                  <span style="font-size:13px;font-weight:500">Activer les sauvegardes automatiques</span>
+                  <label style="position:relative;width:40px;height:22px;cursor:pointer">
+                    <input type="checkbox" id="backupEnabled" style="opacity:0;width:0;height:0" onchange="document.getElementById('backupTrack').style.background=this.checked?'var(--accent2)':'var(--border2)';document.getElementById('backupKnob').style.transform=this.checked?'translateX(18px)':'translateX(0)'">
+                    <span id="backupTrack" style="position:absolute;inset:0;border-radius:11px;background:var(--border2);transition:background .2s"></span>
+                    <span id="backupKnob" style="position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s"></span>
+                  </label>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="form-group">
+                    <label class="form-label">Fréquence (cron)</label>
+                    <input class="form-input" id="backupCron" value="0 3 * * *" style="font-family:var(--mono)" placeholder="0 3 * * *">
+                    <div style="font-size:10px;color:var(--muted);margin-top:4px">Ex: <code>0 3 * * *</code> = chaque nuit à 3h</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Rétention (nombre)</label>
+                    <input class="form-input" id="backupRetain" type="number" value="7" min="1" max="90" style="font-family:var(--mono)">
+                    <div style="font-size:10px;color:var(--muted);margin-top:4px">Les sauvegardes plus anciennes sont supprimées</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+                  <button onclick="document.getElementById('backupCron').value='0 3 * * *'" class="btn btn-ghost btn-sm">Chaque nuit à 3h</button>
+                  <button onclick="document.getElementById('backupCron').value='0 3 * * 0'" class="btn btn-ghost btn-sm">Chaque dimanche</button>
+                  <button onclick="document.getElementById('backupCron').value='0 3 1 * *'" class="btn btn-ghost btn-sm">1er du mois</button>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveBackupSchedule()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#8b5cf6,#7c3aed)">Enregistrer la planification</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ ONGLET : RÉSEAU ═══ -->
+        <div id="cfgTab-network" class="cfg-tab-content" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Ports FTP passif</div><div class="cfg-card-sub">Plage de ports pour les connexions FTP passives</div></div>
+              </div>
+              <div class="cfg-card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <div class="form-group"><label class="form-label">Port min</label><input class="form-input" id="ftpPassMin" type="number" value="40000" min="1024" max="65535" style="font-family:var(--mono)"></div>
+                  <div class="form-group"><label class="form-label">Port max</label><input class="form-input" id="ftpPassMax" type="number" value="50000" min="1024" max="65535" style="font-family:var(--mono)"></div>
+                </div>
+                <div class="form-group"><label class="form-label">IP publique du serveur</label>
+                  <input class="form-input" id="ftpPublicIp" placeholder="51.91.124.91" style="font-family:var(--mono)">
+                  <div style="font-size:10px;color:var(--muted);margin-top:4px">Utilisée par vsftpd pour les connexions passives depuis l'extérieur</div>
+                </div>
+                <div class="cfg-warn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <div>La plage de ports sera ouverte automatiquement dans UFW. vsftpd sera rechargé.</div>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveNetwork()" style="width:100%;justify-content:center;margin-top:8px">Appliquer</button>
+              </div>
+            </div>
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#059669,#047857)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Certificats SSL</div><div class="cfg-card-sub">Statut Let's Encrypt sur ce serveur</div></div>
+              </div>
+              <div id="sslStatusBody" class="cfg-card-body">
+                <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+              </div>
+            </div>
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Synchronisation NTP</div><div class="cfg-card-sub">Serveur de temps du système</div></div>
+              </div>
+              <div class="cfg-card-body">
+                <div id="ntpStatus" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px;padding:8px 12px;background:var(--surface2);border-radius:6px">Chargement…</div>
+                <div class="form-group"><label class="form-label">Serveur NTP</label>
+                  <input class="form-input" id="ntpServer" value="pool.ntp.org" style="font-family:var(--mono)">
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveNtp()" style="width:100%;justify-content:center">Appliquer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ ONGLET : CLÉS SSH ═══ -->
+        <div id="cfgTab-sshkeys" class="cfg-tab-content" style="display:none">
+          <div style="max-width:800px;display:flex;flex-direction:column;gap:16px">
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#dc2626,#b91c1c)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                </div>
+                <div style="flex:1"><div class="cfg-card-title">Clés SSH autorisées</div><div class="cfg-card-sub"><code>~/.ssh/authorized_keys</code></div></div>
+                <select id="sshKeyUser" onchange="loadSshKeys()" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+                  <option value="root">root</option>
+                  <option value="debian">debian</option>
+                </select>
+              </div>
+              <div class="cfg-card-body">
+                <div id="sshKeysList" style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px">
+                  <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+                </div>
+                <div style="border-top:1px solid var(--border);padding-top:14px">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">Ajouter une clé publique</div>
+                  <textarea id="newSshKey" rows="3" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:11px;color:var(--text);resize:vertical;outline:none" placeholder="ssh-ed25519 AAAA... commentaire"></textarea>
+                  <button class="btn btn-primary" onclick="cfgAddSshKey()" style="margin-top:8px">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Ajouter la clé
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
       <div id="domainsSection">
         <div class="page-header">
@@ -2696,7 +3024,7 @@
           </button>
         </div>
         <!-- Nb lignes -->
-        <select id="logLinesSelect" class="form-input" style="width:80px;font-size:12px;height:34px">
+        <select id="apacheLogLinesSelect" class="form-input" style="width:80px;font-size:12px;height:34px">
           <option value="50">50</option>
           <option value="100" selected>100</option>
           <option value="200">200</option>
@@ -3833,11 +4161,13 @@ function applyRoleUI() {
     document.getElementById('userFilesSection').style.display     = 'none';
   } else {
     // Utilisateur limité : masquer les sections admin
-    document.getElementById('domainsSection').style.display    = 'none';
-    document.getElementById('usersSection').style.display      = 'none';
-    document.getElementById('templatesSection').style.display  = 'none';
-    document.getElementById('statusSection').style.display     = 'none';
-    document.getElementById('configSection').style.display     = 'none';
+    document.getElementById('domainsSection').style.display       = 'none';
+    document.getElementById('usersSection').style.display         = 'none';
+    document.getElementById('templatesSection').style.display     = 'none';
+    document.getElementById('statusSection').style.display        = 'none';
+    document.getElementById('configSection').style.display        = 'none';
+    document.getElementById('securitePageSection').style.display  = 'none';
+    document.getElementById('dnsPageSection').style.display       = 'none';
     // Afficher le profil par défaut
     document.getElementById('userProfileSection').style.display = 'block';
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -4136,8 +4466,10 @@ function setTopbarSection(name) {
 // ── Helper : masque toutes les sections principales ──────────────────────────
 function hideAllMainSections() {
   ['domainsSection','ipSection','usersSection','statusSection','templatesSection',
-   'configSection','userCrontabSection','dnsPageSection','securitePageSection',
-   'ufwPageSection','fail2banPageSection','loginsPageSection','terminalPageSection']
+   'configSection','userCrontabSection','userFilesSection','dnsPageSection','securitePageSection',
+   'ufwPageSection','fail2banPageSection','loginsPageSection','terminalPageSection',
+   'userProfileSection','userFtpSection','userDbSection','userDomainsSection','userDnsSection','userLogsSection',
+   'secPane_score','secPane_banned','secPane_ssh']
     .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 }
 
@@ -4670,9 +5002,7 @@ async function loadUserProfile() {
       quotaRow('🗄️', 'Bases de données',  fmtCount(dbUsed,  dbLim)),
       quotaRow('🌐', 'Domaines',           fmtCount(d.domainCount    ?? 0, domLim)),
       quotaRow('🏠', 'Sous-domaines',      fmtCount(d.subdomainCount ?? 0, subLim)),
-      quotaRow('💾', 'Espace disque',      diskLim > 0
-        ? `<div id="profileDiskRow"><span style="font-family:var(--mono);color:var(--muted)">Limite : ${fmtMb(diskLim)}</span></div>`
-        : `<div id="profileDiskRow"><span style="font-family:var(--mono);color:var(--muted)">Illimité</span></div>`),
+      quotaRow('💾', 'Espace disque',      `<div id="profileDiskRow"><span style="font-family:var(--mono);color:var(--muted)">${diskLim > 0 ? `Limite : ${fmtMb(diskLim)}` : 'Illimité'}</span></div>`),
       quotaRow('🐬', 'Stockage par base',  dbStLim > 0
         ? `<span style="font-family:var(--mono);color:var(--muted)">Limite : ${fmtMb(dbStLim)}</span>`
         : `<span style="font-family:var(--mono);color:var(--muted)">Illimité</span>`),
@@ -4917,7 +5247,7 @@ async function deleteUserDomain(name, domain) {
 // ── Helpers : masquer toutes les sections utilisateur ────────
 function hideAllUserSections() {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  ['userProfileSection','userFtpSection','userDbSection','userDomainsSection','userDnsSection','userCrontabSection'].forEach(id => {
+  ['userProfileSection','userFtpSection','userDbSection','userDomainsSection','userDnsSection','userCrontabSection','userFilesSection'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -4985,11 +5315,8 @@ function showUserLogsSection() {
 //  CRONTAB
 // ══════════════════════════════════════════════════════════════════════════════
 function showUserCrontabSection() {
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  hideAllUserSections();
   document.getElementById('navUserCrontab').classList.add('active');
-  ['userProfileSection','userFtpSection','userDbSection','userDomainsSection','userDnsSection'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.style.display = 'none';
-  });
   document.getElementById('userCrontabSection').style.display = 'block';
   setTopbarSection('Crontab');
   loadCrontabList();
@@ -5222,7 +5549,7 @@ function reloadLog() {
 
 async function loadLog() {
   const domain = document.getElementById('logDomainSelect').value;
-  const lines  = document.getElementById('logLinesSelect').value;
+  const lines  = document.getElementById('apacheLogLinesSelect').value;
   if (!domain) return;
 
   const content = document.getElementById('logContent');
@@ -5606,12 +5933,11 @@ async function showUfwPage() {
 let _secActiveTab = 'ufw';
 
 async function showSecuritePage(tab) {
+  if (currentRole !== 'admin') return;
   tab = tab || _secActiveTab || 'ufw';
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const navSec = document.getElementById('navSecurite');
   if (navSec) navSec.classList.add('active');
-  // Garder aussi les anciens navs actifs pour compatibilité
-  const legacyMap = { ufw: 'navUfw', fail2ban: 'navFail2ban', logins: 'navLogins' };
   hideAllMainSections();
   document.getElementById('securitePageSection').style.display = 'block';
   setTopbarSection('Sécurité');
@@ -5620,25 +5946,146 @@ async function showSecuritePage(tab) {
 
 async function secSwitchTab(tab) {
   _secActiveTab = tab;
-  ['ufw','fail2ban','logins'].forEach(t => {
-    const btn  = document.getElementById('secTab_' + t);
-    const pane = document.getElementById('secPane_' + t);
-    if (btn) {
-      if (t === tab) {
-        btn.style.color = 'var(--accent)';
-        btn.style.borderBottomColor = 'var(--accent)';
-        btn.style.background = 'transparent';
-      } else {
-        btn.style.color = 'var(--muted)';
-        btn.style.borderBottomColor = 'transparent';
-        btn.style.background = 'transparent';
-      }
-    }
-    if (pane) pane.style.display = t === tab ? 'block' : 'none';
+  ['ufw','fail2ban','logins','score','banned','ssh'].forEach(t => {
+    const btn  = document.getElementById(`secTab_${t}`);
+    const pane = document.getElementById(`secPane_${t}`);
+    if (btn)  { btn.style.color = t===tab ? 'var(--accent2)' : 'var(--muted)'; btn.style.borderBottomColor = t===tab ? 'var(--accent2)' : 'transparent'; }
+    if (pane) pane.style.display = t===tab ? '' : 'none';
   });
   if (tab === 'ufw')      await loadUfwStatus();
   if (tab === 'fail2ban') { _f2bActiveTab = 'surveillance'; await f2bSwitchTab('surveillance'); }
   if (tab === 'logins')   await loadLoginsPage();
+  if (tab === 'score')    { await loadSecScore(); await loadLoginChart(); }
+  if (tab === 'banned')   await loadBanned();
+  if (tab === 'ssh')      await loadSshAudit();
+}
+
+// ── Score sécurité ────────────────────────────────────────────────────────────
+async function loadSecScore() {
+  try {
+    const res  = await fetch(`${API}/api/security/score`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    document.getElementById('secScoreVal').textContent   = data.score;
+    document.getElementById('secScoreGrade').textContent = data.grade;
+    const color = data.score >= 85 ? 'var(--green)' : data.score >= 60 ? '#f59e0b' : 'var(--red)';
+    document.getElementById('secScoreArc').style.stroke = color;
+    document.getElementById('secScoreArc').style.strokeDashoffset = 314 - (314 * data.score / 100);
+    document.getElementById('secScoreLabel').textContent = data.score >= 85 ? '✅ Bonne sécurité' : data.score >= 60 ? '⚠️ À améliorer' : '❌ Sécurité faible';
+    document.getElementById('secScoreLabel').style.color = color;
+    document.getElementById('secChecks').innerHTML = data.checks.map(c => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border)">
+        <span style="font-size:16px;flex-shrink:0">${c.ok ? '✅' : '❌'}</span>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:${c.ok?'var(--text)':'var(--red)'}">${c.label}</div>
+          ${c.tip ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${c.tip}</div>` : ''}
+        </div>
+      </div>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function loadLoginChart() {
+  try {
+    const res  = await fetch(`${API}/api/security/logins/stats`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    const chart = document.getElementById('loginChart');
+    const maxVal = Math.max(1, ...data.days.map(d => d.ok + d.fail));
+    chart.innerHTML = data.days.map(d => {
+      const total = d.ok + d.fail;
+      const hOk   = Math.round((d.ok / maxVal) * 90);
+      const hFail = Math.round((d.fail / maxVal) * 90);
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="font-size:9px;color:var(--muted);margin-bottom:4px">${total || ''}</div>
+        <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:90px;gap:1px">
+          ${d.fail ? `<div style="width:100%;height:${hFail}px;background:rgba(239,68,68,.7);border-radius:3px 3px 0 0" title="${d.fail} échec(s)"></div>` : ''}
+          ${d.ok   ? `<div style="width:100%;height:${hOk}px;background:rgba(34,197,94,.7);border-radius:${d.fail?'0':'3px 3px'} 0 0" title="${d.ok} réussie(s)"></div>` : ''}
+          ${!total ? `<div style="width:100%;height:4px;background:var(--border);border-radius:2px"></div>` : ''}
+        </div>
+        <div style="font-size:9px;color:var(--muted)">${d.label}</div>
+      </div>`;
+    }).join('');
+    chart.innerHTML += `<div style="font-size:9px;color:var(--muted);display:flex;gap:12px;padding-left:8px;align-self:flex-end;margin-bottom:2px">
+      <span><span style="display:inline-block;width:8px;height:8px;background:rgba(34,197,94,.7);border-radius:1px;margin-right:3px"></span>OK</span>
+      <span><span style="display:inline-block;width:8px;height:8px;background:rgba(239,68,68,.7);border-radius:1px;margin-right:3px"></span>FAIL</span>
+    </div>`;
+  } catch {}
+}
+
+// ── IPs bannies ───────────────────────────────────────────────────────────────
+async function loadBanned() {
+  const list = document.getElementById('bannedList');
+  list.innerHTML = '<div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const res  = await fetch(`${API}/api/security/banned`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (!data.banned.length) { list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">✅ Aucune IP bannie</div>'; return; }
+    list.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:10px 16px;text-align:left;font-size:11px;color:var(--muted)">Adresse IP</th>
+        <th style="padding:10px 16px;text-align:left;font-size:11px;color:var(--muted)">Jail</th>
+        <th style="padding:10px 16px;font-size:11px;color:var(--muted);text-align:right">Action</th>
+      </tr></thead>
+      <tbody>${data.banned.map(b => `
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--red)">${b.ip}</td>
+          <td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--muted)">${b.jail}</td>
+          <td style="padding:8px 16px;text-align:right">
+            <button onclick="secUnbanIp('${b.ip}','${b.jail}')" class="btn btn-ghost btn-sm" style="font-size:11px">✅ Débannir</button>
+          </td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  } catch(e) { list.innerHTML = `<div style="color:var(--red);padding:20px">${e.message}</div>`; }
+}
+
+async function secBanIp() {
+  const ip   = document.getElementById('banIpInput').value.trim();
+  const jail = document.getElementById('banJailInput').value;
+  if (!ip) return;
+  const res  = await fetch(`${API}/api/security/ban`, { method:'POST', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify({ ip, jail }) });
+  const data = await res.json();
+  res.ok ? (showToast(data.message, 'success'), document.getElementById('banIpInput').value='', loadBanned()) : showToast(data.error, 'error');
+}
+
+async function secUnbanIp(ip, jail) {
+  const res  = await fetch(`${API}/api/fail2ban/unban`, { method:'POST', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify({ ip, jail }) });
+  const data = await res.json();
+  res.ok ? (showToast(`${ip} débanni ✓`, 'success'), loadBanned()) : showToast(data.error, 'error');
+}
+
+// ── Audit SSH ─────────────────────────────────────────────────────────────────
+async function loadSshAudit() {
+  document.getElementById('sshAttempts').innerHTML = '<div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const res  = await fetch(`${API}/api/security/ssh-audit`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    document.getElementById('sshVersion').textContent = data.sshVersion || '';
+    if (!data.attempts.length) {
+      document.getElementById('sshAttempts').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Aucune tentative trouvée dans auth.log</div>';
+    } else {
+      document.getElementById('sshAttempts').innerHTML = data.attempts.map(a => `
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 14px;border-bottom:1px solid var(--border)">
+          <span style="color:${a.type==='OK'?'var(--green)':'var(--red)'};font-size:14px">${a.type==='OK'?'✅':'❌'}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0">${a.date}</span>
+          <span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text)">${a.user}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">${a.ip}</span>
+        </div>`).join('');
+    }
+    document.getElementById('sshTopIps').innerHTML = data.topIps.length
+      ? data.topIps.map((t,i) => `
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);width:18px">#${i+1}</span>
+          <span style="font-family:var(--mono);font-size:11px;flex:1;color:var(--red)">${t.ip}</span>
+          <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)">${t.count}</span>
+          <button onclick="secBanFromAudit('${t.ip}')" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:10px">🚫</button>
+        </div>`).join('')
+      : '<div style="color:var(--muted);font-size:12px;padding:10px">Aucune tentative répétée</div>';
+  } catch(e) { document.getElementById('sshAttempts').innerHTML = `<div style="color:var(--red);padding:20px">${e.message}</div>`; }
+}
+
+async function secBanFromAudit(ip) {
+  document.getElementById('banIpInput').value = ip;
+  const res = await fetch(`${API}/api/security/ban`, { method:'POST', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify({ ip, jail:'sshd' }) });
+  const data = await res.json();
+  res.ok ? showToast(`${ip} banni ✓`, 'success') : showToast(data.error, 'error');
 }
 
 // ─── CONFIG VHOST DOMAINE ────────────────────────────────────────────────────
@@ -5958,7 +6405,7 @@ async function loadLoginsPage() {
           <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Date / Heure</th>
           ${isAdmin ? '<th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Utilisateur</th>' : ''}
           <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Statut</th>
-          ${isAdmin ? '<th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Adresse IP</th>' : ''}
+          ${isAdmin ? '<th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Navigateur</th>' : ''}
           ${isAdmin ? '<th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted)">Détails</th>' : ''}
         </tr>
       </thead>
@@ -5974,8 +6421,8 @@ async function loadLoginsPage() {
                 ${e.status==='OK'?'✅ Réussie':'❌ Échouée'}
               </span>
             </td>
-            ${isAdmin ? `<td style="padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--muted)">${e.ip}</td>` : ''}
-            ${isAdmin ? `<td style="padding:8px 12px;font-size:11px;color:var(--muted)">${e.detail || '—'}</td>` : ''}
+            ${isAdmin ? `<td style="padding:8px 12px;font-size:12px;color:var(--text)">${e.browser || '—'}</td>` : ''}
+            ${isAdmin ? `<td style="padding:8px 12px;font-size:11px;color:var(--muted)">${e.detail || '—'}<br><span style="font-family:var(--mono);font-size:10px">${e.ip || ''}</span></td>` : ''}
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -7058,7 +7505,7 @@ function openCreateUserModal() {
   document.getElementById('newUserRole').value = 'user';
   document.getElementById('newUserPassword').value = '';
   document.getElementById('newUserTplGroup').style.display = '';
-  document.getElementById('pwLabel').innerHTML = 'Mot de passe <button type="button" onclick="generateRandomPassword()" id="genPwBtn" style="margin-left:8px;background:rgba(79,110,247,.12);border:1px solid rgba(79,110,247,.3);color:var(--accent2);border-radius:4px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.03em">🎲 Aléatoire</button>';
+  document.getElementById('pwLabel').innerHTML = 'Mot de passe <button type="button" onclick="generateRandomPassword()" style="margin-left:8px;background:rgba(79,110,247,.12);border:1px solid rgba(79,110,247,.3);color:var(--accent2);border-radius:4px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.03em">🎲 Aléatoire</button>';
   document.getElementById('saveUserBtn').textContent = 'Créer';
   checkPwStrengthUser('');
   // Charger les templates dans le select
@@ -8045,10 +8492,227 @@ function switchCfgTab(tab) {
   document.querySelector(`.cfg-tab[data-tab="${tab}"]`).classList.add('active');
   document.querySelectorAll('.cfg-tab-content').forEach(c => c.style.display = 'none');
   document.getElementById(`cfgTab-${tab}`).style.display = '';
-  if (tab === 'system')   loadPanelUsage();
-  if (tab === 'https')    loadHttpsStatus();
-  if (tab === 'server')   { cfgLoadSshAllowUsers(); cfgLoadHostname(); }
-  if (tab === 'bashrc')   cfgLoadBashrc();
+  if (tab === 'system')       loadPanelUsage();
+  if (tab === 'https')        loadHttpsStatus();
+  if (tab === 'server')       { cfgLoadSshAllowUsers(); cfgLoadHostname(); }
+  if (tab === 'bashrc')       cfgLoadBashrc();
+  if (tab === 'smtp')         cfgLoadGeneral();
+  if (tab === 'backup-sched') cfgLoadBackupSchedule();
+  if (tab === 'network')      { cfgLoadNetwork(); cfgLoadSslStatus(); cfgLoadNtp(); }
+  if (tab === 'sshkeys')      loadSshKeys();
+}
+
+// ── Config générale : defaults + JWT + SMTP ──────────────────────────────────
+async function cfgLoadGeneral() {
+  try {
+    const res  = await fetch(`${API}/api/config/general`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (data.defaults) {
+      document.getElementById('defFtp').value       = data.defaults.ftpLimit ?? 1;
+      document.getElementById('defDb').value        = data.defaults.dbLimit  ?? 5;
+      document.getElementById('defDomain').value    = data.defaults.domainLimit ?? 3;
+      document.getElementById('defSubdomain').value = data.defaults.subdomainLimit ?? 5;
+      document.getElementById('defDisk').value      = data.defaults.diskLimit ?? 2048;
+      document.getElementById('defCron').value      = data.defaults.cronLimit ?? 10;
+    }
+    if (data.jwtExpiry) {
+      const sel = document.getElementById('jwtExpiry');
+      if (sel) sel.value = data.jwtExpiry;
+    }
+    if (data.smtp) {
+      document.getElementById('smtpHost').value = data.smtp.host || '';
+      document.getElementById('smtpPort').value = data.smtp.port || 587;
+      document.getElementById('smtpUser').value = data.smtp.user || '';
+      document.getElementById('smtpFrom').value = data.smtp.from || '';
+      document.getElementById('smtpTls').value  = data.smtp.tls ? '1' : '0';
+    }
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function cfgSaveDefaults() {
+  const body = {
+    ftpLimit:       parseInt(document.getElementById('defFtp').value),
+    dbLimit:        parseInt(document.getElementById('defDb').value),
+    domainLimit:    parseInt(document.getElementById('defDomain').value),
+    subdomainLimit: parseInt(document.getElementById('defSubdomain').value),
+    diskLimit:      parseInt(document.getElementById('defDisk').value),
+    cronLimit:      parseInt(document.getElementById('defCron').value),
+  };
+  const res = await fetch(`${API}/api/config/defaults`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  res.ok ? showToast('Limites enregistrées ✓', 'success') : showToast(data.error, 'error');
+}
+
+async function cfgSaveJwt() {
+  const expiry = document.getElementById('jwtExpiry').value;
+  const res = await fetch(`${API}/api/config/jwt`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify({ expiry }) });
+  const data = await res.json();
+  res.ok ? showToast('Expiration JWT enregistrée ✓', 'success') : showToast(data.error, 'error');
+}
+
+async function cfgSaveSmtp() {
+  const body = {
+    host:     document.getElementById('smtpHost').value.trim(),
+    port:     parseInt(document.getElementById('smtpPort').value),
+    user:     document.getElementById('smtpUser').value.trim(),
+    password: document.getElementById('smtpPassword').value,
+    from:     document.getElementById('smtpFrom').value.trim(),
+    tls:      document.getElementById('smtpTls').value === '1',
+  };
+  const res = await fetch(`${API}/api/config/smtp`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  res.ok ? showToast('Configuration SMTP enregistrée ✓', 'success') : showToast(data.error, 'error');
+}
+
+async function cfgTestSmtp() {
+  const to  = document.getElementById('smtpTestTo').value.trim();
+  const box = document.getElementById('smtpTestResult');
+  if (!to) { showToast('Adresse destinataire requise', 'error'); return; }
+  box.style.display = 'block';
+  box.style.background = 'rgba(79,110,247,.08)';
+  box.style.border = '1px solid rgba(79,110,247,.2)';
+  box.style.color = 'var(--text)';
+  box.textContent = '⏳ Envoi en cours…';
+  const res  = await fetch(`${API}/api/config/smtp/test`, { method:'POST', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify({ to }) });
+  const data = await res.json();
+  if (res.ok) {
+    box.style.background = 'rgba(16,185,129,.08)'; box.style.border = '1px solid rgba(16,185,129,.2)'; box.style.color = '#6ee7b7';
+    box.textContent = '✅ ' + data.message;
+  } else {
+    box.style.background = 'rgba(239,68,68,.08)'; box.style.border = '1px solid rgba(239,68,68,.2)'; box.style.color = '#f87171';
+    box.textContent = '❌ ' + data.error;
+  }
+}
+
+// ── Sauvegardes planifiées ────────────────────────────────────────────────────
+async function cfgLoadBackupSchedule() {
+  try {
+    const res  = await fetch(`${API}/api/config/backup-schedule`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (data.schedule) {
+      const enabled = !!data.schedule.enabled;
+      document.getElementById('backupEnabled').checked = enabled;
+      document.getElementById('backupTrack').style.background = enabled ? 'var(--accent2)' : 'var(--border2)';
+      document.getElementById('backupKnob').style.transform   = enabled ? 'translateX(18px)' : 'translateX(0)';
+      document.getElementById('backupCron').value    = data.schedule.cron   || '0 3 * * *';
+      document.getElementById('backupRetain').value  = data.schedule.retain || 7;
+    }
+  } catch {}
+}
+
+async function cfgSaveBackupSchedule() {
+  const body = {
+    enabled: document.getElementById('backupEnabled').checked,
+    cron:    document.getElementById('backupCron').value.trim(),
+    retain:  parseInt(document.getElementById('backupRetain').value),
+  };
+  const res  = await fetch(`${API}/api/config/backup-schedule`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  res.ok ? showToast('Planification enregistrée ✓', 'success') : showToast(data.error, 'error');
+}
+
+// ── Réseau (FTP passif + NTP + SSL status) ────────────────────────────────────
+async function cfgLoadNetwork() {
+  try {
+    const res  = await fetch(`${API}/api/config/network`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (data.network) {
+      document.getElementById('ftpPassMin').value  = data.network.ftpPassiveMin || 40000;
+      document.getElementById('ftpPassMax').value  = data.network.ftpPassiveMax || 50000;
+      document.getElementById('ftpPublicIp').value = data.network.ftpPublicIp   || '';
+    }
+  } catch {}
+}
+
+async function cfgSaveNetwork() {
+  const body = {
+    ftpPassiveMin: parseInt(document.getElementById('ftpPassMin').value),
+    ftpPassiveMax: parseInt(document.getElementById('ftpPassMax').value),
+    ftpPublicIp:   document.getElementById('ftpPublicIp').value.trim(),
+  };
+  const res  = await fetch(`${API}/api/config/network`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  res.ok ? showToast('Configuration réseau appliquée ✓', 'success') : showToast(data.error, 'error');
+}
+
+async function cfgLoadSslStatus() {
+  const body = document.getElementById('sslStatusBody');
+  body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const res  = await fetch(`${API}/api/config/ssl-status`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (!data.certs || !data.certs.length) { body.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px">Aucun certificat Let\'s Encrypt trouvé</div>'; return; }
+    body.innerHTML = data.certs.map(c => {
+      const color = c.daysLeft == null ? 'var(--muted)' : c.daysLeft < 15 ? 'var(--red)' : c.daysLeft < 30 ? '#f59e0b' : 'var(--green)';
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text)">${c.name}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${c.domains}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;font-weight:700;color:${color}">${c.daysLeft != null ? c.daysLeft+' jours' : '—'}</div>
+          <div style="font-size:10px;color:var(--muted)">${c.expiry}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { body.innerHTML = `<div style="color:var(--red);font-size:12px">${e.message}</div>`; }
+}
+
+async function cfgLoadNtp() {
+  try {
+    const res  = await fetch(`${API}/api/config/ntp`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    const box  = document.getElementById('ntpStatus');
+    box.textContent = data.synced ? '✅ Synchronisé' : '⚠️ Non synchronisé';
+    box.style.color = data.synced ? 'var(--green)' : '#f59e0b';
+    if (data.server) document.getElementById('ntpServer').value = data.server;
+  } catch {}
+}
+
+async function cfgSaveNtp() {
+  const server = document.getElementById('ntpServer').value.trim();
+  const res = await fetch(`${API}/api/config/ntp`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify({ server }) });
+  const data = await res.json();
+  res.ok ? showToast('Serveur NTP appliqué ✓', 'success') : showToast(data.error, 'error');
+}
+
+// ── Clés SSH ──────────────────────────────────────────────────────────────────
+async function loadSshKeys() {
+  const user = document.getElementById('sshKeyUser').value;
+  const list = document.getElementById('sshKeysList');
+  list.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const res  = await fetch(`${API}/api/config/ssh-keys?user=${user}`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (!data.keys.length) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px">Aucune clé autorisée</div>'; return; }
+    list.innerHTML = data.keys.map(k => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+        <div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent2)">${k.type}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">${k.key} <span style="color:var(--text)">${k.comment || ''}</span></div>
+        </div>
+        <button onclick="cfgDelSshKey(${k.id})" class="btn btn-ghost btn-sm" style="color:var(--red);padding:4px 10px">🗑️</button>
+      </div>`).join('');
+  } catch(e) { list.innerHTML = `<div style="color:var(--red)">${e.message}</div>`; }
+}
+
+async function cfgAddSshKey() {
+  const key  = document.getElementById('newSshKey').value.trim();
+  const user = document.getElementById('sshKeyUser').value;
+  if (!key) return;
+  const res  = await fetch(`${API}/api/config/ssh-keys`, { method:'POST', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify({ key, user }) });
+  const data = await res.json();
+  if (res.ok) { document.getElementById('newSshKey').value = ''; showToast('Clé ajoutée ✓', 'success'); loadSshKeys(); }
+  else showToast(data.error, 'error');
+}
+
+async function cfgDelSshKey(id) {
+  const user = document.getElementById('sshKeyUser').value;
+  showConfirm({ title:'Supprimer la clé SSH', subtitle:'Clés SSH', body:'Cette clé ne pourra plus être utilisée pour se connecter.', icon:'🔑', type:'danger', confirmText:'Supprimer', onConfirm: async () => {
+    const res  = await fetch(`${API}/api/config/ssh-keys/${id}?user=${user}`, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    res.ok ? (showToast('Clé supprimée ✓', 'success'), loadSshKeys()) : showToast(data.error, 'error');
+  }});
 }
 
 
@@ -9135,6 +9799,45 @@ function closeUpdateModal() {
 </div>
 
 <!-- ══════════════ MODAL MISE À JOUR ══════════════ -->
+<!-- MODAL LOGS PANEL -->
+<div class="modal-overlay" id="panelLogsModal" onclick="if(event.target===this)closePanelLogsModal()">
+  <div class="modal" style="width:860px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:16px">📋</span>
+        <div class="modal-title">Logs du panel</div>
+      </div>
+      <button class="modal-close" onclick="closePanelLogsModal()">✕</button>
+    </div>
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="logTypeSelect" onchange="loadPanelLogs()" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+        <option value="main">kazypanel.log</option>
+        <option value="error">kazypanel-error.log</option>
+      </select>
+      <select id="logLevelSelect" onchange="loadPanelLogs()" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+        <option value="all">Tous les niveaux</option>
+        <option value="info">INFO</option>
+        <option value="warn">WARN</option>
+        <option value="error">ERROR</option>
+      </select>
+      <select id="logLinesSelect" onchange="loadPanelLogs()" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+        <option value="100">100 lignes</option>
+        <option value="200" selected>200 lignes</option>
+        <option value="500">500 lignes</option>
+      </select>
+      <button onclick="loadPanelLogs()" class="btn btn-ghost btn-sm">🔄 Actualiser</button>
+      <button onclick="clearPanelLogs()" class="btn btn-ghost btn-sm" style="color:var(--red)">🗑️ Vider</button>
+      <span id="logTotalCount" style="font-size:10px;color:var(--muted);margin-left:auto;font-family:var(--mono)"></span>
+    </div>
+    <div id="panelLogsBody" style="flex:1;overflow-y:auto;padding:12px 16px;background:var(--bg);font-family:var(--mono);font-size:11px;line-height:1.8;min-height:300px">
+      <div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePanelLogsModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="updateModal">
   <div class="modal" style="max-width:560px;width:95%">
     <div class="modal-header">
@@ -9315,6 +10018,8 @@ async function checkUpdateSilent() {
       }
     }
   } catch (e) { /* silencieux */ }
+  // Vérifier les alertes sécurité en même temps
+  checkAlerts();
 }
 
 // ── Mise à jour one-click ─────────────────────────────────────────────────────
@@ -9831,6 +10536,73 @@ function showToast(msg, type = 'info') {
   toast.textContent = msg;
   container.appendChild(toast);
   setTimeout(() => toast.remove(), 3500);
+}
+
+// ── Logs du panel ─────────────────────────────────────────────────────────────
+function openPanelLogsModal() {
+  document.getElementById('panelLogsModal').classList.add('open');
+  loadPanelLogs();
+  // Marquer alertes comme lues
+  fetch(`${API}/api/logs/alerts/read`, { method:'POST', headers:{ Authorization:'Bearer '+token } })
+    .then(() => { _alertBadge = 0; updateAlertBadge(0); });
+}
+
+function closePanelLogsModal() {
+  document.getElementById('panelLogsModal').classList.remove('open');
+}
+
+async function loadPanelLogs() {
+  const body  = document.getElementById('panelLogsBody');
+  const type  = document.getElementById('logTypeSelect').value;
+  const level = document.getElementById('logLevelSelect').value;
+  const lines = document.getElementById('logLinesSelect').value;
+  body.innerHTML = '<div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const res  = await fetch(`${API}/api/logs/panel?type=${type}&level=${level}&lines=${lines}`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    document.getElementById('logTotalCount').textContent = `${data.total} entrée(s)`;
+    if (!data.lines.length) { body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Aucune entrée</div>'; return; }
+    body.innerHTML = data.lines.map(l => {
+      let color = 'var(--text)';
+      if (l.includes('[WARN]') || l.includes('[FAIL]')) color = '#fcd34d';
+      if (l.includes('[ERROR]') || l.includes('[ALERT]')) color = '#f87171';
+      if (l.includes('[INFO]') && l.includes('[OK]')) color = '#6ee7b7';
+      return `<div style="color:${color};border-bottom:1px solid var(--border);padding:3px 0">${l.replace(/</g,'&lt;')}</div>`;
+    }).join('');
+  } catch(e) { body.innerHTML = `<div style="color:var(--red);padding:20px">${e.message}</div>`; }
+}
+
+async function clearPanelLogs() {
+  const type = document.getElementById('logTypeSelect').value;
+  if (!confirm(`Vider le fichier ${type === 'error' ? 'kazypanel-error.log' : 'kazypanel.log'} ?`)) return;
+  await fetch(`${API}/api/logs/panel?type=${type}`, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
+  loadPanelLogs();
+}
+
+let _alertBadge = 0;
+function updateAlertBadge(count) {
+  const badge = document.getElementById('alertBadge');
+  const btn   = document.getElementById('topbarAlertBtn');
+  if (!badge || !btn) return;
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = 'flex';
+    btn.style.display = '';
+    btn.style.color = '#f87171';
+    btn.style.borderColor = 'rgba(239,68,68,.4)';
+  } else {
+    badge.style.display = 'none';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+  }
+}
+
+async function checkAlerts() {
+  try {
+    const res  = await fetch(`${API}/api/logs/alerts`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (data.count > 0) updateAlertBadge(data.count);
+  } catch {}
 }
 
 // ── Mot de passe aléatoire ────────────────────────────────────────────────────

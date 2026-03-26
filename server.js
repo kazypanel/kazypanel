@@ -27,7 +27,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.3.0';
+const KAZYPANEL_VERSION = '1.4.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -275,16 +275,74 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 // ─── LOG ─────────────────────────────────────────────────────────────────────
-function log(action, detail, status = 'OK') {
-  const entry = `[${new Date().toISOString()}] [${status}] ${action}: ${detail}`;
-  console.log(entry);
-  // Écriture asynchrone non-bloquante — Node 24 fs.promises optimisé
-  fsp.stat(CONFIG.LOG_FILE)
+// ─── FICHIERS DE LOG ──────────────────────────────────────────────────────────
+const ERROR_LOG_FILE = '/var/log/kazypanel-error.log';
+
+// Niveaux : OK → INFO, FAIL → WARN, ERROR → ERROR
+function logLevel(status) {
+  if (status === 'FAIL') return 'WARN';
+  if (status === 'ERROR') return 'ERROR';
+  return 'INFO';
+}
+
+// Format horodatage local
+function logTimestamp() {
+  return new Date().toLocaleString('fr-FR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).replace(',', '');
+}
+
+// Rotation si > 10 Mo
+function rotateIfNeeded(file) {
+  return fsp.stat(file)
     .then(stat => {
-      if (stat.size > 10 * 1024 * 1024) return fsp.rename(CONFIG.LOG_FILE, CONFIG.LOG_FILE + '.bak');
+      if (stat.size > 10 * 1024 * 1024) {
+        const ts = new Date().toISOString().slice(0, 10);
+        return fsp.rename(file, `${file}.${ts}`);
+      }
     })
-    .catch(() => {})
-    .finally(() => fsp.appendFile(CONFIG.LOG_FILE, entry + '\n').catch(() => {}));
+    .catch(() => {});
+}
+
+// Détection des alertes LOGIN FAIL (5 échecs en 1 minute)
+const _failLoginHistory = [];
+let _alertBadge = 0; // compteur d'alertes non lues
+
+function trackLoginFail(ip) {
+  const now = Date.now();
+  _failLoginHistory.push({ ip, ts: now });
+  // Nettoyer les entrées > 1 minute
+  const cutoff = now - 60 * 1000;
+  while (_failLoginHistory.length && _failLoginHistory[0].ts < cutoff) _failLoginHistory.shift();
+  // Alerte si 5 échecs en 1 minute depuis la même IP
+  const recentFromIp = _failLoginHistory.filter(e => e.ip === ip && e.ts >= cutoff).length;
+  if (recentFromIp >= 5) {
+    _alertBadge++;
+    const alertEntry = `[${logTimestamp()}] [ALERT] BRUTE_FORCE: ${recentFromIp} tentatives depuis ${ip} en moins d'1 minute`;
+    console.warn(alertEntry);
+    fsp.appendFile(ERROR_LOG_FILE, alertEntry + '\n').catch(() => {});
+  }
+}
+
+function log(action, detail, status = 'OK', ip = null) {
+  const level = logLevel(status);
+  const ipPart = ip ? ` [${ip}]` : '';
+  const entry = `[${logTimestamp()}] [${level}] [${status}] ${action}:${ipPart} ${detail}`;
+  console.log(entry);
+
+  const isError = level === 'ERROR' || level === 'WARN';
+
+  rotateIfNeeded(CONFIG.LOG_FILE).finally(() =>
+    fsp.appendFile(CONFIG.LOG_FILE, entry + '\n').catch(() => {})
+  );
+
+  if (isError) {
+    rotateIfNeeded(ERROR_LOG_FILE).finally(() =>
+      fsp.appendFile(ERROR_LOG_FILE, entry + '\n').catch(() => {})
+    );
+  }
 }
 
 // ─── LISTE DES PRÉFIXES DE COMMANDES NÉCESSITANT SUDO ────────────────────────
@@ -403,6 +461,7 @@ function adminOnly(req, res, next) {
 // ─── ROUTE: LOGIN ─────────────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
   const ip = req.ip || req.connection.remoteAddress || '';
+  const ua = req.headers['user-agent'] || '';
   const { username, password } = req.body;
 
   if (!username || !password)
@@ -415,7 +474,8 @@ app.post('/api/login', async (req, res) => {
   const user = USERS.find(u => u.username === username);
   if (!user || !(await bcrypt.compare(password, user.password))) {
     recordFailedAttempt(ip);
-    log('LOGIN', `${username} depuis ${ip}`, 'FAIL');
+    trackLoginFail(ip);
+    log('LOGIN', `${username} ua:${ua.slice(0,120)}`, 'FAIL', ip);
     return res.status(401).json({ error: 'Identifiants incorrects' });
   }
 
@@ -425,7 +485,7 @@ app.post('/api/login', async (req, res) => {
     CONFIG.JWT_SECRET,
     { expiresIn: '8h' }
   );
-  log('LOGIN', `${username} depuis ${ip}`, 'OK');
+  log('LOGIN', `${username} ua:${ua.slice(0,120)}`, 'OK', ip);
   res.json({ token, username: user.username, role: user.role });
 });
 
@@ -1006,6 +1066,47 @@ app.post('/api/update/apply', authMiddleware, adminOnly, async (req, res) => {
   res.json({ success: true, results });
 });
 
+// ─── ROUTE: LOGS DU PANEL ────────────────────────────────────────────────────
+app.get('/api/logs/panel', authMiddleware, adminOnly, async (req, res) => {
+  const lines  = parseInt(req.query.lines) || 200;
+  const level  = req.query.level || 'all'; // all | info | warn | error
+  const file   = req.query.type === 'error' ? ERROR_LOG_FILE : CONFIG.LOG_FILE;
+  try {
+    if (!fs.existsSync(file)) return res.json({ lines: [], total: 0 });
+    const content = fs.readFileSync(file, 'utf8');
+    let entries = content.split('\n').filter(l => l.trim()).reverse();
+    if (level !== 'all') {
+      const lvl = level.toUpperCase();
+      entries = entries.filter(l => l.includes(`[${lvl}]`));
+    }
+    const total = entries.length;
+    entries = entries.slice(0, lines);
+    res.json({ lines: entries, total });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/logs/panel — vider les logs
+app.delete('/api/logs/panel', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const type = req.query.type || 'main';
+    const file = type === 'error' ? ERROR_LOG_FILE : CONFIG.LOG_FILE;
+    await fsp.writeFile(file, '');
+    log('LOG_CLEAR', `${type} log vidé`, 'OK');
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/logs/alerts — alertes brute-force non lues
+app.get('/api/logs/alerts', authMiddleware, adminOnly, (req, res) => {
+  res.json({ count: _alertBadge });
+});
+
+// POST /api/logs/alerts/read — marquer les alertes comme lues
+app.post('/api/logs/alerts/read', authMiddleware, adminOnly, (req, res) => {
+  _alertBadge = 0;
+  res.json({ success: true });
+});
+
 // ─── ROUTE: HISTORIQUE DES CONNEXIONS ───────────────────────────────────────
 app.get('/api/logins', authMiddleware, async (req, res) => {
   const isAdmin = req.user.role === 'admin';
@@ -1017,21 +1118,58 @@ app.get('/api/logins', authMiddleware, async (req, res) => {
 
   const lines = logContent.split('\n').filter(l => l.includes('] LOGIN:'));
 
-  // Parser chaque ligne de log LOGIN
+  // Parser chaque ligne — supporte ancien format ISO et nouveau format local
+  // Ancien : [2026-03-25T21:34:28.000Z] [OK] LOGIN: admin depuis 1.2.3.4
+  // Nouveau : [25/03/2026 21:34:28] [INFO] [OK] LOGIN: [1.2.3.4] admin
   const allEntries = [];
   for (const line of lines) {
-    const m = line.match(/^\[([^\]]+)\] \[(OK|FAIL)\] LOGIN: (\S+) depuis (\S+)$/);
-    if (!m) continue;
-    const [, dateRaw, status, username, ip] = m;
-    // Filtrer par utilisateur si non admin
+    let dateRaw, status, username, ip, ua = '';
+
+    // Nouveau format avec UA
+    let m = line.match(/^\[([^\]]+)\] \[(?:INFO|WARN|ERROR)\] \[(OK|FAIL)\] LOGIN: \[([^\]]+)\] (\S+)(?:\s+ua:(.*))?$/);
+    if (m) {
+      [, dateRaw, status, ip, username] = m;
+      ua = m[5] || '';
+    } else {
+      // Ancien format
+      m = line.match(/^\[([^\]]+)\] \[(OK|FAIL)\] LOGIN: (\S+) depuis (\S+)$/);
+      if (!m) continue;
+      [, dateRaw, status, username, ip] = m;
+      ua = '';
+    }
+
     if (!isAdmin && username !== req.user.username) continue;
+
+    // Tenter de parser la date (ISO ou locale)
+    let dateDisplay;
+    try {
+      const parsed = new Date(dateRaw);
+      dateDisplay = isNaN(parsed)
+        ? dateRaw
+        : parsed.toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    } catch { dateDisplay = dateRaw; }
+
+    // Parser le navigateur depuis UA
+    let browser = '—';
+    if (ua) {
+      if (/Edg\//.test(ua))          browser = '🌐 Edge';
+      else if (/OPR\//.test(ua))     browser = '🔴 Opera';
+      else if (/Chrome\//.test(ua))  browser = '🟡 Chrome';
+      else if (/Firefox\//.test(ua)) browser = '🦊 Firefox';
+      else if (/Safari\//.test(ua))  browser = '🍎 Safari';
+      else if (/curl/.test(ua))      browser = '⌨️ curl';
+      else if (/python/.test(ua))    browser = '🐍 Python';
+      else                           browser = '❓ Inconnu';
+    }
+
     allEntries.push({
-      date:     new Date(dateRaw).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' }),
+      date:    dateDisplay,
       dateRaw,
       status,
       username,
-      ip:       ip.replace('::ffff:', ''),
-      detail:   status === 'FAIL' ? 'Identifiants incorrects' : null
+      ip:      (ip || '').replace('::ffff:', ''),
+      browser,
+      detail:  status === 'FAIL' ? 'Identifiants incorrects' : 'Connexion réussie'
     });
   }
 
@@ -1044,12 +1182,12 @@ app.get('/api/logins', authMiddleware, async (req, res) => {
   // Stats admin
   let stats = null;
   if (isAdmin) {
-    const today    = new Date().toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     stats = {
-      successToday: allEntries.filter(e => e.status === 'OK'   && e.dateRaw.startsWith(today)).length,
-      failToday:    allEntries.filter(e => e.status === 'FAIL' && e.dateRaw.startsWith(today)).length,
-      uniqueIps:    new Set(allEntries.filter(e => new Date(e.dateRaw).getTime() > sevenDaysAgo).map(e => e.ip)).size,
+      successToday: allEntries.filter(e => e.status === 'OK'   && e.date.startsWith(today)).length,
+      failToday:    allEntries.filter(e => e.status === 'FAIL' && e.date.startsWith(today)).length,
+      uniqueIps:    new Set(allEntries.map(e => e.ip)).size,
       totalLogins:  allEntries.length
     };
   }
@@ -3174,7 +3312,6 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
     try {
       const out = await runCmd(`systemctl show ${svc} --property=ActiveEnterTimestamp --value 2>/dev/null`);
       if (out && out.trim()) {
-        // Format : "Sat 2026-03-21 07:11:47 CET" → extraire la partie date/heure
         const match = out.trim().match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/);
         if (match) {
           const startTime = new Date(`${match[1]}T${match[2]}`);
@@ -3195,6 +3332,10 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
       }
     } catch {}
   }
+  // Alias named → bind9 pour le front
+  if (s.uptimes['named']) s.uptimes['bind9'] = s.uptimes['named'];
+  // UFW : pas de service systemd, afficher "actif" si UFW est actif
+  if (s.ufw === 'active') s.uptimes['ufw'] = 'actif';
   try {
     let sec = Math.floor(parseFloat(fs.readFileSync('/proc/uptime', 'utf8').split(' ')[0]));
     const months  = Math.floor(sec / 2592000); sec %= 2592000;
@@ -3377,6 +3518,251 @@ app.put('/api/config/pma', authMiddleware, adminOnly, (req, res) => {
   savePanelConfig();
   log('CONFIG_PMA', PANEL_CONFIG.pmaUrl || '(vide)', 'OK');
   res.json({ success: true, pmaUrl: PANEL_CONFIG.pmaUrl });
+});
+
+// ─── CONFIG : PARAMÈTRES GÉNÉRAUX (defaults, JWT, SSH keys, NTP) ──────────────
+
+// GET /api/config/general — lire tous les paramètres généraux
+app.get('/api/config/general', authMiddleware, adminOnly, (req, res) => {
+  res.json({
+    defaults: PANEL_CONFIG.defaults || { ftpLimit:1, dbLimit:5, domainLimit:3, subdomainLimit:5, diskLimit:2048, cronLimit:10 },
+    jwtExpiry: PANEL_CONFIG.jwtExpiry || '8h',
+    smtp:      PANEL_CONFIG.smtp     || {},
+    backupSchedule: PANEL_CONFIG.backupSchedule || { enabled: false, cron: '0 3 * * *', retain: 7 },
+    network:   PANEL_CONFIG.network  || { ftpPassiveMin: 40000, ftpPassiveMax: 50000 },
+  });
+});
+
+// PUT /api/config/defaults — limites par défaut nouveaux utilisateurs
+app.put('/api/config/defaults', authMiddleware, adminOnly, (req, res) => {
+  const { ftpLimit, dbLimit, domainLimit, subdomainLimit, diskLimit, cronLimit } = req.body;
+  PANEL_CONFIG.defaults = { ftpLimit, dbLimit, domainLimit, subdomainLimit, diskLimit, cronLimit };
+  savePanelConfig();
+  log('CONFIG_DEFAULTS', JSON.stringify(PANEL_CONFIG.defaults), 'OK');
+  res.json({ success: true });
+});
+
+// PUT /api/config/jwt — expiration sessions
+app.put('/api/config/jwt', authMiddleware, adminOnly, (req, res) => {
+  const { expiry } = req.body;
+  if (!/^\d+[hmd]$/.test(expiry)) return res.status(400).json({ error: 'Format invalide (ex: 8h, 1d, 30m)' });
+  PANEL_CONFIG.jwtExpiry = expiry;
+  savePanelConfig();
+  log('CONFIG_JWT', `Expiry → ${expiry}`, 'OK');
+  res.json({ success: true });
+});
+
+// GET /api/config/ssh-keys — lister les clés SSH autorisées
+app.get('/api/config/ssh-keys', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const user = req.query.user || 'root';
+    const home = user === 'root' ? '/root' : `/home/${user}`;
+    const file = `${home}/.ssh/authorized_keys`;
+    if (!fs.existsSync(file)) return res.json({ keys: [] });
+    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(l => l.trim() && !l.startsWith('#'));
+    const keys = lines.map((l, i) => {
+      const parts = l.trim().split(' ');
+      return { id: i, type: parts[0], key: parts[1]?.slice(0,20)+'...', comment: parts[2] || '', full: l.trim() };
+    });
+    res.json({ keys });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/config/ssh-keys — ajouter une clé SSH
+app.post('/api/config/ssh-keys', authMiddleware, adminOnly, async (req, res) => {
+  const { key, user: targetUser = 'root' } = req.body;
+  if (!key || !key.trim()) return res.status(400).json({ error: 'Clé requise' });
+  const trimmed = key.trim();
+  if (!/^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|sk-ssh-ed25519)\s/.test(trimmed))
+    return res.status(400).json({ error: 'Format de clé invalide (ssh-rsa, ssh-ed25519, ecdsa-sha2-nistp256...)' });
+  try {
+    const home = targetUser === 'root' ? '/root' : `/home/${targetUser}`;
+    const sshDir = `${home}/.ssh`;
+    const authFile = `${sshDir}/authorized_keys`;
+    await runCmd(`sudo mkdir -p "${sshDir}" && sudo chmod 700 "${sshDir}"`);
+    const existing = fs.existsSync(authFile) ? fs.readFileSync(authFile, 'utf8') : '';
+    if (existing.includes(trimmed.split(' ')[1])) return res.status(409).json({ error: 'Cette clé existe déjà' });
+    const tmp = `/tmp/kp_ak_${Date.now()}`;
+    fs.writeFileSync(tmp, existing + (existing.endsWith('\n') || !existing ? '' : '\n') + trimmed + '\n');
+    await runCmd(`sudo cp "${tmp}" "${authFile}" && sudo chmod 600 "${authFile}"`);
+    fs.unlinkSync(tmp);
+    log('SSH_KEY_ADD', `${targetUser}: ${trimmed.slice(0,40)}...`, 'OK');
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/config/ssh-keys/:id — supprimer une clé SSH
+app.delete('/api/config/ssh-keys/:id', authMiddleware, adminOnly, async (req, res) => {
+  const { user: targetUser = 'root' } = req.query;
+  try {
+    const home = targetUser === 'root' ? '/root' : `/home/${targetUser}`;
+    const authFile = `${home}/.ssh/authorized_keys`;
+    if (!fs.existsSync(authFile)) return res.status(404).json({ error: 'Fichier introuvable' });
+    const lines = fs.readFileSync(authFile, 'utf8').split('\n');
+    const nonEmpty = lines.filter(l => l.trim() && !l.startsWith('#'));
+    const idx = parseInt(req.params.id);
+    if (idx < 0 || idx >= nonEmpty.length) return res.status(404).json({ error: 'Clé introuvable' });
+    nonEmpty.splice(idx, 1);
+    const tmp = `/tmp/kp_ak_del_${Date.now()}`;
+    fs.writeFileSync(tmp, nonEmpty.join('\n') + '\n');
+    await runCmd(`sudo cp "${tmp}" "${authFile}" && sudo chmod 600 "${authFile}"`);
+    fs.unlinkSync(tmp);
+    log('SSH_KEY_DEL', `${targetUser}: clé #${idx}`, 'OK');
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/config/ntp — statut NTP
+app.get('/api/config/ntp', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const status = await runCmd('timedatectl show --no-pager 2>/dev/null || timedatectl 2>/dev/null').catch(() => '');
+    const synced  = status.includes('NTPSynchronized=yes') || status.includes('synchronized: yes');
+    const server  = PANEL_CONFIG.ntpServer || 'pool.ntp.org';
+    res.json({ synced, status: status.trim(), server });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/config/ntp — changer le serveur NTP
+app.put('/api/config/ntp', authMiddleware, adminOnly, async (req, res) => {
+  const { server } = req.body;
+  if (!server) return res.status(400).json({ error: 'Serveur requis' });
+  try {
+    PANEL_CONFIG.ntpServer = server.trim();
+    savePanelConfig();
+    // Mettre à jour /etc/systemd/timesyncd.conf si disponible
+    const conf = '/etc/systemd/timesyncd.conf';
+    if (fs.existsSync(conf)) {
+      let content = fs.readFileSync(conf, 'utf8');
+      if (content.includes('NTP=')) content = content.replace(/^NTP=.*/m, `NTP=${server.trim()}`);
+      else content += `\n[Time]\nNTP=${server.trim()}\n`;
+      const tmp = `/tmp/kp_ntp_${Date.now()}`;
+      fs.writeFileSync(tmp, content);
+      await runCmd(`sudo cp "${tmp}" "${conf}"`);
+      fs.unlinkSync(tmp);
+      await runCmd('systemctl restart systemd-timesyncd 2>/dev/null || true');
+    }
+    log('CONFIG_NTP', `Serveur → ${server}`, 'OK');
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── CONFIG : SMTP ────────────────────────────────────────────────────────────
+app.get('/api/config/smtp', authMiddleware, adminOnly, (req, res) => {
+  const smtp = { ...(PANEL_CONFIG.smtp || {}) };
+  delete smtp.password; // ne jamais renvoyer le mot de passe
+  res.json({ smtp });
+});
+
+app.put('/api/config/smtp', authMiddleware, adminOnly, async (req, res) => {
+  const { host, port, user, password, from, tls } = req.body;
+  PANEL_CONFIG.smtp = { host, port: parseInt(port) || 587, user, password, from, tls: !!tls };
+  savePanelConfig();
+  log('CONFIG_SMTP', `${host}:${port}`, 'OK');
+  res.json({ success: true });
+});
+
+// POST /api/config/smtp/test — envoyer un mail de test
+app.post('/api/config/smtp/test', authMiddleware, adminOnly, async (req, res) => {
+  const { to } = req.body;
+  if (!to) return res.status(400).json({ error: 'Destinataire requis' });
+  const smtp = PANEL_CONFIG.smtp || {};
+  if (!smtp.host) return res.status(400).json({ error: 'SMTP non configuré' });
+  try {
+    const tlsFlag = smtp.tls ? '' : ' -o tls=no';
+    const cmd = `echo "Test KazyPanel SMTP" | mail -s "Test KazyPanel" -S smtp="${smtp.host}:${smtp.port}" -S smtp-auth=login -S smtp-auth-user="${smtp.user}" -S smtp-auth-password="${smtp.password}" -S from="${smtp.from}"${tlsFlag} "${to}"`;
+    await execAsync(cmd, { timeout: 15000 });
+    log('SMTP_TEST', `→ ${to}`, 'OK');
+    res.json({ success: true, message: `Mail de test envoyé à ${to}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── CONFIG : SAUVEGARDES PLANIFIÉES ─────────────────────────────────────────
+app.get('/api/config/backup-schedule', authMiddleware, adminOnly, (req, res) => {
+  res.json({ schedule: PANEL_CONFIG.backupSchedule || { enabled: false, cron: '0 3 * * *', retain: 7 } });
+});
+
+app.put('/api/config/backup-schedule', authMiddleware, adminOnly, async (req, res) => {
+  const { enabled, cron, retain } = req.body;
+  PANEL_CONFIG.backupSchedule = { enabled: !!enabled, cron: cron || '0 3 * * *', retain: parseInt(retain) || 7 };
+  savePanelConfig();
+
+  const cronFile = '/etc/cron.d/kazypanel-backup';
+  try {
+    if (enabled) {
+      const cronEntry = `# KazyPanel — sauvegarde automatique\n${cron || '0 3 * * *'} root /usr/bin/node /opt/kazypanel/backup-cron.js >> /var/log/kazypanel-backup.log 2>&1\n`;
+      const tmp = `/tmp/kp_cron_backup_${Date.now()}`;
+      fs.writeFileSync(tmp, cronEntry);
+      await runCmd(`sudo cp "${tmp}" "${cronFile}" && sudo chmod 644 "${cronFile}"`);
+      fs.unlinkSync(tmp);
+    } else {
+      await runCmd(`sudo rm -f "${cronFile}"`);
+    }
+  } catch {}
+
+  log('CONFIG_BACKUP_SCHEDULE', `${enabled ? 'activé' : 'désactivé'} ${cron}`, 'OK');
+  res.json({ success: true, schedule: PANEL_CONFIG.backupSchedule });
+});
+
+// ─── CONFIG : RÉSEAU (ports FTP passif, IP publique) ─────────────────────────
+app.get('/api/config/network', authMiddleware, adminOnly, async (req, res) => {
+  const network = PANEL_CONFIG.network || {};
+  // Lire la config vsftpd actuelle
+  try {
+    const vsftpd = fs.existsSync('/etc/vsftpd.conf') ? fs.readFileSync('/etc/vsftpd.conf', 'utf8') : '';
+    const minMatch = vsftpd.match(/pasv_min_port=(\d+)/);
+    const maxMatch = vsftpd.match(/pasv_max_port=(\d+)/);
+    const ipMatch  = vsftpd.match(/pasv_address=(\S+)/);
+    network.ftpPassiveMin = minMatch ? parseInt(minMatch[1]) : 40000;
+    network.ftpPassiveMax = maxMatch ? parseInt(maxMatch[1]) : 50000;
+    network.ftpPublicIp   = ipMatch  ? ipMatch[1] : '';
+  } catch {}
+  res.json({ network });
+});
+
+app.put('/api/config/network', authMiddleware, adminOnly, async (req, res) => {
+  const { ftpPassiveMin, ftpPassiveMax, ftpPublicIp } = req.body;
+  const min = parseInt(ftpPassiveMin) || 40000;
+  const max = parseInt(ftpPassiveMax) || 50000;
+  if (min >= max || min < 1024 || max > 65535) return res.status(400).json({ error: 'Plage de ports invalide' });
+  PANEL_CONFIG.network = { ftpPassiveMin: min, ftpPassiveMax: max, ftpPublicIp };
+  savePanelConfig();
+  try {
+    let conf = fs.readFileSync('/etc/vsftpd.conf', 'utf8');
+    conf = conf.replace(/pasv_min_port=\d+/, `pasv_min_port=${min}`)
+               .replace(/pasv_max_port=\d+/, `pasv_max_port=${max}`);
+    if (ftpPublicIp) conf = conf.replace(/pasv_address=\S+/, `pasv_address=${ftpPublicIp}`);
+    const tmp = `/tmp/kp_vsftpd_${Date.now()}`;
+    fs.writeFileSync(tmp, conf);
+    await runCmd(`sudo cp "${tmp}" /etc/vsftpd.conf && sudo chmod 644 /etc/vsftpd.conf`);
+    fs.unlinkSync(tmp);
+    await runCmd('systemctl reload vsftpd');
+    // Mettre à jour UFW si besoin
+    await runCmd(`sudo ufw allow ${min}:${max}/tcp`).catch(() => {});
+    log('CONFIG_NETWORK', `FTP passif ${min}:${max} IP:${ftpPublicIp}`, 'OK');
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/config/ssl-status — statut des certificats Let's Encrypt
+app.get('/api/config/ssl-status', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const out = await runCmd('certbot certificates 2>/dev/null').catch(() => '');
+    const certs = [];
+    const blocks = out.split('Certificate Name:').slice(1);
+    for (const block of blocks) {
+      const nameM   = block.match(/^\s*(\S+)/);
+      const domsM   = block.match(/Domains:\s*(.+)/);
+      const expiryM = block.match(/Expiry Date:\s*(\S+\s+\S+\s+\S+)/);
+      const validM  = block.match(/VALID: (\d+) days/);
+      if (nameM) certs.push({
+        name:    nameM[1].trim(),
+        domains: domsM  ? domsM[1].trim()  : '',
+        expiry:  expiryM? expiryM[1].trim(): '',
+        daysLeft: validM ? parseInt(validM[1]) : null
+      });
+    }
+    res.json({ certs });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/ssl/renew', authMiddleware, adminOnly, async (req, res) => {
@@ -4004,6 +4390,133 @@ app.post('/api/fail2ban/banall', authMiddleware, adminOnly, async (req, res) => 
     await runCmd(`fail2ban-client set ${jail} unbanip --all`);
     log('FAIL2BAN_FLUSH', `jail ${jail} vidé par ${req.user.username}`, 'OK');
     res.json({ success: true, message: `Toutes les IP débanies de ${jail}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── ROUTE: SÉCURITÉ — NOUVELLES ROUTES ──────────────────────────────────────
+
+// GET /api/security/score — score de sécurité global
+app.get('/api/security/score', authMiddleware, adminOnly, async (req, res) => {
+  const checks = [];
+  let score = 0;
+
+  // UFW actif
+  try { const r = await runCmd('ufw status | head -1'); const on = r.includes('active'); checks.push({ label:'Pare-feu UFW', ok: on, tip: on ? null : 'Activez UFW : ufw enable' }); if(on) score += 15; } catch { checks.push({ label:'Pare-feu UFW', ok:false, tip:'UFW non disponible' }); }
+  // Fail2ban actif
+  try { await runCmd('systemctl is-active fail2ban'); checks.push({ label:'Fail2ban', ok:true, tip:null }); score += 15; } catch { checks.push({ label:'Fail2ban', ok:false, tip:'Activez Fail2ban : systemctl enable --now fail2ban' }); }
+  // SSH sur port non standard
+  try { const p = await runCmd("grep -E '^Port ' /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}'").catch(() => '22'); const port = parseInt(p.trim()) || 22; const ok = port !== 22; checks.push({ label:'Port SSH non standard', ok, tip: ok ? null : 'Changez le port SSH (≠ 22) dans Configuration > Serveur' }); if(ok) score += 15; } catch { checks.push({ label:'Port SSH', ok:false, tip:'Impossible de lire sshd_config' }); }
+  // HTTPS actif (certificat valide)
+  try { const out = await runCmd('certbot certificates 2>/dev/null | grep "VALID"'); const ok = out.includes('VALID'); checks.push({ label:'Certificat HTTPS valide', ok, tip: ok ? null : 'Générez un certificat SSL dans Configuration > HTTPS' }); if(ok) score += 20; } catch { checks.push({ label:'Certificat HTTPS', ok:false, tip:'Certbot non disponible ou aucun certificat' }); }
+  // Clés SSH présentes
+  try { const ok = fs.existsSync('/root/.ssh/authorized_keys') && fs.readFileSync('/root/.ssh/authorized_keys','utf8').trim().length > 0; checks.push({ label:'Clé SSH configurée', ok, tip: ok ? null : 'Ajoutez une clé SSH dans Configuration > Clés SSH' }); if(ok) score += 10; } catch { checks.push({ label:'Clé SSH', ok:false, tip:null }); }
+  // JWT secret non par défaut
+  try { const env = fs.readFileSync(path.join(__dirname,'.env'),'utf8'); const ok = !env.includes('changez_cette_valeur'); checks.push({ label:'JWT Secret sécurisé', ok, tip: ok ? null : 'Définissez un JWT_SECRET aléatoire dans .env' }); if(ok) score += 10; } catch { checks.push({ label:'JWT Secret', ok:true, tip:null }); score += 10; }
+  // Fail2ban protège SSH
+  try { const out = await runCmd('fail2ban-client status 2>/dev/null').catch(() => ''); const ok = out.includes('sshd') || out.includes('ssh'); checks.push({ label:'Fail2ban protège SSH', ok, tip: ok ? null : 'Activez le jail sshd dans la config Fail2ban' }); if(ok) score += 15; } catch { checks.push({ label:'Fail2ban SSH', ok:false, tip:null }); }
+
+  res.json({ score, max: 100, grade: score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 50 ? 'C' : 'D', checks });
+});
+
+// GET /api/security/banned — liste IPs bannies toutes jails
+app.get('/api/security/banned', authMiddleware, adminOnly, async (req, res) => {
+  if (!await fail2banAvailable()) return res.json({ banned: [] });
+  try {
+    const statusOut = await runCmd('fail2ban-client status 2>/dev/null');
+    const jailMatch = statusOut.match(/Jail list:\s*(.+)/);
+    const jails = jailMatch ? jailMatch[1].split(',').map(j => j.trim()).filter(Boolean) : [];
+    const banned = [];
+    for (const jail of jails) {
+      try {
+        const out = await runCmd(`fail2ban-client status ${jail} 2>/dev/null`);
+        const ipMatch = out.match(/Banned IP list:\s*(.+)/);
+        if (ipMatch && ipMatch[1].trim()) {
+          const ips = ipMatch[1].trim().split(/\s+/).filter(Boolean);
+          ips.forEach(ip => banned.push({ ip, jail }));
+        }
+      } catch {}
+    }
+    res.json({ banned });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/security/ban — bannir une IP manuellement
+app.post('/api/security/ban', authMiddleware, adminOnly, async (req, res) => {
+  const { ip, jail = 'sshd' } = req.body;
+  if (!ip || !/^[\d.:a-fA-F]+$/.test(ip)) return res.status(400).json({ error: 'IP invalide' });
+  if (!await fail2banAvailable()) return res.status(404).json({ error: 'fail2ban non disponible' });
+  try {
+    await runCmd(`fail2ban-client set ${jail} banip ${ip}`);
+    log('SECURITY_BAN', `${ip} banni dans ${jail} par ${req.user.username}`, 'OK');
+    res.json({ success: true, message: `${ip} banni dans le jail ${jail}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/security/ssh-audit — audit des connexions SSH
+app.get('/api/security/ssh-audit', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const authLog = ['/var/log/auth.log', '/var/log/secure'].find(f => fs.existsSync(f));
+    if (!authLog) return res.json({ attempts: [], topIps: [], sshVersion: '' });
+
+    // Lire les 5000 dernières lignes
+    const raw = await runCmd(`tail -5000 "${authLog}" 2>/dev/null`);
+    const lines = raw.split('\n');
+
+    const attempts = [];
+    const ipCount = {};
+
+    for (const line of lines) {
+      const failMatch = line.match(/Failed password for (?:invalid user )?(\S+) from ([\d.a-fA-F:]+) port/);
+      const acceptMatch = line.match(/Accepted (?:password|publickey) for (\S+) from ([\d.a-fA-F:]+) port/);
+      const invalidMatch = line.match(/Invalid user (\S+) from ([\d.a-fA-F:]+)/);
+
+      if (failMatch || acceptMatch || invalidMatch) {
+        const m = failMatch || acceptMatch || invalidMatch;
+        const type = acceptMatch ? 'OK' : 'FAIL';
+        const user = m[1]; const ip = m[2];
+        // Extraire date depuis le début de la ligne
+        const dateStr = line.slice(0, 15);
+        attempts.push({ date: dateStr, type, user, ip: ip.replace('::ffff:','') });
+        if (type === 'FAIL') ipCount[ip] = (ipCount[ip] || 0) + 1;
+      }
+    }
+
+    const topIps = Object.entries(ipCount)
+      .sort((a,b) => b[1]-a[1]).slice(0,10)
+      .map(([ip, count]) => ({ ip, count }));
+
+    // Version OpenSSH
+    let sshVersion = '';
+    try { sshVersion = await runCmd('sshd -V 2>&1 | head -1').catch(() => ''); } catch {}
+
+    res.json({ attempts: attempts.slice(-200).reverse(), topIps, sshVersion, total: attempts.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/security/logins/stats — stats connexions 7 jours
+app.get('/api/security/logins/stats', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    let logContent = '';
+    try { logContent = fs.readFileSync(CONFIG.LOG_FILE, 'utf8'); } catch {}
+    const lines = logContent.split('\n').filter(l => l.includes('] LOGIN:'));
+    // Grouper par jour
+    const byDay = {};
+    for (const line of lines) {
+      const m = line.match(/\[(\d{2}\/\d{2}\/\d{4})/);
+      if (!m) continue;
+      const day = m[1];
+      if (!byDay[day]) byDay[day] = { ok: 0, fail: 0 };
+      if (line.includes('[OK]')) byDay[day].ok++;
+      if (line.includes('[FAIL]')) byDay[day].fail++;
+    }
+    // 7 derniers jours
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const key = d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+      days.push({ date: key, label: d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' }), ...(byDay[key] || { ok:0, fail:0 }) });
+    }
+    res.json({ days });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
