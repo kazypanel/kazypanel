@@ -273,16 +273,55 @@
     display: flex; align-items: center; justify-content: center;
     min-height: 100vh;
     background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,110,247,.12) 0%, transparent 70%);
+    position: relative; overflow: hidden;
   }
+
+  /* Fond animé — grille de points */
+  #loginPage::before {
+    content: ''; position: absolute; inset: 0; z-index: 0;
+    background-image: radial-gradient(circle, rgba(79,110,247,.18) 1px, transparent 1px);
+    background-size: 32px 32px;
+    animation: gridMove 20s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes gridMove {
+    0%   { background-position: 0 0; }
+    100% { background-position: 32px 32px; }
+  }
+
+  /* Orbe lumineux flottant */
+  #loginPage::after {
+    content: ''; position: absolute; width: 500px; height: 500px;
+    border-radius: 50%; z-index: 0; pointer-events: none;
+    background: radial-gradient(circle, rgba(79,110,247,.08) 0%, transparent 70%);
+    top: -100px; left: 50%; transform: translateX(-50%);
+    animation: orbFloat 6s ease-in-out infinite;
+  }
+  @keyframes orbFloat {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50%       { transform: translateX(-50%) translateY(-30px); }
+  }
+
   .login-card {
     width: 440px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
     overflow: hidden;
-    position: relative;
+    position: relative; z-index: 1;
     box-shadow: 0 24px 60px rgba(0,0,0,.5);
   }
+  /* Shake animation pour erreur */
+  @keyframes loginShake {
+    0%,100% { transform: translateX(0); }
+    15%      { transform: translateX(-8px); }
+    30%      { transform: translateX(8px); }
+    45%      { transform: translateX(-6px); }
+    60%      { transform: translateX(6px); }
+    75%      { transform: translateX(-3px); }
+    90%      { transform: translateX(3px); }
+  }
+  .login-card.shake { animation: loginShake .5s ease; }
   .login-card::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
     background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
@@ -864,6 +903,9 @@
       onmouseover="this.style.background='rgba(255,255,255,.12)'"
       onmouseout="this.style.background='rgba(255,255,255,.06)'">🌙</button>
 
+    <!-- Bannière maintenance -->
+    <div id="loginMaintenanceBanner" style="display:none;background:rgba(239,68,68,.12);border-bottom:1px solid rgba(239,68,68,.3);padding:10px 20px;text-align:center;font-size:12px;color:#f87171;font-family:var(--mono)"></div>
+
     <!-- Header -->
     <div class="login-header">
       <div class="login-logo-wrap">⚡</div>
@@ -879,20 +921,34 @@
     <div class="login-body">
       <div class="form-group">
         <label>Identifiant</label>
-        <input type="text" id="loginUsername" placeholder="admin" autocomplete="username">
+        <input type="text" id="loginUsername" placeholder="admin" autocomplete="username"
+          onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
       </div>
-      <div class="form-group">
+      <div class="form-group" style="position:relative">
         <label>Mot de passe</label>
-        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')doLogin()">
+        <button type="button" id="pwToggleBtn" onclick="toggleLoginPw()"
+          style="position:absolute;right:12px;bottom:12px;background:none;border:none;cursor:pointer;color:var(--muted);padding:2px;font-size:16px;line-height:1;transition:color .15s"
+          title="Afficher/masquer le mot de passe">👁</button>
       </div>
-      <button class="btn btn-primary btn-full" onclick="doLogin()">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+        <input type="checkbox" id="loginRemember" style="width:14px;height:14px;cursor:pointer;accent-color:var(--accent)">
+        <label for="loginRemember" style="font-size:11px;color:var(--muted);cursor:pointer;user-select:none;font-family:var(--mono)">Se souvenir de moi</label>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="doLogin()" id="loginBtn">
         <span id="loginBtnText">Se connecter</span>
       </button>
       <div class="error-msg" id="loginError"></div>
     </div>
 
-    <!-- Footer -->
+    <!-- Footer avec statut serveur -->
     <div class="login-footer">
+      <div id="loginServerStatus" style="display:flex;justify-content:center;gap:14px;margin-bottom:8px">
+        <span id="lsApache"  style="display:flex;align-items:center;gap:4px;font-size:10px"><span style="width:6px;height:6px;border-radius:50%;background:var(--muted);display:inline-block"></span>Apache</span>
+        <span id="lsMariadb" style="display:flex;align-items:center;gap:4px;font-size:10px"><span style="width:6px;height:6px;border-radius:50%;background:var(--muted);display:inline-block"></span>MariaDB</span>
+        <span id="lsPanel"   style="display:flex;align-items:center;gap:4px;font-size:10px"><span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 4px var(--green)"></span>KazyPanel</span>
+      </div>
       KazyPanel © kazylax.fr — Tous droits réservés
       <div style="margin-top:6px">
         <a href="https://github.com/kazypanel/kazypanel" target="_blank" rel="noopener"
@@ -1593,10 +1649,16 @@
             <div class="page-title">Gestion des utilisateurs</div>
             <div class="page-subtitle">Créez et gérez les comptes d'accès à KazyPanel</div>
           </div>
-          <button class="btn btn-primary" onclick="openCreateUserModal()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nouvel utilisateur
-          </button>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-ghost" onclick="openEmailTemplateModal()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Template email
+            </button>
+            <button class="btn btn-primary" onclick="openCreateUserModal()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nouvel utilisateur
+            </button>
+          </div>
         </div>
 
         <!-- Barre de recherche + compteur -->
@@ -2734,6 +2796,11 @@
                 <div class="form-group"><label class="form-label">Utilisateur</label><input class="form-input" id="smtpUser" placeholder="user@gmail.com" style="font-family:var(--mono)"></div>
                 <div class="form-group"><label class="form-label">Mot de passe</label><input class="form-input" type="password" id="smtpPassword" placeholder="••••••••"></div>
                 <div class="form-group"><label class="form-label">Expéditeur (From)</label><input class="form-input" id="smtpFrom" placeholder="KazyPanel <noreply@mondomaine.fr>" style="font-family:var(--mono)"></div>
+                <div class="form-group">
+                  <label class="form-label">URL publique du panel</label>
+                  <input class="form-input" id="panelPublicUrl" placeholder="https://panel.kazylax.fr" style="font-family:var(--mono)">
+                  <div style="font-size:10px;color:var(--muted);margin-top:4px">Utilisée dans les mails comme <code>{{panelUrl}}</code></div>
+                </div>
                 <button class="btn btn-primary" onclick="cfgSaveSmtp()" style="width:100%;justify-content:center">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                   Enregistrer
@@ -3391,6 +3458,56 @@
 </div>
 
 <!-- ── CREATE USER MODAL ── -->
+<!-- ── EMAIL TEMPLATE MODAL ── -->
+<div class="modal-overlay" id="emailTemplateModal" onclick="if(event.target===this)closeEmailTemplateModal()">
+  <div class="modal" style="width:680px;max-width:95vw">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:16px">📧</span>
+        <div class="modal-title">Template email de bienvenue</div>
+      </div>
+      <button class="modal-close" onclick="closeEmailTemplateModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Variables -->
+      <div style="margin-bottom:14px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">Variables — cliquez pour insérer :</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="emailTemplateVarsModal"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sujet</label>
+        <input class="form-input" id="emailTplSubjectModal" style="font-family:var(--mono)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Corps du message</label>
+        <textarea id="emailTplBodyModal" rows="14" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:12px;color:var(--text);resize:vertical;outline:none;line-height:1.7"></textarea>
+      </div>
+      <!-- Aperçu -->
+      <div id="emailPreviewBoxModal" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:4px">
+        <div style="padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between">
+          <span>Aperçu avec données fictives</span>
+          <button onclick="document.getElementById('emailPreviewBoxModal').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px">✕</button>
+        </div>
+        <div id="emailPreviewContentModal" style="padding:16px;font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.7;color:var(--text);max-height:220px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="cfgPreviewEmailTemplateModal()">👁 Aperçu</button>
+        <button class="btn btn-ghost" onclick="cfgResetEmailTemplateModal()" style="color:var(--muted)">↺ Défaut</button>
+        <button class="btn btn-ghost" onclick="cfgTestWelcomeEmailModal()">📧 Tester</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeEmailTemplateModal()">Fermer</button>
+        <button class="btn btn-primary" onclick="cfgSaveEmailTemplateModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="createUserModal">
   <div class="modal" style="width:460px">
     <div class="modal-header">
@@ -3399,6 +3516,10 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="editUserId">
+      <div class="form-group">
+        <label>Email <span style="font-size:10px;color:var(--muted)">(optionnel — envoi des identifiants)</span></label>
+        <input type="email" id="newUserEmail" placeholder="utilisateur@exemple.fr">
+      </div>
       <div class="form-group">
         <label>Identifiant</label>
         <input type="text" id="newUsername" placeholder="ex: jean, operateur1...">
@@ -4009,11 +4130,18 @@ let _currentUsername = '';
 async function doLogin() {
   const username = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
-  const btn = document.querySelector('#loginPage .btn-primary');
+  const btn = document.getElementById('loginBtn');
   const err = document.getElementById('loginError');
   err.style.display = 'none';
 
   if (!username || !password) { showLoginError('Veuillez remplir tous les champs.'); return; }
+
+  // Se souvenir du username
+  if (document.getElementById('loginRemember').checked) {
+    localStorage.setItem('kp_remember_user', username);
+  } else {
+    localStorage.removeItem('kp_remember_user');
+  }
 
   btn.innerHTML = '<div class="spinner"></div>';
   btn.disabled = true;
@@ -4027,10 +4155,9 @@ async function doLogin() {
     const data = await res.json();
     if (!res.ok) {
       if (data.code === 'IP_PENDING') {
-        showLoginError('');
-        document.getElementById('loginError').innerHTML =
-          `<strong>🔒 IP non autorisée</strong><br>${data.message}`;
-        document.getElementById('loginError').style.display = 'block';
+        err.innerHTML = `<strong>🔒 IP non autorisée</strong><br>${data.message}`;
+        err.style.display = 'block';
+        shakeLoginCard();
       } else {
         throw new Error(data.error || 'Erreur');
       }
@@ -4041,7 +4168,6 @@ async function doLogin() {
     sessionStorage.setItem('hp_token', token);
     sessionStorage.setItem('hp_role', currentRole);
     document.getElementById('topbarUser').textContent = data.username;
-    // Dashboard UI
     const initials = (data.username||'?').slice(0,2).toUpperCase();
     const avatarDot = document.getElementById('topbarAvatarDot');
     if (avatarDot) avatarDot.textContent = initials;
@@ -4054,16 +4180,72 @@ async function doLogin() {
     showApp();
   } catch (e) {
     showLoginError(e.message);
+    shakeLoginCard();
   } finally {
-    btn.innerHTML = 'Se connecter';
+    btn.innerHTML = '<span id="loginBtnText">Se connecter</span>';
     btn.disabled = false;
   }
 }
 
+function shakeLoginCard() {
+  const card = document.querySelector('.login-card');
+  card.classList.remove('shake');
+  void card.offsetWidth; // reflow
+  card.classList.add('shake');
+  card.addEventListener('animationend', () => card.classList.remove('shake'), { once: true });
+}
+
 function showLoginError(msg) {
   const err = document.getElementById('loginError');
-  err.textContent = '⚠ ' + msg;
-  err.style.display = 'block';
+  err.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ${msg}`;
+  err.style.display = 'flex';
+  err.style.alignItems = 'start';
+  err.style.gap = '7px';
+}
+
+function toggleLoginPw() {
+  const inp = document.getElementById('loginPassword');
+  const btn = document.getElementById('pwToggleBtn');
+  if (inp.type === 'password') { inp.type = 'text'; btn.style.opacity = '1'; }
+  else { inp.type = 'password'; btn.style.opacity = '.5'; }
+}
+
+// Statut serveur sur la page login (ping /api/status public)
+async function loadLoginServerStatus() {
+  try {
+    const res  = await fetch(`${API}/api/status/public`, { signal: AbortSignal.timeout(4000) });
+    const data = await res.json();
+    const setDot = (id, ok) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const dot = el.querySelector('span');
+      dot.style.background = ok ? 'var(--green)' : 'var(--red)';
+      dot.style.boxShadow   = ok ? '0 0 4px var(--green)' : 'none';
+    };
+    setDot('lsApache',  data.apache  === 'running');
+    setDot('lsMariadb', data.mariadb === 'running');
+  } catch {}
+}
+
+// Charger username mémorisé + bannière maintenance
+function initLoginPage() {
+  const saved = localStorage.getItem('kp_remember_user');
+  if (saved) {
+    document.getElementById('loginUsername').value = saved;
+    document.getElementById('loginRemember').checked = true;
+    document.getElementById('loginPassword').focus();
+  } else {
+    document.getElementById('loginUsername').focus();
+  }
+  loadLoginServerStatus();
+  // Bannière maintenance
+  fetch(`${API}/api/maintenance`).then(r => r.json()).then(d => {
+    if (d.enabled && d.message) {
+      const b = document.getElementById('loginMaintenanceBanner');
+      b.textContent = '⚠️ ' + d.message;
+      b.style.display = 'block';
+    }
+  }).catch(() => {});
 }
 
 // ── Thème multi ──────────────────────────────────────────────────────────────
@@ -4127,6 +4309,7 @@ function doLogout() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('loginPassword').value = '';
+  initLoginPage();
 }
 
 function applyRoleUI() {
@@ -7502,6 +7685,7 @@ function openCreateUserModal() {
   document.getElementById('userModalTitle').textContent = '👤 Nouvel utilisateur';
   document.getElementById('newUsername').value = '';
   document.getElementById('newUsername').disabled = false;
+  if (document.getElementById('newUserEmail')) document.getElementById('newUserEmail').value = '';
   document.getElementById('newUserRole').value = 'user';
   document.getElementById('newUserPassword').value = '';
   document.getElementById('newUserTplGroup').style.display = '';
@@ -7573,6 +7757,7 @@ async function saveUser() {
   const username = document.getElementById('newUsername').value.trim();
   const role = document.getElementById('newUserRole').value;
   const password = document.getElementById('newUserPassword').value;
+  const email = document.getElementById('newUserEmail')?.value.trim() || '';
   const templateId = document.getElementById('newUserTemplate')?.value || '';
   const btn = document.getElementById('saveUserBtn');
   const isEdit = !!id;
@@ -7597,7 +7782,7 @@ async function saveUser() {
       res = await fetch(`${API}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ username, password, role })
+        body: JSON.stringify({ username, password, role, email })
       });
     }
     const data = await res.json();
@@ -7615,6 +7800,20 @@ async function saveUser() {
         const sel = document.getElementById('newUserTemplate');
         const opt = sel?.options[sel.selectedIndex];
         if (opt) templateName = opt.textContent.split(' — ')[0];
+      } catch {}
+    }
+
+    // Envoyer le mail de bienvenue si email fourni
+    if (!isEdit && email) {
+      try {
+        const mailRes = await fetch(`${API}/api/users/welcome-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ username, password, email, role })
+        });
+        const mailData = await mailRes.json();
+        if (!mailRes.ok) showToast('⚠️ Compte créé mais mail non envoyé : ' + mailData.error, 'warning');
+        else showToast('📧 Mail de bienvenue envoyé à ' + email, 'success');
       } catch {}
     }
 
@@ -8157,9 +8356,12 @@ if (token) {
         currentRole = '';
         sessionStorage.removeItem('hp_token');
         sessionStorage.removeItem('hp_role');
+        initLoginPage();
       }
     })
-    .catch(() => {});
+    .catch(() => { initLoginPage(); });
+} else {
+  initLoginPage();
 }
 
 // Vérification périodique des demandes IP (toutes les 30 secondes, admin seulement)
@@ -8496,7 +8698,7 @@ function switchCfgTab(tab) {
   if (tab === 'https')        loadHttpsStatus();
   if (tab === 'server')       { cfgLoadSshAllowUsers(); cfgLoadHostname(); }
   if (tab === 'bashrc')       cfgLoadBashrc();
-  if (tab === 'smtp')         cfgLoadGeneral();
+  if (tab === 'smtp')         { cfgLoadGeneral(); cfgLoadEmailTemplate(); }
   if (tab === 'backup-sched') cfgLoadBackupSchedule();
   if (tab === 'network')      { cfgLoadNetwork(); cfgLoadSslStatus(); cfgLoadNtp(); }
   if (tab === 'sshkeys')      loadSshKeys();
@@ -8525,6 +8727,10 @@ async function cfgLoadGeneral() {
       document.getElementById('smtpUser').value = data.smtp.user || '';
       document.getElementById('smtpFrom').value = data.smtp.from || '';
       document.getElementById('smtpTls').value  = data.smtp.tls ? '1' : '0';
+    }
+    if (data.panelPublicUrl !== undefined) {
+      const el = document.getElementById('panelPublicUrl');
+      if (el) el.value = data.panelPublicUrl || '';
     }
   } catch(e) { showToast(e.message, 'error'); }
 }
@@ -8559,6 +8765,10 @@ async function cfgSaveSmtp() {
     from:     document.getElementById('smtpFrom').value.trim(),
     tls:      document.getElementById('smtpTls').value === '1',
   };
+  const urlEl = document.getElementById('panelPublicUrl');
+  if (urlEl && urlEl.value.trim()) {
+    await fetch(`${API}/api/config/panel-url`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify({ url: urlEl.value.trim() }) });
+  }
   const res = await fetch(`${API}/api/config/smtp`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify(body) });
   const data = await res.json();
   res.ok ? showToast('Configuration SMTP enregistrée ✓', 'success') : showToast(data.error, 'error');
@@ -8584,7 +8794,155 @@ async function cfgTestSmtp() {
   }
 }
 
-// ── Sauvegardes planifiées ────────────────────────────────────────────────────
+// ── Modal template email (depuis Gestion des utilisateurs) ───────────────────
+async function openEmailTemplateModal() {
+  document.getElementById('emailTemplateModal').classList.add('open');
+  try {
+    const res  = await fetch(`${API}/api/config/email-template`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    document.getElementById('emailTplSubjectModal').value = data.template.subject || '';
+    document.getElementById('emailTplBodyModal').value    = data.template.body    || '';
+    const varsEl = document.getElementById('emailTemplateVarsModal');
+    if (varsEl) varsEl.innerHTML = (data.variables || []).map(v =>
+      `<button onclick="insertEmailVarModal('${v}')" style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--accent2);cursor:pointer">${v}</button>`
+    ).join('');
+  } catch {}
+}
+
+function closeEmailTemplateModal() {
+  document.getElementById('emailTemplateModal').classList.remove('open');
+  document.getElementById('emailPreviewBoxModal').style.display = 'none';
+}
+
+function insertEmailVarModal(v) {
+  const ta = document.getElementById('emailTplBodyModal');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + v + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + v.length;
+  ta.focus();
+}
+
+async function cfgSaveEmailTemplateModal() {
+  const subject = document.getElementById('emailTplSubjectModal').value.trim();
+  const body    = document.getElementById('emailTplBodyModal').value.trim();
+  if (!subject || !body) { showToast('Sujet et corps requis', 'error'); return; }
+  const res = await fetch(`${API}/api/config/email-template`, {
+    method: 'PUT',
+    headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+    body: JSON.stringify({ subject, body })
+  });
+  const data = await res.json();
+  if (res.ok) { showToast('Template enregistré ✓', 'success'); closeEmailTemplateModal(); }
+  else showToast(data.error, 'error');
+}
+
+async function cfgResetEmailTemplateModal() {
+  const res  = await fetch(`${API}/api/config/email-template`, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
+  const data = await res.json();
+  if (res.ok) {
+    document.getElementById('emailTplSubjectModal').value = data.template.subject;
+    document.getElementById('emailTplBodyModal').value    = data.template.body;
+    showToast('Template réinitialisé ✓', 'success');
+  }
+}
+
+function cfgPreviewEmailTemplateModal() {
+  const subject = document.getElementById('emailTplSubjectModal').value;
+  const body    = document.getElementById('emailTplBodyModal').value;
+  const vars = { username:'john', password:'MonM0t2Passe!', role:'Utilisateur', panelUrl:'https://panel.kazylax.fr', date: new Date().toLocaleString('fr-FR') };
+  let preview = body, previewSubject = subject;
+  for (const [k, v] of Object.entries(vars)) {
+    const re = new RegExp(`\\{\\{${k}\\}\\}`, 'g');
+    preview = preview.replace(re, v);
+    previewSubject = previewSubject.replace(re, v);
+  }
+  const box = document.getElementById('emailPreviewBoxModal');
+  document.getElementById('emailPreviewContentModal').textContent = `Sujet : ${previewSubject}\n${'─'.repeat(50)}\n${preview}`;
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+async function cfgTestWelcomeEmailModal() {
+  const to = prompt('Adresse email de test :');
+  if (!to) return;
+  const res = await fetch(`${API}/api/users/welcome-email`, {
+    method: 'POST',
+    headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+    body: JSON.stringify({ username:'john', password:'MonM0t2Passe!', email: to, role:'user' })
+  });
+  const data = await res.json();
+  res.ok ? showToast('📧 Mail de test envoyé à ' + to, 'success') : showToast(data.error, 'error');
+}
+async function cfgLoadEmailTemplate() {
+  try {
+    const res  = await fetch(`${API}/api/config/email-template`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    document.getElementById('emailTplSubject').value = data.template.subject || '';
+    document.getElementById('emailTplBody').value    = data.template.body    || '';
+    // Afficher les variables cliquables
+    const varsEl = document.getElementById('emailTemplateVars');
+    if (varsEl) {
+      varsEl.innerHTML = (data.variables || []).map(v =>
+        `<button onclick="insertEmailVar('${v}')" style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--accent2);cursor:pointer">${v}</button>`
+      ).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+function insertEmailVar(v) {
+  const ta = document.getElementById('emailTplBody');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + v + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + v.length;
+  ta.focus();
+}
+
+async function cfgSaveEmailTemplate() {
+  const subject = document.getElementById('emailTplSubject').value.trim();
+  const body    = document.getElementById('emailTplBody').value.trim();
+  if (!subject || !body) { showToast('Sujet et corps requis', 'error'); return; }
+  const res  = await fetch(`${API}/api/config/email-template`, {
+    method: 'PUT',
+    headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+    body: JSON.stringify({ subject, body })
+  });
+  const data = await res.json();
+  res.ok ? showToast('Template enregistré ✓', 'success') : showToast(data.error, 'error');
+}
+
+async function cfgResetEmailTemplate() {
+  const res  = await fetch(`${API}/api/config/email-template`, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
+  const data = await res.json();
+  if (res.ok) {
+    document.getElementById('emailTplSubject').value = data.template.subject;
+    document.getElementById('emailTplBody').value    = data.template.body;
+    showToast('Template réinitialisé au défaut ✓', 'success');
+  }
+}
+
+function cfgPreviewEmailTemplate() {
+  const subject = document.getElementById('emailTplSubject').value;
+  const body    = document.getElementById('emailTplBody').value;
+  const vars = { username:'john', password:'MonM0t2Passe!', role:'Utilisateur', panelUrl:'http://monserveur:8080', date: new Date().toLocaleString('fr-FR') };
+  let preview = body;
+  for (const [k, v] of Object.entries(vars)) preview = preview.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v);
+  let previewSubject = subject;
+  for (const [k, v] of Object.entries(vars)) previewSubject = previewSubject.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v);
+  const box = document.getElementById('emailPreviewBox');
+  document.getElementById('emailPreviewContent').textContent = `Sujet : ${previewSubject}\n${'─'.repeat(50)}\n${preview}`;
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+async function cfgTestWelcomeEmail() {
+  const to = prompt('Adresse email de test :');
+  if (!to) return;
+  const res  = await fetch(`${API}/api/users/welcome-email`, {
+    method: 'POST',
+    headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+    body: JSON.stringify({ username:'john', password:'MonM0t2Passe!', email: to, role:'user' })
+  });
+  const data = await res.json();
+  res.ok ? showToast('📧 Mail de test envoyé à ' + to, 'success') : showToast(data.error, 'error');
+}
 async function cfgLoadBackupSchedule() {
   try {
     const res  = await fetch(`${API}/api/config/backup-schedule`, { headers:{ Authorization:'Bearer '+token } });

@@ -18,16 +18,101 @@ const path       = require('path');
 const cors       = require('cors');
 const helmet     = require('helmet');
 const crypto     = require('crypto');
+const net        = require('net');
+const tls        = require('tls');
 
 // util.promisify(exec) — plus propre que le callback, tiré des améliorations Node 24
 const execAsync  = promisify(exec);
+
+// ─── SMTP NATIF (STARTTLS) — sans dépendance externe ─────────────────────────
+function sendSmtpMail({ host, port = 587, user, password, from, to, subject, body, tls: useTls = true }) {
+  return new Promise((resolve, reject) => {
+    const timeout = 15000;
+    let socket = new net.Socket();
+    let tlsSocket = null;
+    let step = 0;
+    let buffer = '';
+    let upgraded = false;
+
+    const write = (s) => {
+      const sock = upgraded ? tlsSocket : socket;
+      if (sock && !sock.destroyed) sock.write(s + '\r\n');
+    };
+
+    const b64 = (s) => Buffer.from(s).toString('base64');
+
+    const onData = (data) => {
+      buffer += data.toString();
+      const lines = buffer.split('\r\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        const code = parseInt(line.slice(0, 3));
+        if (line.charAt(3) === '-') continue; // multi-line, wait
+        if (step === 0 && code === 220) {
+          step = 1; write(`EHLO kazypanel`);
+        } else if (step === 1 && code === 250) {
+          if (useTls && !upgraded) { step = 2; write('STARTTLS'); }
+          else { step = 3; write('AUTH LOGIN'); }
+        } else if (step === 2 && code === 220) {
+          // Upgrade to TLS
+          tlsSocket = tls.connect({ socket, host, rejectUnauthorized: false }, () => {
+            upgraded = true;
+            step = 1;
+            write(`EHLO kazypanel`);
+          });
+          tlsSocket.on('data', onData);
+          tlsSocket.on('error', (e) => reject(new Error('TLS: ' + e.message)));
+          return;
+        } else if (step === 3 && code === 334) {
+          step = 4; write(b64(user));
+        } else if (step === 4 && code === 334) {
+          step = 5; write(b64(password));
+        } else if (step === 5 && code === 235) {
+          // Extraire uniquement l'email pour MAIL FROM (Gmail rejette le "Nom <email>")
+          const fromEmail = from.match(/<([^>]+)>/)?.[1] || from;
+          step = 6; write(`MAIL FROM:<${fromEmail}>`);
+        } else if (step === 6 && code === 250) {
+          const toEmail = to.match(/<([^>]+)>/)?.[1] || to;
+          step = 7; write(`RCPT TO:<${toEmail}>`);
+        } else if (step === 7 && code === 250) {
+          step = 8; write('DATA');
+        } else if (step === 8 && code === 354) {
+          step = 9;
+          const msg = [
+            `From: ${from}`,
+            `To: ${to}`,
+            `Subject: ${subject}`,
+            `Date: ${new Date().toUTCString()}`,
+            `MIME-Version: 1.0`,
+            `Content-Type: text/plain; charset=UTF-8`,
+            '',
+            body,
+            '.'
+          ].join('\r\n');
+          write(msg);
+        } else if (step === 9 && code === 250) {
+          step = 10; write('QUIT');
+        } else if (step === 10 && code === 221) {
+          socket.destroy(); resolve();
+        } else if (code >= 400) {
+          socket.destroy(); reject(new Error(`SMTP ${code}: ${line.slice(4)}`));
+        }
+      }
+    };
+
+    socket.setTimeout(timeout, () => { socket.destroy(); reject(new Error('Timeout SMTP')); });
+    socket.on('error', (e) => reject(new Error('Connexion SMTP: ' + e.message)));
+    socket.connect(port, host, () => {});
+    socket.on('data', onData);
+  });
+}
 
 const app  = express();
 const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.4.0';
+const KAZYPANEL_VERSION = '1.5.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -457,6 +542,27 @@ function adminOnly(req, res, next) {
     return res.status(403).json({ error: 'Accès réservé à l\'administrateur' });
   next();
 }
+
+// ─── ROUTE: STATUT PUBLIC (pas d'auth — pour la page login) ──────────────────
+app.get('/api/status/public', async (req, res) => {
+  try {
+    const apache  = await runCmd('systemctl is-active apache2').catch(() => 'inactive');
+    const mariadb = await runCmd('systemctl is-active mariadb').catch(() => 'inactive');
+    res.json({
+      apache:  apache.trim()  === 'active' ? 'running' : 'stopped',
+      mariadb: mariadb.trim() === 'active' ? 'running' : 'stopped',
+      panel:   'running'
+    });
+  } catch { res.json({ apache: 'unknown', mariadb: 'unknown', panel: 'running' }); }
+});
+
+// ─── ROUTE: MAINTENANCE PUBLIQUE ─────────────────────────────────────────────
+app.get('/api/maintenance', (req, res) => {
+  res.json({
+    enabled: !!PANEL_CONFIG.maintenanceEnabled,
+    message: PANEL_CONFIG.maintenanceMsg || ''
+  });
+});
 
 // ─── ROUTE: LOGIN ─────────────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
@@ -1458,6 +1564,123 @@ app.post('/api/users', authMiddleware, adminOnly, async (req, res) => {
   });
 });
 
+// ─── TEMPLATE EMAIL DE BIENVENUE ─────────────────────────────────────────────
+const DEFAULT_EMAIL_TEMPLATE = {
+  subject: 'Bienvenue sur votre espace d\'hébergement — {{username}}',
+  body: `Bonjour {{username}},
+
+Votre espace d'hébergement a été créé et est prêt à l'emploi.
+
+════════════════════════════════════════
+  VENTE D'ACCÈS — KAZYLAX.FR
+════════════════════════════════════════
+
+  Panneau de contrôle
+  ───────────────────
+  URL         : {{panelUrl}}
+  Identifiant : {{username}}
+  Mot de passe: {{password}}
+  Rôle        : {{role}}
+
+════════════════════════════════════════
+
+PREMIÈRE CONNEXION
+Rendez-vous sur {{panelUrl}} et connectez-vous
+avec vos identifiants ci-dessus.
+
+Nous vous recommandons de changer votre mot de
+passe dès votre première connexion depuis
+Mon Profil > Changer le mot de passe.
+
+════════════════════════════════════════
+
+SUPPORT
+Pour toute question ou assistance :
+→ Email   : kazypanel@gmail.com
+→ GitHub  : github.com/kazypanel/kazypanel
+
+════════════════════════════════════════
+
+Ce message a été généré automatiquement le {{date}}.
+Merci de ne pas y répondre directement.
+
+— L'équipe KazyPanel · kazylax.fr`
+};
+
+// Variables disponibles dans le template
+// {{username}}, {{password}}, {{role}}, {{panelUrl}}, {{date}}
+
+function renderEmailTemplate(tpl, vars) {
+  let subject = tpl.subject || DEFAULT_EMAIL_TEMPLATE.subject;
+  let body    = tpl.body    || DEFAULT_EMAIL_TEMPLATE.body;
+  for (const [k, v] of Object.entries(vars)) {
+    const re = new RegExp(`\\{\\{${k}\\}\\}`, 'g');
+    subject = subject.replace(re, v);
+    body    = body.replace(re, v);
+  }
+  return { subject, body };
+}
+
+// GET /api/config/email-template
+app.get('/api/config/email-template', authMiddleware, adminOnly, (req, res) => {
+  res.json({
+    template: PANEL_CONFIG.emailTemplate || DEFAULT_EMAIL_TEMPLATE,
+    default:  DEFAULT_EMAIL_TEMPLATE,
+    variables: ['{{username}}', '{{password}}', '{{role}}', '{{panelUrl}}', '{{date}}']
+  });
+});
+
+// PUT /api/config/email-template
+app.put('/api/config/email-template', authMiddleware, adminOnly, (req, res) => {
+  const { subject, body } = req.body;
+  if (!subject || !body) return res.status(400).json({ error: 'Sujet et corps requis' });
+  PANEL_CONFIG.emailTemplate = { subject: subject.trim(), body: body.trim() };
+  savePanelConfig();
+  log('CONFIG_EMAIL_TEMPLATE', 'Template mis à jour', 'OK');
+  res.json({ success: true });
+});
+
+// DELETE /api/config/email-template — réinitialiser au défaut
+app.delete('/api/config/email-template', authMiddleware, adminOnly, (req, res) => {
+  delete PANEL_CONFIG.emailTemplate;
+  savePanelConfig();
+  log('CONFIG_EMAIL_TEMPLATE', 'Template réinitialisé', 'OK');
+  res.json({ success: true, template: DEFAULT_EMAIL_TEMPLATE });
+});
+
+// POST /api/users/welcome-email — envoyer mail de bienvenue
+app.post('/api/users/welcome-email', authMiddleware, adminOnly, async (req, res) => {
+  const { username, password, email, role } = req.body;
+  if (!email || !username) return res.status(400).json({ error: 'Paramètres manquants' });
+  const smtp = PANEL_CONFIG.smtp || {};
+  if (!smtp.host) return res.status(400).json({ error: 'SMTP non configuré dans Configuration > Emails' });
+
+  const vars = {
+    username,
+    password,
+    role:     role === 'admin' ? 'Administrateur' : 'Utilisateur',
+    panelUrl: PANEL_CONFIG.panelPublicUrl || `http://${require('os').networkInterfaces()['eth0']?.[0]?.address || 'votre-ip'}:${CONFIG.PORT}`,
+    date:     new Date().toLocaleString('fr-FR')
+  };
+
+  const tpl = PANEL_CONFIG.emailTemplate || DEFAULT_EMAIL_TEMPLATE;
+  const { subject, body } = renderEmailTemplate(tpl, vars);
+
+  try {
+    await sendSmtpMail({
+      host: smtp.host, port: smtp.port || 587,
+      user: smtp.user, password: smtp.password,
+      from: smtp.from || smtp.user, tls: smtp.tls !== false,
+      to: email, subject, body
+    });
+    log('USER_WELCOME_EMAIL', `${username} → ${email}`, 'OK');
+    res.json({ success: true });
+  } catch (err) {
+    log('USER_WELCOME_EMAIL', `${username} → ${email} : ${err.message}`, 'FAIL');
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Modifier le rôle d'un utilisateur
 app.put('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
   const user = USERS.find(u => u.id === parseInt(req.params.id));
@@ -1547,10 +1770,9 @@ app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
   const userDir = `${CONFIG.FTP_ROOT}/${deleted.username}`;
   try {
     if (fs.existsSync(userDir)) {
-      fs.rmSync(userDir, { recursive: true, force: true });
+      await runCmd(`sudo rm -rf "${userDir}"`);
       log('DIR_DELETE', userDir, 'OK');
     }
-// Supprimer un de mes comptes FTP
   } catch (e) { errors.push(`Dossier ${userDir}: ${e.message}`); }
 
   saveUsers();
@@ -3530,7 +3752,17 @@ app.get('/api/config/general', authMiddleware, adminOnly, (req, res) => {
     smtp:      PANEL_CONFIG.smtp     || {},
     backupSchedule: PANEL_CONFIG.backupSchedule || { enabled: false, cron: '0 3 * * *', retain: 7 },
     network:   PANEL_CONFIG.network  || { ftpPassiveMin: 40000, ftpPassiveMax: 50000 },
+    panelPublicUrl: PANEL_CONFIG.panelPublicUrl || '',
   });
+});
+
+// PUT /api/config/panel-url — URL publique du panel
+app.put('/api/config/panel-url', authMiddleware, adminOnly, (req, res) => {
+  const { url } = req.body;
+  PANEL_CONFIG.panelPublicUrl = (url || '').trim().replace(/\/$/, '');
+  savePanelConfig();
+  log('CONFIG_PANEL_URL', PANEL_CONFIG.panelPublicUrl, 'OK');
+  res.json({ success: true });
 });
 
 // PUT /api/config/defaults — limites par défaut nouveaux utilisateurs
@@ -3666,14 +3898,26 @@ app.post('/api/config/smtp/test', authMiddleware, adminOnly, async (req, res) =>
   const { to } = req.body;
   if (!to) return res.status(400).json({ error: 'Destinataire requis' });
   const smtp = PANEL_CONFIG.smtp || {};
-  if (!smtp.host) return res.status(400).json({ error: 'SMTP non configuré' });
+  if (!smtp.host) return res.status(400).json({ error: 'SMTP non configuré — sauvegardez d\'abord la configuration' });
+
   try {
-    const tlsFlag = smtp.tls ? '' : ' -o tls=no';
-    const cmd = `echo "Test KazyPanel SMTP" | mail -s "Test KazyPanel" -S smtp="${smtp.host}:${smtp.port}" -S smtp-auth=login -S smtp-auth-user="${smtp.user}" -S smtp-auth-password="${smtp.password}" -S from="${smtp.from}"${tlsFlag} "${to}"`;
-    await execAsync(cmd, { timeout: 15000 });
+    await sendSmtpMail({
+      host:     smtp.host,
+      port:     smtp.port || 587,
+      user:     smtp.user,
+      password: smtp.password,
+      from:     smtp.from || smtp.user,
+      tls:      smtp.tls !== false,
+      to,
+      subject:  '[KazyPanel] Mail de test',
+      body:     `Bonjour,\n\nCeci est un mail de test envoyé depuis KazyPanel.\n\nServeur : ${smtp.host}:${smtp.port}\nDate    : ${new Date().toLocaleString('fr-FR')}\n\n— KazyPanel`
+    });
     log('SMTP_TEST', `→ ${to}`, 'OK');
     res.json({ success: true, message: `Mail de test envoyé à ${to}` });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    log('SMTP_TEST', `→ ${to} : ${err.message}`, 'FAIL');
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── CONFIG : SAUVEGARDES PLANIFIÉES ─────────────────────────────────────────
