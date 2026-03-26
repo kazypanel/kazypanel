@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================
 #  KazyPanel — Script d'installation complet
-#  Version : 1.3.0
-#  OS cible : Ubuntu 20.04 / 22.04 / 24.04 — Debian 11 / 12
+#  Version : 1.4.0
+#  OS cible : Ubuntu 20.04 / 22.04 / 24.04 — Debian 11 / 12 / 13
 #  Auteur   : kazylax.fr
 # ============================================================
 set -euo pipefail
@@ -28,7 +28,7 @@ cat << 'EOF'
   ██║  ██╗██║  ██║   ██║     ██║   ██║     ██║  ██║██║ ╚████║███████╗███████╗
   ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝     ╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 EOF
-echo -e "${NC}${BOLD}                     Panel d'hébergement — v1.3.0${NC}"
+echo -e "${NC}${BOLD}                     Panel d'hébergement — v1.4.0${NC}"
 echo -e "${CYAN}                        github.com/kazypanel/kazypanel${NC}\n"
 echo -e "  ${YELLOW}Ce script va installer et configurer :${NC}"
 echo -e "  Node.js 24, Apache2, PHP 8.4, MariaDB, vsftpd,"
@@ -81,16 +81,12 @@ PANEL_PORT=${PANEL_PORT:-8080}
 
 # Mot de passe admin
 while true; do
-  read -rsp "  $(echo -e "${CYAN}Mot de passe admin${NC} (min 5 car., maj+min+chiffre+spécial) : ")" ADMIN_PASSWORD
+  read -rsp "  $(echo -e "${CYAN}Mot de passe admin${NC} (min 5 car.) : ")" ADMIN_PASSWORD
   echo ""
-  if [[ ${#ADMIN_PASSWORD} -ge 5 ]] && \
-     [[ "$ADMIN_PASSWORD" =~ [A-Z] ]] && \
-     [[ "$ADMIN_PASSWORD" =~ [a-z] ]] && \
-     [[ "$ADMIN_PASSWORD" =~ [0-9] ]] && \
-     [[ "$ADMIN_PASSWORD" =~ [^a-zA-Z0-9] ]]; then
+  if [[ ${#ADMIN_PASSWORD} -ge 5 ]]; then
     break
   fi
-  warn "Mot de passe trop faible. Réessayez."
+  warn "Mot de passe trop court (minimum 5 caractères). Réessayez."
 done
 
 # Mot de passe MariaDB root
@@ -138,11 +134,11 @@ apt-get install -y -qq \
   curl wget gnupg2 ca-certificates lsb-release \
   software-properties-common apt-transport-https \
   git unzip tar openssl ufw fail2ban \
-  net-tools dnsutils htop
+  net-tools dnsutils htop s-nail
 ok "Paquets de base installés"
 
 # ── Node.js 24 ───────────────────────────────────────────────
-step "Installation de Node.js 24"
+step "Installation de Node.js 24 LTS"
 if ! command -v node &>/dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 24 ]]; then
   curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
   apt-get install -y -qq nodejs
@@ -347,17 +343,12 @@ step "Installation de phpMyAdmin"
 apt-get install -y -qq php-mbstring php-xml php-zip php-json php-curl dbconfig-no-thanks
 
 # Télécharger phpMyAdmin (dernière version stable)
+PMA_VERSION=$(curl -s https://www.phpmyadmin.net/home_page/version.txt 2>/dev/null | head -1 | tr -d '[:space:]')
+[[ -z "$PMA_VERSION" || ! "$PMA_VERSION" =~ ^[0-9]+\.[0-9]+ ]] && PMA_VERSION="5.2.2"
 PMA_DIR="/var/www/html/phpmyadmin"
 PMA_ARCHIVE="/tmp/phpmyadmin.tar.gz"
 
-info "Récupération de la dernière version de phpMyAdmin..."
-PMA_VERSION=$(curl -s https://www.phpmyadmin.net/home_page/version.txt 2>/dev/null | head -1 | tr -d '[:space:]')
-if [[ -z "$PMA_VERSION" ]]; then
-  warn "Impossible de récupérer la dernière version — utilisation de la version de secours 5.2.2"
-  PMA_VERSION="5.2.2"
-fi
-info "Version phpMyAdmin : ${PMA_VERSION}"
-
+info "Téléchargement de phpMyAdmin ${PMA_VERSION}..."
 wget -q "https://files.phpmyadmin.net/phpMyAdmin/${PMA_VERSION}/phpMyAdmin-${PMA_VERSION}-all-languages.tar.gz" \
   -O "$PMA_ARCHIVE" || {
   warn "Téléchargement phpMyAdmin échoué — installation via apt..."
@@ -468,11 +459,42 @@ enabled  = true
 port     = ftp,ftp-data,ftps,ftps-data
 logpath  = %(vsftpd_log)s
 maxretry = 3
+
+[kazypanel]
+enabled  = true
+port     = 8080
+filter   = kazypanel
+logpath  = /var/log/kazypanel.log
+maxretry = 5
+bantime  = 900
+findtime = 60
 F2B
+
+# Créer le filtre Fail2ban pour KazyPanel
+cat > /etc/fail2ban/filter.d/kazypanel.conf << 'F2BFILTER'
+[Definition]
+failregex = ^\[.*\] \[WARN\] \[FAIL\] LOGIN: \[<HOST>\]
+ignoreregex =
+F2BFILTER
 
 systemctl enable fail2ban
 systemctl restart fail2ban
 ok "Fail2ban configuré et démarré"
+
+# ── Logrotate KazyPanel ──────────────────────────────────────
+step "Configuration logrotate"
+cat > /etc/logrotate.d/kazypanel << 'LOGROTATE'
+/var/log/kazypanel*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+LOGROTATE
+ok "Logrotate configuré"
 
 # ── Répertoires web ──────────────────────────────────────────
 step "Création des répertoires"
@@ -631,7 +653,9 @@ $SERVICE_USER ALL=(root) NOPASSWD: \\
     /usr/sbin/apache2ctl, \\
     /usr/sbin/apachectl, \\
     /bin/bash, \\
-    /usr/bin/passwd
+    /usr/bin/passwd, \\
+    /usr/bin/tee, \\
+    /bin/tee
 SUDOERS
   chmod 440 /etc/sudoers.d/kazypanel
   # Valider la syntaxe sudoers
@@ -745,7 +769,8 @@ echo ""
 echo -e "${BOLD}  📁 Fichiers importants :${NC}"
 echo -e "  • Répertoire  : ${CYAN}${INSTALL_DIR}${NC}"
 echo -e "  • Config      : ${CYAN}${INSTALL_DIR}/.env${NC}"
-echo -e "  • Logs panel  : ${CYAN}journalctl -u kazypanel -f${NC}"
+echo -e "  • Logs panel  : ${CYAN}/var/log/kazypanel.log${NC}"
+echo -e "  • Logs erreur : ${CYAN}/var/log/kazypanel-error.log${NC}"
 echo -e "  • Logs install: ${CYAN}${LOGFILE}${NC}"
 echo ""
 echo -e "${BOLD}  🔧 Commandes utiles :${NC}"
