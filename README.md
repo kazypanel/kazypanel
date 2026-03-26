@@ -6,7 +6,7 @@
 
 > Panel d'administration web pour serveurs Apache/PHP — léger, rapide, sans dépendances lourdes.
 
-![Version](https://img.shields.io/badge/version-1.4.0-blue)
+![Version](https://img.shields.io/badge/version-1.5.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D24.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
@@ -35,7 +35,6 @@
 - [Logs & Monitoring](#-logs--monitoring)
 - [Sécurité avancée](#-sécurité-avancée)
 - [FAQ](#-faq)
-
 ---
 
 ## 🎯 Présentation
@@ -53,7 +52,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 - 🌐 **Domaines & sous-domaines** — création, activation/désactivation, configuration Apache
 - 🔒 **SSL Let's Encrypt** — génération et renouvellement de certificats en 1 clic
 - ⚙️ **Configuration PHP** — par domaine (version, mémoire, upload, etc.)
-- 🛡️ **Pare-feu UFW** — gestion des règles depuis l'interface
+- 🛡️ **Pare-feu UFW** — gestion des règles depuis l'interface + profils prédéfinis
 - 🚫 **Fail2ban** — surveillance, débannissement, activation/désactivation des jails
 - 🗄️ **Bases de données MariaDB** — création, suppression, quotas
 - 📁 **Comptes FTP** — gestion vsftpd, multi-comptes par utilisateur
@@ -61,12 +60,14 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 - 💾 **Sauvegardes** — création manuelle + planification automatique (cron + rétention configurable)
 - 📋 **Logs Apache** — consultation par domaine
 - 🕐 **Crontab** — gestion des tâches planifiées par utilisateur
-- 🔑 **Connexions SSH** — historique avec navigateur détecté, alertes brute-force
-- 📧 **Configuration SMTP** — relay email avec test d'envoi intégré
+- 🔑 **Connexions** — historique avec navigateur détecté, graphique 7 jours, alertes brute-force
+- 📧 **SMTP** — relay email natif Node.js (STARTTLS), test d'envoi, template configurable
 - 🔑 **Clés SSH** — gestion des clés autorisées (`authorized_keys`) par utilisateur
 - 🌐 **Réseau FTP** — ports passifs configurables, IP publique
 - ⏱️ **NTP** — serveur de temps configurable
-- 📜 **Logs du panel** — consultation `kazypanel.log` / `kazypanel-error.log` avec filtres
+- 📜 **Logs du panel** — consultation `kazypanel.log` / `kazypanel-error.log` avec filtres et alertes
+- 🔒 **Sécurité avancée** — score /100, IPs bloquées, audit SSH, bannir/débannir en 1 clic
+- 👤 **Gestion utilisateurs** — template email bienvenue personnalisable, envoi automatique à la création
 
 ### Espace utilisateur
 - 📂 **Explorateur de fichiers** — navigation, création, renommage, suppression, upload, téléchargement
@@ -76,6 +77,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 
 ### Interface
 - 🎨 **7 thèmes** — Dark, Light, Classic (Windows XP), macOS, Oceanic, Sunset, Lavender
+- 🔐 **Page login améliorée** — fond animé, afficher/masquer MDP, statut serveur, se souvenir de moi, bannière maintenance
 - 📱 Responsive — adapté desktop et mobile
 - 🌙 Préférence de thème sauvegardée localement
 - 🔄 Vérification automatique des mises à jour
@@ -475,6 +477,16 @@ Authorization: Bearer <token>
 | GET | `/api/backup` | Lister les sauvegardes |
 | POST | `/api/backup` | Créer une sauvegarde |
 | DELETE | `/api/backup/:name` | Supprimer une sauvegarde |
+| GET | `/api/status/public` | Statut serveur sans auth (page login) |
+| GET | `/api/maintenance` | État bannière maintenance sans auth |
+| GET/PUT/DELETE | `/api/config/email-template` | Template email de bienvenue |
+| PUT | `/api/config/panel-url` | URL publique du panel |
+| POST | `/api/users/welcome-email` | Envoi email de bienvenue |
+| GET | `/api/security/score` | Score de sécurité /100 |
+| GET | `/api/security/banned` | IPs bannies toutes jails |
+| POST | `/api/security/ban` | Bannir une IP manuellement |
+| GET | `/api/security/ssh-audit` | Audit tentatives SSH |
+| GET | `/api/security/logins/stats` | Stats connexions 7 jours |
 | GET | `/api/update/check` | Vérifier les mises à jour |
 | POST | `/api/update/apply` | Appliquer une mise à jour one-click |
 | GET | `/api/logs/panel` | Logs du panel (filtres niveau/type) |
@@ -807,9 +819,55 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ---
 
-*KazyPanel v1.4.0 — Dernière mise à jour : Mars 2026*
+*KazyPanel v1.5.0 — Dernière mise à jour : Mars 2026*
 
 ## Changelog
+
+### v1.5.0 — 2026-03-26
+
+#### 🔐 Page login
+- ✨ **Fond animé** — grille de points en mouvement + orbe lumineux flottant
+- 👁 **Afficher/masquer le mot de passe** — bouton dédié
+- 🟢 **Statut serveur** — indicateurs Apache / MariaDB / KazyPanel visibles avant connexion
+- ⚠️ **Bannière maintenance** — affichée sans connexion si maintenance activée
+- 💾 **Se souvenir de moi** — username mémorisé en localStorage
+- ⌨️ **Navigation clavier** — Enter username → focus password → Enter → login
+- 🔴 **Animation shake** sur erreur de connexion
+
+#### 📧 Emails
+- ✨ **SMTP natif Node.js** — STARTTLS sur port 587, zéro dépendance externe
+- 📝 **Template email personnalisable** — sujet + corps avec variables `{{username}}`, `{{password}}`, `{{role}}`, `{{panelUrl}}`, `{{date}}`
+- 👁 **Aperçu en temps réel** avec données fictives
+- 📧 **Bouton "Template email"** dans Gestion des utilisateurs
+- 🌐 **URL publique du panel** configurable (utilisée dans les mails)
+- ✉️ **Envoi automatique** à la création d'utilisateur si email fourni
+
+#### 🛡️ Sécurité
+- 📊 **Score de sécurité** — 7 vérifications, note /100, grade A/B/C/D
+- 🚫 **IPs bloquées** — liste toutes jails Fail2ban, débannir/bannir en 1 clic
+- 🔍 **Audit SSH** — analyse `/var/log/auth.log`, top 10 IPs attaquantes
+- 📈 **Graphique connexions** — barres OK/FAIL sur 7 jours
+
+#### ⚙️ Configuration
+- 📧 **Onglet Emails** — SMTP + limites par défaut + expiration JWT + URL publique
+- 💾 **Onglet Sauvegardes** — planification cron avec raccourcis + rétention
+- 🌐 **Onglet Réseau** — ports FTP passif + IP publique + certificats SSL + NTP
+- 🔑 **Onglet Clés SSH** — ajout/suppression `authorized_keys` par utilisateur
+
+#### 🐛 Corrections
+- Fix : suppression utilisateur — `sudo rm -rf` pour les dossiers `/var/www/`
+- Fix : sections admin (Sécurité, DNS) visibles pour les utilisateurs
+- Fix : `userFilesSection` persistait lors de la navigation
+- Fix : IDs dupliqués dans les formulaires (`logLinesSelect`, `genPwBtn`, `profileDiskRow`)
+- Fix : BIND9 et UFW sans uptime dans le dashboard Services
+
+#### 🔧 install.sh
+- ✨ **Question URL publique** pendant l'installation (pré-remplit `{{panelUrl}}`)
+- 📄 **`panel_config.json` initial** créé avec l'URL et phpMyAdmin configurés
+- 🔄 **`backup-cron.js`** créé automatiquement si absent après `git clone`
+- 🛡️ Jail Fail2ban `[kazypanel]` ajouté automatiquement
+- 📋 Logrotate configuré à l'installation
+- 📦 Paquet `s-nail` ajouté (SMTP)
 
 ### v1.4.0 — 2026-03-25
 - ✨ **Explorateur de fichiers utilisateur** — navigation arborescence, vue liste/grille, fil d'Ariane
@@ -833,4 +891,4 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 - 🐛 Fix : modal Mise à jour — version lue depuis `version.json` local en priorité
 - 🐛 Fix : IDs dupliqués dans les formulaires
 
-### v1.3.0 — 2026-03-23
+### v1.4.0 — 2026-03-23
