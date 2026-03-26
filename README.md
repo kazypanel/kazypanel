@@ -807,13 +807,11 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ---
 
-*KazyPanel v1.3.0 — Dernière mise à jour : Mars 2026*
+*KazyPanel v1.4.0 — Dernière mise à jour : Mars 2026*
 
 ## Changelog
 
-### v1.4.0 — 2026-03-26
-
-### v1.3.0 — 2026-03-25
+### v1.4.0 — 2026-03-25
 - ✨ **Explorateur de fichiers utilisateur** — navigation arborescence, vue liste/grille, fil d'Ariane
 - ✏️ **Éditeur de fichiers intégré** — édition en ligne avec coloration (PHP, HTML, CSS, JS, JSON, .htaccess…)
 - 🔒 **Gestion des permissions** (chmod) — interface visuelle avec cases à cocher
