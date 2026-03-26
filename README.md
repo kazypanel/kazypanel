@@ -31,6 +31,9 @@
 - [Templates de ressources](#-templates-de-ressources)
 - [Sécurité](#-sécurité)
 - [Mise à jour](#-mise-à-jour)
+- [Dépannage](#-dépannage)
+- [Logs & Monitoring](#-logs--monitoring)
+- [Sécurité avancée](#-sécurité-avancée)
 - [FAQ](#-faq)
 
 ---
@@ -55,10 +58,15 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 - 🗄️ **Bases de données MariaDB** — création, suppression, quotas
 - 📁 **Comptes FTP** — gestion vsftpd, multi-comptes par utilisateur
 - 🔗 **DNS (BIND9)** — zones, enregistrements A/AAAA/CNAME/MX/TXT
-- 💾 **Sauvegardes** — création et téléchargement d'archives
+- 💾 **Sauvegardes** — création manuelle + planification automatique (cron + rétention configurable)
 - 📋 **Logs Apache** — consultation par domaine
 - 🕐 **Crontab** — gestion des tâches planifiées par utilisateur
-- 🔑 **Connexions SSH** — historique, gestion des utilisateurs autorisés
+- 🔑 **Connexions SSH** — historique avec navigateur détecté, alertes brute-force
+- 📧 **Configuration SMTP** — relay email avec test d'envoi intégré
+- 🔑 **Clés SSH** — gestion des clés autorisées (`authorized_keys`) par utilisateur
+- 🌐 **Réseau FTP** — ports passifs configurables, IP publique
+- ⏱️ **NTP** — serveur de temps configurable
+- 📜 **Logs du panel** — consultation `kazypanel.log` / `kazypanel-error.log` avec filtres
 
 ### Espace utilisateur
 - 📂 **Explorateur de fichiers** — navigation, création, renommage, suppression, upload, téléchargement
@@ -468,6 +476,20 @@ Authorization: Bearer <token>
 | POST | `/api/backup` | Créer une sauvegarde |
 | DELETE | `/api/backup/:name` | Supprimer une sauvegarde |
 | GET | `/api/update/check` | Vérifier les mises à jour |
+| POST | `/api/update/apply` | Appliquer une mise à jour one-click |
+| GET | `/api/logs/panel` | Logs du panel (filtres niveau/type) |
+| DELETE | `/api/logs/panel` | Vider les logs |
+| GET | `/api/logs/alerts` | Alertes brute-force non lues |
+| GET | `/api/config/general` | Paramètres généraux |
+| PUT | `/api/config/defaults` | Limites par défaut utilisateurs |
+| PUT | `/api/config/jwt` | Expiration des sessions |
+| GET/PUT | `/api/config/smtp` | Configuration SMTP |
+| POST | `/api/config/smtp/test` | Test d'envoi email |
+| GET/PUT | `/api/config/backup-schedule` | Planification sauvegardes |
+| GET/PUT | `/api/config/network` | Ports FTP passif + IP publique |
+| GET/PUT | `/api/config/ntp` | Serveur NTP |
+| GET | `/api/config/ssl-status` | Statut certificats Let's Encrypt |
+| GET/POST/DELETE | `/api/config/ssh-keys` | Gestion clés SSH autorisées |
 
 ---
 
@@ -605,7 +627,150 @@ Le panel vérifie automatiquement les nouvelles versions au démarrage et affich
 
 ---
 
-## ❓ FAQ
+## 🔧 Dépannage
+
+**Bloqué par le rate limiting ("Trop de tentatives")**
+→ Le rate limiting est en mémoire — un redémarrage du service le remet à zéro :
+```bash
+sudo systemctl restart kazypanel
+```
+
+**BIND9 ne démarre pas**
+→ Vérifier la syntaxe du fichier de configuration :
+```bash
+named-checkconf
+journalctl -xeu named.service --no-pager | tail -30
+```
+→ Port 53 occupé par `systemd-resolved` :
+```bash
+echo "DNSStubListener=no" | sudo tee -a /etc/systemd/resolved.conf
+sudo systemctl restart systemd-resolved
+sudo systemctl start named
+```
+
+**`named-checkconf : command not found` avec sudo**
+→ sudo ne trouve pas `/usr/sbin` dans son PATH. KazyPanel résout le chemin dynamiquement — vérifier que `named-checkconf` est bien installé :
+```bash
+which named-checkconf || find /usr /sbin /bin -name named-checkconf
+sudo apt install bind9utils
+```
+
+**Erreur `EACCES` sur `/var/www/`**
+→ Corriger les permissions du répertoire :
+```bash
+sudo chown -R debian:debian /var/www/username
+sudo chmod -R 755 /var/www/username
+```
+
+**503 sur le reverse proxy**
+→ Vérifier que KazyPanel tourne et écoute bien sur le port 8080 :
+```bash
+systemctl status kazypanel
+ss -tlnp | grep 8080
+curl -I http://127.0.0.1:8080/
+```
+
+**Syntaxe `named.conf.local` invalide**
+→ Inspecter et corriger le fichier :
+```bash
+cat -n /etc/bind/named.conf.local
+sudo nano /etc/bind/named.conf.local
+sudo named-checkconf && sudo systemctl start named
+```
+
+---
+
+## 📋 Logs & Monitoring
+
+KazyPanel écrit deux fichiers de log dans `/var/log/` :
+
+| Fichier | Contenu |
+|---------|---------|
+| `kazypanel.log` | Toutes les actions (INFO, WARN) |
+| `kazypanel-error.log` | Erreurs et alertes sécurité uniquement |
+
+### Format des entrées
+
+```
+[26/03/2026 11:04:24] [INFO] [OK] LOGIN: [127.0.0.1] admin
+[26/03/2026 11:05:12] [WARN] [FAIL] LOGIN: [1.2.3.4] admin
+[26/03/2026 11:05:13] [ALERT] BRUTE_FORCE: 5 tentatives depuis 1.2.3.4 en moins d'1 minute
+```
+
+### Consultation depuis le panel
+
+Le bouton **📋 Logs** dans la topbar (admin) ouvre un modal avec :
+- Sélecteur de fichier (`kazypanel.log` / `kazypanel-error.log`)
+- Filtre par niveau (`INFO`, `WARN`, `ERROR`)
+- Colorisation des lignes
+- Bouton vider
+
+### Rotation automatique
+
+Configurer `logrotate` pour éviter que les fichiers grossissent indéfiniment :
+
+```bash
+sudo tee /etc/logrotate.d/kazypanel << 'EOF'
+/var/log/kazypanel*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+```
+
+### Consultation en ligne de commande
+
+```bash
+# Dernières connexions
+grep LOGIN /var/log/kazypanel.log | tail -20
+
+# Tentatives échouées
+grep FAIL /var/log/kazypanel.log
+
+# Alertes brute-force
+cat /var/log/kazypanel-error.log
+```
+
+---
+
+## 🔒 Sécurité avancée
+
+### Rate limiting intégré
+
+KazyPanel bloque automatiquement une IP après **5 tentatives de connexion échouées** et détecte les attaques brute-force en temps réel (5 échecs en moins d'une minute → alerte dans la topbar).
+
+Pour débloquer une IP manuellement (reset en mémoire) :
+```bash
+sudo systemctl restart kazypanel
+```
+
+### Alertes brute-force
+
+Le badge 🚨 dans la topbar s'allume si une IP déclenche une alerte. L'alerte est également écrite dans `kazypanel-error.log`.
+
+### Recommandations de production
+
+- Utiliser un **reverse proxy HTTPS** (Apache ou Nginx) devant le port 8080
+- Ne jamais exposer le port 8080 publiquement
+- Définir une clé `JWT_SECRET` longue et aléatoire dans `.env` :
+```bash
+JWT_SECRET=$(openssl rand -hex 64)
+```
+- Activer **Fail2ban** avec le filtre KazyPanel inclus dans `jail.local`
+- Configurer le **PTR record** (reverse DNS) sur l'IP du serveur pour la délivrabilité mail
+
+### Filtre Fail2ban pour KazyPanel
+
+Le fichier `/etc/fail2ban/filter.d/kazypanel.conf` est créé automatiquement. Il détecte les échecs de connexion dans `kazypanel.log` et les transmet à Fail2ban pour bannissement IP.
+
+---
+
+
 
 **Le panel ne démarre pas**
 → Vérifiez les logs : `journalctl -u kazypanel -f`
@@ -647,8 +812,6 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 ## Changelog
 
 ### v1.3.0 — 2026-03-25
-
-### v1.3.0 — 2026-03-25
 - ✨ **Explorateur de fichiers utilisateur** — navigation arborescence, vue liste/grille, fil d'Ariane
 - ✏️ **Éditeur de fichiers intégré** — édition en ligne avec coloration (PHP, HTML, CSS, JS, JSON, .htaccess…)
 - 🔒 **Gestion des permissions** (chmod) — interface visuelle avec cases à cocher
@@ -656,8 +819,18 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 - ⬆️ **Upload de fichiers** — multi-fichiers avec barre de progression
 - 🔄 **Mise à jour one-click** depuis le modal — git pull + npm install + restart avec logs en temps réel
 - 🗄️ **BIND9** ajouté au dashboard statut, uptime et contrôle des services
-- 🐛 Fix : `named-checkconf` / `named-checkzone` — résolution dynamique du chemin (`which` + `find`)
+- 📋 **Logs panel améliorés** — format structuré (INFO/WARN/ERROR), fichier d'erreurs séparé, alertes brute-force, modal de consultation avec filtres
+- 🔑 **Historique connexions enrichi** — navigateur détecté, IP dans Détails
+- 📧 **Configuration SMTP** — relay email avec test d'envoi intégré
+- 🔑 **Gestion clés SSH** — ajout/suppression `authorized_keys` par utilisateur
+- 💾 **Sauvegardes planifiées** — cron configurable + rétention automatique
+- 🌐 **Configuration réseau FTP** — ports passifs et IP publique configurables
+- ⏱️ **NTP** — serveur de temps configurable depuis le panel
+- 📜 **Statut SSL** — expiration des certificats Let's Encrypt dans Configuration
+- ⚙️ **Limites par défaut** — configurables pour les nouveaux utilisateurs
+- 🔐 **Expiration JWT** — durée de session configurable (1h à 30j)
+- 🐛 Fix : `named-checkconf` / `named-checkzone` — résolution dynamique du chemin
 - 🐛 Fix : modal Mise à jour — version lue depuis `version.json` local en priorité
-- 🐛 Fix : suppression des fichiers `.bak` inutiles (éditeur .bashrc et config Fail2ban)
+- 🐛 Fix : IDs dupliqués dans les formulaires
 
 ### v1.3.0 — 2026-03-23
