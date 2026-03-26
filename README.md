@@ -793,8 +793,30 @@ Le fichier `/etc/fail2ban/filter.d/kazypanel.conf` est créé automatiquement. I
 → Le processus doit tourner en root ou avoir les permissions suffisantes
 
 **Les emails ne s'envoient pas**
-→ Le port 25 est souvent bloqué par les fournisseurs VPS
-→ Utilisez un service externe (Resend, Mailgun, SendGrid) via leur API HTTPS
+→ Vérifiez la configuration SMTP dans Configuration > Emails
+→ Le port 25 est souvent bloqué par les fournisseurs VPS — utilisez le port **587 (STARTTLS)**
+→ Pour Gmail, générez un **mot de passe d'application** (pas votre mot de passe habituel)
+
+**Configuration SMTP — Fournisseurs compatibles**
+
+KazyPanel utilise SMTP natif Node.js avec **STARTTLS sur le port 587** — compatible avec tout serveur SMTP standard :
+
+| Fournisseur | Hôte SMTP | Port |
+|---|---|---|
+| **Gmail** | `smtp.gmail.com` | 587 |
+| **Outlook / Hotmail** | `smtp-mail.outlook.com` | 587 |
+| **OVH** | `ssl0.ovh.net` | 587 |
+| **Infomaniak** | `mail.infomaniak.com` | 587 |
+| **Ionos (1&1)** | `smtp.ionos.fr` | 587 |
+| **Gandi** | `mail.gandi.net` | 587 |
+| **Mailgun** | `smtp.mailgun.org` | 587 |
+| **SendGrid** | `smtp.sendgrid.net` | 587 |
+| **Amazon SES** | `email-smtp.eu-west-1.amazonaws.com` | 587 |
+| **Serveur perso** | `mail.votredomaine.fr` | 587 |
+
+> ⚠️ Le port **465 (SSL direct)** n'est pas supporté — utilisez exclusivement le port **587 avec STARTTLS activé**.
+
+> Gmail : activez la validation en deux étapes puis générez un mot de passe d'application sur [myaccount.google.com](https://myaccount.google.com) → Sécurité → Mots de passe des applications.
 
 **L'uptime s'affiche N/A**
 → Vérifiez que `/proc/uptime` est accessible sur votre système
