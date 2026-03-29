@@ -5,7 +5,7 @@
 <<<<<<< Updated upstream
  * Node.js 24 LTS — Dernière modification : 21/03/2026
 =======
- * Dernière modification : 19/03/2026 22:21
+ * Dernière modification : 29/03/2026 14:42
 >>>>>>> Stashed changes
  */
 
@@ -116,7 +116,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.5.0';
+const KAZYPANEL_VERSION = '1.6.0';
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────

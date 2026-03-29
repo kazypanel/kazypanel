@@ -885,6 +885,8 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ### v1.6.0 — 2026-03-29
 
+### v1.6.0 — 2026-03-29
+
 #### 🌐 API REST publique v1
 - ✨ **8 endpoints API** authentifiés par clé `X-Api-Key` :
   - `GET /api/v1/status` — statut serveur (CPU, RAM, disque, nb utilisateurs)
