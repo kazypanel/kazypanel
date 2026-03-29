@@ -2,28 +2,85 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
-<<<<<<< Updated upstream
  * Node.js 24 LTS — Dernière modification : 21/03/2026
-=======
- * Dernière modification : 29/03/2026 14:42
->>>>>>> Stashed changes
  */
 
 'use strict';
 
 const express    = require('express');
-const jwt        = require('jsonwebtoken');
-const bcrypt     = require('bcryptjs');
 const { exec, spawn } = require('child_process');
 const { promisify }   = require('util');
 const fs         = require('fs');
 const fsp        = require('fs').promises;
 const path       = require('path');
-const cors       = require('cors');
-const helmet     = require('helmet');
+const zlib       = require('zlib');
+const os         = require('os');
 const crypto     = require('crypto');
 const net        = require('net');
 const tls        = require('tls');
+const cors       = null; // remplacé par middleware natif
+const helmet     = null; // remplacé par middleware natif
+
+// ─── JWT NATIF (remplace jsonwebtoken) ────────────────────────────────────────
+const jwt = {
+  sign(payload, secret, options = {}) {
+    const header  = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const exp     = options.expiresIn ? Math.floor(Date.now() / 1000) + parseDuration(options.expiresIn) : undefined;
+    const body    = Buffer.from(JSON.stringify(exp ? { ...payload, exp } : payload)).toString('base64url');
+    const sig     = crypto.createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url');
+    return `${header}.${body}.${sig}`;
+  },
+  verify(token, secret) {
+    const parts = (token || '').split('.');
+    if (parts.length !== 3) throw new Error('Token invalide');
+    const [header, body, sig] = parts;
+    const expected = crypto.createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url');
+    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) throw new Error('Signature invalide');
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString());
+    if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) throw new Error('Token expiré');
+    return payload;
+  }
+};
+function parseDuration(d) {
+  if (typeof d === 'number') return d;
+  const m = String(d).match(/^(\d+)(s|m|h|d)$/);
+  if (!m) return 28800; // 8h par défaut
+  const n = parseInt(m[1]);
+  return m[2] === 's' ? n : m[2] === 'm' ? n*60 : m[2] === 'h' ? n*3600 : n*86400;
+}
+
+// ─── BCRYPT NATIF (remplace bcryptjs — utilise scrypt de Node.js 24) ──────────
+const bcrypt = {
+  async hash(password, rounds = 12) {
+    const salt = crypto.randomBytes(16);
+    const cost = Math.pow(2, rounds); // scrypt N = 2^rounds
+    const key  = await new Promise((res, rej) =>
+      crypto.scrypt(password, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => e ? rej(e) : res(k))
+    );
+    return `$scrypt$${rounds}$${salt.toString('base64')}$${key.toString('base64')}`;
+  },
+  async compare(password, hash) {
+    try {
+      // Compatibilité ancien hash bcryptjs (commence par $2b$)
+      if (hash.startsWith('$2b$') || hash.startsWith('$2a$')) {
+        // Fallback : comparer avec scrypt échoue — utiliser timing-safe compare via re-hash impossible
+        // On doit garder bcryptjs pour les anciens hashes → on l'appelle dynamiquement si présent
+        try {
+          const bc = require('bcryptjs');
+          return await bc.compare(password, hash);
+        } catch { return false; }
+      }
+      const parts = hash.split('$');
+      if (parts[1] !== 'scrypt') return false;
+      const salt  = Buffer.from(parts[3], 'base64');
+      const stored = Buffer.from(parts[4], 'base64');
+      const key = await new Promise((res, rej) =>
+        crypto.scrypt(password, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => e ? rej(e) : res(k))
+      );
+      return crypto.timingSafeEqual(key, stored);
+    } catch { return false; }
+  }
+};
 
 // util.promisify(exec) — plus propre que le callback, tiré des améliorations Node 24
 const execAsync  = promisify(exec);
@@ -117,6 +174,30 @@ const PORT = process.env.PORT || 8080;
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
 const KAZYPANEL_VERSION = '1.6.0';
+
+// ─── NETTOYAGE DÉMARRAGE ──────────────────────────────────────────────────────
+(function cleanupOnStart() {
+  try {
+    const dir    = __dirname;
+    const pubDir = path.join(__dirname, 'public');
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    [dir, pubDir].forEach(d => {
+      if (!fs.existsSync(d)) return;
+      fs.readdirSync(d).forEach(f => {
+        if (f.includes('.bak_')) {
+          const full = path.join(d, f);
+          try { if (fs.statSync(full).mtimeMs < cutoff) fs.unlinkSync(full); } catch {}
+        }
+      });
+    });
+    const tmpDir = path.join(__dirname, 'tmp');
+    if (fs.existsSync(tmpDir)) {
+      fs.readdirSync(tmpDir).forEach(f => {
+        try { fs.rmSync(path.join(tmpDir, f), { recursive: true, force: true }); } catch {}
+      });
+    }
+  } catch {}
+})();
 const KAZYPANEL_UPDATE_URL = 'https://raw.githubusercontent.com/kazypanel/kazypanel/main/version.json';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -140,7 +221,8 @@ const CONFIG = {
   DB_ROOT_PASS: process.env.DB_ROOT_PASS || '',
   DB_DEFAULT_LIMIT: 5,
   FTP_DEFAULT_LIMIT: 1,
-  PMA_URL: process.env.PMA_URL || ''  // ex: http://monserveur/phpmyadmin ou https://pma.monserveur.fr
+  PMA_URL: process.env.PMA_URL || '',
+  KAZY_DEBUG: process.env.KAZY_DEBUG === 'true'
 };
 
 // ─── HELPERS MARIADB ──────────────────────────────────────────────────────────
@@ -316,51 +398,55 @@ async function initUsers() {
 }
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
-app.use(helmet({
-  contentSecurityPolicy: false,
-  permissionsPolicy: false  // on le gère manuellement ci-dessous
-}));
-
-// Permissions-Policy — restreindre les API navigateur inutiles
+// ─── SÉCURITÉ & CORS — natif (sans helmet ni cors) ───────────────────────────
 app.use((req, res, next) => {
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  // CORS
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+  if (req.method === 'OPTIONS') { res.sendStatus(204); return; }
+
+  // Headers sécurité (équivalent helmet)
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  next();
-});
-
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    cb(null, true);
-  },
-  credentials: true
-}));
-
-// Compression gzip des réponses JSON — réduit la bande passante jusqu'à 70%
-app.use((req, res, next) => {
-  const origJson = res.json.bind(res);
-  res.json = function(body) {
-    const accept = req.headers['accept-encoding'] || '';
-    if (!accept.includes('gzip')) return origJson(body);
-    const str = JSON.stringify(body);
-    if (str.length < 1024) return origJson(body); // pas la peine pour les petites réponses
-    require('zlib').gzip(str, (err, compressed) => {
-      if (err) return origJson(body);
-      res.setHeader('Content-Encoding', 'gzip');
-      res.setHeader('Content-Type', 'application/json');
-      res.end(compressed);
-    });
-    return res;
-  };
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  res.removeHeader('X-Powered-By');
   next();
 });
 
 app.use(express.json({ limit: '10mb' }));
+// Middleware gzip pour les réponses (sans dépendance compression)
+app.use((req, res, next) => {
+  const ae = req.headers['accept-encoding'] || '';
+  if (!ae.includes('gzip')) return next();
+  const origSend = res.send.bind(res);
+  const origJson = res.json.bind(res);
+  res.json = function(body) {
+    const str = JSON.stringify(body);
+    if (str.length < 860) return origJson(body);
+    zlib.gzip(str, (err, buf) => {
+      if (err) return origJson(body);
+      res.setHeader('Content-Encoding', 'gzip');
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Vary', 'Accept-Encoding');
+      res.end(buf);
+    });
+  };
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
-  maxAge: '1h',         // Cache navigateur 1h pour les assets statiques
+  maxAge: '1d',
   etag: true,
-  lastModified: true
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+  }
 }));
 
 // ─── LOG ─────────────────────────────────────────────────────────────────────
@@ -495,9 +581,12 @@ function needsSudo(cmd) {
 
 function runCmd(cmd, opts = {}) {
   const finalCmd = needsSudo(cmd) ? `sudo ${cmd}` : cmd;
-  return execAsync(finalCmd, { timeout: opts.timeout || 30000, maxBuffer: opts.maxBuffer || 1024 * 1024 })
+  return execAsync(finalCmd, { timeout: opts.timeout || 30000, maxBuffer: opts.maxBuffer || 2 * 1024 * 1024 })
     .then(({ stdout }) => stdout.trim())
-    .catch(err => { throw new Error(err.stderr?.trim() || err.message, { cause: err }); });
+    .catch(err => {
+      const msg = (err.stderr?.trim() || err.stdout?.trim() || err.message || 'Commande échouée').split('\n')[0];
+      throw new Error(msg);
+    });
 }
 
 // Utilise spawn + stdin pour éviter les problèmes d'échappement avec chpasswd
@@ -841,12 +930,12 @@ app.post('/api/server-config/hostname', authMiddleware, adminOnly, async (req, r
     // Mettre à jour /etc/hosts si l'ancien hostname y figure
     try {
       const oldHostname = (await runCmd('hostname')).trim();
-      const hosts = require('fs').readFileSync('/etc/hosts', 'utf8');
+      const hosts = fs.readFileSync('/etc/hosts', 'utf8');
       if (hosts.includes(oldHostname)) {
         const tmpHosts = `/tmp/kp_hosts_${Date.now()}`;
-        require('fs').writeFileSync(tmpHosts, hosts.replace(new RegExp(oldHostname, 'g'), hostname));
+        fs.writeFileSync(tmpHosts, hosts.replace(new RegExp(oldHostname, 'g'), hostname));
         await runCmd(`sudo cp "${tmpHosts}" /etc/hosts && sudo chmod 644 /etc/hosts`);
-        require('fs').unlinkSync(tmpHosts);
+        fs.unlinkSync(tmpHosts);
       }
     } catch {}
     log('HOSTNAME', `Hostname changé vers ${hostname}`, 'OK');
@@ -874,8 +963,8 @@ function getBashrcPaths() {
 
   // Ajouter EN PREMIER l'utilisateur qui lance le process (ex: debian)
   try {
-    const procUsername = require('os').userInfo().username || process.env.USER || '';
-    const procHome     = process.env.HOME || require('os').homedir();
+    const procUsername = os.userInfo().username || process.env.USER || '';
+    const procHome     = process.env.HOME || os.homedir();
     if (procUsername && procUsername !== 'root' && procHome && procHome !== '/root') {
       const bashrcPath = path.join(procHome, '.bashrc');
       if (!fs.existsSync(bashrcPath)) {
@@ -986,13 +1075,13 @@ app.get('/api/server-config/bashrc/backups', authMiddleware, adminOnly, async (r
     const all = getBashrcPaths();
     const backups = [];
     for (const { label, path: bashrcPath } of all) {
-      const dir  = require('path').dirname(bashrcPath);
-      const base = require('path').basename(bashrcPath);
+      const dir  = path.dirname(bashrcPath);
+      const base = path.basename(bashrcPath);
       try {
         const files = fs.readdirSync(dir)
           .filter(f => f.startsWith(base + '.bak.'))
           .map(f => {
-            const full = require('path').join(dir, f);
+            const full = path.join(dir, f);
             const stat = fs.statSync(full);
             return { file: full, name: f, user: label, size: stat.size, mtime: stat.mtime.toISOString() };
           })
@@ -1010,12 +1099,12 @@ app.delete('/api/server-config/bashrc/backups', authMiddleware, adminOnly, async
     const all = getBashrcPaths();
     let deleted = 0;
     for (const { path: bashrcPath } of all) {
-      const dir  = require('path').dirname(bashrcPath);
-      const base = require('path').basename(bashrcPath);
+      const dir  = path.dirname(bashrcPath);
+      const base = path.basename(bashrcPath);
       try {
         const files = fs.readdirSync(dir).filter(f => f.startsWith(base + '.bak.'));
         for (const f of files) {
-          await runCmd(`sudo rm -f "${require('path').join(dir, f)}"`);
+          await runCmd(`sudo rm -f "${path.join(dir, f)}"`);
           deleted++;
         }
       } catch {}
@@ -2651,7 +2740,10 @@ app.put('/api/me/files/content', authMiddleware, async (req, res) => {
     const file = safeUserPath(user, reqPath);
     const ext  = path.extname(file).toLowerCase();
     if (!TEXT_EXTS.has(ext)) return res.status(400).json({ error: 'Type de fichier non éditable' });
-    fs.writeFileSync(file, content, 'utf8');
+    const tmp = `/tmp/kp_fedit_${Date.now()}`;
+    fs.writeFileSync(tmp, content, 'utf8');
+    await runCmd(`sudo cp "${tmp}" "${file}" && sudo chown ${user.username}:${user.username} "${file}" 2>/dev/null || true`);
+    fs.unlinkSync(tmp);
     log('FILE_EDIT', `${user.username}: ${reqPath}`, 'OK');
     res.json({ success: true, message: 'Fichier sauvegardé' });
   } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
@@ -2666,7 +2758,7 @@ app.post('/api/me/files/mkdir', authMiddleware, async (req, res) => {
   try {
     const dir = safeUserPath(user, reqPath);
     if (fs.existsSync(dir)) return res.status(409).json({ error: 'Ce dossier existe déjà' });
-    fs.mkdirSync(dir, { recursive: true });
+    await runCmd(`sudo mkdir -p "${dir}" && sudo chown ${user.username}:${user.username} "${dir}" 2>/dev/null || true`);
     log('FILE_MKDIR', `${user.username}: ${reqPath}`, 'OK');
     res.json({ success: true, message: 'Dossier créé' });
   } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
@@ -2681,7 +2773,7 @@ app.post('/api/me/files/touch', authMiddleware, async (req, res) => {
   try {
     const file = safeUserPath(user, reqPath);
     if (fs.existsSync(file)) return res.status(409).json({ error: 'Ce fichier existe déjà' });
-    fs.writeFileSync(file, '', 'utf8');
+    await runCmd(`sudo touch "${file}" && sudo chown ${user.username}:${user.username} "${file}" 2>/dev/null || true`);
     log('FILE_TOUCH', `${user.username}: ${reqPath}`, 'OK');
     res.json({ success: true, message: 'Fichier créé' });
   } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
@@ -2700,7 +2792,7 @@ app.post('/api/me/files/rename', authMiddleware, async (req, res) => {
     safeUserPath(user, path.relative(path.resolve(getPrimaryFtpDir(user)), dest));
     if (!fs.existsSync(src)) return res.status(404).json({ error: 'Source introuvable' });
     if (fs.existsSync(dest)) return res.status(409).json({ error: 'Un fichier avec ce nom existe déjà' });
-    fs.renameSync(src, dest);
+    await runCmd(`sudo mv "${src}" "${dest}"`);
     log('FILE_RENAME', `${user.username}: ${reqPath} → ${newName}`, 'OK');
     res.json({ success: true, message: 'Renommé avec succès' });
   } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
@@ -2717,7 +2809,7 @@ app.delete('/api/me/files', authMiddleware, async (req, res) => {
     const base   = path.resolve(getPrimaryFtpDir(user));
     if (target === base) return res.status(403).json({ error: 'Impossible de supprimer le répertoire racine' });
     if (!fs.existsSync(target)) return res.status(404).json({ error: 'Fichier introuvable' });
-    fs.rmSync(target, { recursive: true, force: true });
+    await runCmd(`sudo rm -rf "${target}"`);
     log('FILE_DELETE', `${user.username}: ${reqPath}`, 'OK');
     res.json({ success: true, message: 'Supprimé avec succès' });
   } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
@@ -2729,7 +2821,7 @@ app.get('/api/me/files/download', async (req, res) => {
   let userId;
   try {
     const t = req.query.token || (req.headers.authorization || '').replace('Bearer ', '');
-    const decoded = require('jsonwebtoken').verify(t, CONFIG.JWT_SECRET);
+    const decoded = jwt.verify(t, CONFIG.JWT_SECRET);
     userId = decoded.id;
   } catch { return res.status(401).json({ error: 'Token invalide' }); }
   const user = USERS.find(u => u.id === parseInt(userId));
@@ -2766,9 +2858,16 @@ app.post('/api/me/files/upload', authMiddleware, async (req, res) => {
     try { destPath = safeUserPath(user, path.join(req.query.path || '', safeName)); }
     catch { file.resume(); errors.push(`${safeName}: accès refusé`); return; }
 
-    const ws = fs.createWriteStream(destPath);
+    const tmpPath = `/tmp/kp_upload_${Date.now()}_${safeName}`;
+    const ws = fs.createWriteStream(tmpPath);
     file.pipe(ws);
-    ws.on('finish', () => uploaded.push(safeName));
+    ws.on('finish', async () => {
+      try {
+        await runCmd(`sudo cp "${tmpPath}" "${destPath}" && sudo chown ${user.username}:${user.username} "${destPath}" 2>/dev/null || true`);
+        fs.unlinkSync(tmpPath);
+        uploaded.push(safeName);
+      } catch(e) { errors.push(`${safeName}: ${e.message}`); }
+    });
     ws.on('error', e => errors.push(`${safeName}: ${e.message}`));
   });
 
@@ -2793,7 +2892,7 @@ app.post('/api/me/files/chmod', authMiddleware, async (req, res) => {
   try {
     const target = safeUserPath(user, reqPath);
     if (!fs.existsSync(target)) return res.status(404).json({ error: 'Fichier introuvable' });
-    fs.chmodSync(target, modeNum);
+    await runCmd(`sudo chmod ${mode} "${target}"`);
     log('FILE_CHMOD', `${user.username}: ${reqPath} → ${mode}`, 'OK');
     res.json({ success: true, message: `Permissions modifiées : ${mode}` });
   } catch (err) { res.status(err.message.startsWith('Accès') ? 403 : 500).json({ error: err.message }); }
@@ -3577,7 +3676,7 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
     s.uptimeSeconds = Math.floor(parseFloat(fs.readFileSync('/proc/uptime', 'utf8').split(' ')[0]));
   } catch { s.uptime = 'N/A'; }
   try {
-    s.memory = await runCmd("free -m | awk 'NR==2{printf \"%d/%d Mo\", $3,$2}'");
+    s.memory = await runCmd("free -m | awk 'NR==2{used=$3; total=$2; if(total>=1024) printf \"%.1f/%.1f Go\", used/1024, total/1024; else printf \"%d/%d Mo\", used, total}'");
     s.ramPercent = await runCmd("free | awk 'NR==2{printf \"%.0f\", $3*100/$2}'");
   } catch { s.memory = 'N/A'; s.ramPercent = 0; }
   try {
@@ -3593,6 +3692,7 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   try { s.nodeVersion = process.version; } catch {}
   try { s.domains = fs.existsSync(CONFIG.APACHE_SITES_PATH) ? fs.readdirSync(CONFIG.APACHE_SITES_PATH).filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin')).length : 0; } catch { s.domains = 0; }
   s.users = USERS.length;
+
   res.json(s);
 });
 
@@ -3794,8 +3894,9 @@ app.get('/api/config/ssh-keys', authMiddleware, adminOnly, async (req, res) => {
     const user = req.query.user || 'root';
     const home = user === 'root' ? '/root' : `/home/${user}`;
     const file = `${home}/.ssh/authorized_keys`;
-    if (!fs.existsSync(file)) return res.json({ keys: [] });
-    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(l => l.trim() && !l.startsWith('#'));
+    const content = await runCmd(`sudo cat "${file}" 2>/dev/null`).catch(() => '');
+    if (!content.trim()) return res.json({ keys: [] });
+    const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
     const keys = lines.map((l, i) => {
       const parts = l.trim().split(' ');
       return { id: i, type: parts[0], key: parts[1]?.slice(0,20)+'...', comment: parts[2] || '', full: l.trim() };
@@ -3812,15 +3913,17 @@ app.post('/api/config/ssh-keys', authMiddleware, adminOnly, async (req, res) => 
   if (!/^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|sk-ssh-ed25519)\s/.test(trimmed))
     return res.status(400).json({ error: 'Format de clé invalide (ssh-rsa, ssh-ed25519, ecdsa-sha2-nistp256...)' });
   try {
-    const home = targetUser === 'root' ? '/root' : `/home/${targetUser}`;
-    const sshDir = `${home}/.ssh`;
+    const home     = targetUser === 'root' ? '/root' : `/home/${targetUser}`;
+    const sshDir   = `${home}/.ssh`;
     const authFile = `${sshDir}/authorized_keys`;
-    await runCmd(`sudo mkdir -p "${sshDir}" && sudo chmod 700 "${sshDir}"`);
-    const existing = fs.existsSync(authFile) ? fs.readFileSync(authFile, 'utf8') : '';
+    await runCmd(`sudo mkdir -p "${sshDir}" && sudo chmod 700 "${sshDir}" && sudo chown ${targetUser}:${targetUser} "${sshDir}" 2>/dev/null || true`);
+    // Lire avec sudo pour accéder aux fichiers root
+    const existing = await runCmd(`sudo cat "${authFile}" 2>/dev/null`).catch(() => '');
     if (existing.includes(trimmed.split(' ')[1])) return res.status(409).json({ error: 'Cette clé existe déjà' });
+    const newContent = existing + (existing.endsWith('\n') || !existing ? '' : '\n') + trimmed + '\n';
     const tmp = `/tmp/kp_ak_${Date.now()}`;
-    fs.writeFileSync(tmp, existing + (existing.endsWith('\n') || !existing ? '' : '\n') + trimmed + '\n');
-    await runCmd(`sudo cp "${tmp}" "${authFile}" && sudo chmod 600 "${authFile}"`);
+    fs.writeFileSync(tmp, newContent);
+    await runCmd(`sudo cp "${tmp}" "${authFile}" && sudo chmod 600 "${authFile}" && sudo chown ${targetUser}:${targetUser} "${authFile}" 2>/dev/null || true`);
     fs.unlinkSync(tmp);
     log('SSH_KEY_ADD', `${targetUser}: ${trimmed.slice(0,40)}...`, 'OK');
     res.json({ success: true });
@@ -3831,11 +3934,11 @@ app.post('/api/config/ssh-keys', authMiddleware, adminOnly, async (req, res) => 
 app.delete('/api/config/ssh-keys/:id', authMiddleware, adminOnly, async (req, res) => {
   const { user: targetUser = 'root' } = req.query;
   try {
-    const home = targetUser === 'root' ? '/root' : `/home/${targetUser}`;
+    const home     = targetUser === 'root' ? '/root' : `/home/${targetUser}`;
     const authFile = `${home}/.ssh/authorized_keys`;
-    if (!fs.existsSync(authFile)) return res.status(404).json({ error: 'Fichier introuvable' });
-    const lines = fs.readFileSync(authFile, 'utf8').split('\n');
-    const nonEmpty = lines.filter(l => l.trim() && !l.startsWith('#'));
+    const content  = await runCmd(`sudo cat "${authFile}" 2>/dev/null`).catch(() => '');
+    if (!content.trim()) return res.status(404).json({ error: 'Fichier introuvable ou vide' });
+    const nonEmpty = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
     const idx = parseInt(req.params.id);
     if (idx < 0 || idx >= nonEmpty.length) return res.status(404).json({ error: 'Clé introuvable' });
     nonEmpty.splice(idx, 1);
@@ -4657,7 +4760,18 @@ app.get('/api/security/score', authMiddleware, adminOnly, async (req, res) => {
   // HTTPS actif (certificat valide)
   try { const out = await runCmd('certbot certificates 2>/dev/null | grep "VALID"'); const ok = out.includes('VALID'); checks.push({ label:'Certificat HTTPS valide', ok, tip: ok ? null : 'Générez un certificat SSL dans Configuration > HTTPS' }); if(ok) score += 20; } catch { checks.push({ label:'Certificat HTTPS', ok:false, tip:'Certbot non disponible ou aucun certificat' }); }
   // Clés SSH présentes
-  try { const ok = fs.existsSync('/root/.ssh/authorized_keys') && fs.readFileSync('/root/.ssh/authorized_keys','utf8').trim().length > 0; checks.push({ label:'Clé SSH configurée', ok, tip: ok ? null : 'Ajoutez une clé SSH dans Configuration > Clés SSH' }); if(ok) score += 10; } catch { checks.push({ label:'Clé SSH', ok:false, tip:null }); }
+  try {
+    const sshFiles = ['/root/.ssh/authorized_keys', '/home/debian/.ssh/authorized_keys'];
+    let ok = false;
+    for (const f of sshFiles) {
+      try {
+        const content = await runCmd(`sudo cat "${f}" 2>/dev/null`).catch(() => '');
+        if (content && content.trim().length > 0) { ok = true; break; }
+      } catch {}
+    }
+    checks.push({ label:'Clé SSH configurée', ok, tip: ok ? null : 'Ajoutez une clé SSH dans Configuration > Clés SSH' });
+    if(ok) score += 10;
+  } catch { checks.push({ label:'Clé SSH', ok:false, tip:null }); }
   // JWT secret non par défaut
   try { const env = fs.readFileSync(path.join(__dirname,'.env'),'utf8'); const ok = !env.includes('changez_cette_valeur'); checks.push({ label:'JWT Secret sécurisé', ok, tip: ok ? null : 'Définissez un JWT_SECRET aléatoire dans .env' }); if(ok) score += 10; } catch { checks.push({ label:'JWT Secret', ok:true, tip:null }); score += 10; }
   // Fail2ban protège SSH
@@ -5320,6 +5434,389 @@ app.delete('/api/me/dns/:domain', authMiddleware, async (req, res) => {
 });
 
 
+
+// ─── ROUTE: NETTOYAGE ────────────────────────────────────────────────────────
+
+app.get('/api/admin/disk', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const size = await runCmd(`du -sh "${__dirname}" 2>/dev/null | cut -f1`);
+    const nm   = await runCmd(`du -sh "${path.join(__dirname,'node_modules')}" 2>/dev/null | cut -f1`);
+    const baks = await runCmd(`find "${__dirname}" -name "*.bak_*" 2>/dev/null | wc -l`);
+    const bakSize = await runCmd(`find "${__dirname}" -name "*.bak_*" -exec du -ch {} + 2>/dev/null | tail -1 | cut -f1 || echo "0"`);
+    res.json({ total: size.trim(), nodeModules: nm.trim(), backups: parseInt(baks)||0, backupSize: bakSize.trim() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/cleanup', authMiddleware, adminOnly, async (req, res) => {
+  const results = [];
+  // Supprimer TOUS les backups
+  try {
+    const out = await runCmd(`find "${__dirname}" -name "*.bak_*" -delete 2>/dev/null && echo "OK"`);
+    results.push(`✓ Backups supprimés`);
+  } catch {}
+  // Vider tmp/
+  try {
+    const tmpDir = path.join(__dirname, 'tmp');
+    if (fs.existsSync(tmpDir)) {
+      fs.readdirSync(tmpDir).forEach(f => {
+        try { fs.rmSync(path.join(tmpDir, f), { recursive: true, force: true }); } catch {}
+      });
+    }
+    results.push(`✓ Dossier tmp/ vidé`);
+  } catch {}
+  // npm prune
+  try {
+    await runCmd(`cd "${__dirname}" && npm prune --production 2>/dev/null`);
+    results.push(`✓ npm prune exécuté`);
+  } catch {}
+  log('CLEANUP', results.join(', '), 'OK');
+  const newSize = await runCmd(`du -sh "${__dirname}" 2>/dev/null | cut -f1`).catch(() => '?');
+  res.json({ success: true, results, newSize: newSize.trim() });
+});
+
+// PUT /api/config/stripe — sauvegarder le secret webhook Stripe
+app.put('/api/config/stripe', authMiddleware, adminOnly, (req, res) => {
+  const { stripeWebhookSecret } = req.body;
+  PANEL_CONFIG.stripeWebhookSecret = (stripeWebhookSecret || '').trim();
+  savePanelConfig();
+  log('CONFIG_STRIPE', 'Secret webhook Stripe mis à jour', 'OK');
+  res.json({ success: true });
+});
+
+// ─── API V1 PUBLIQUE (clé API) ───────────────────────────────────────────────
+
+// Middleware clé API
+function apiKeyAuth(req, res, next) {
+  const key = req.headers['x-api-key'] || req.query.api_key;
+  if (!key) return res.status(401).json({ error: 'Clé API requise (header X-Api-Key)' });
+  const keys = PANEL_CONFIG.apiKeys || [];
+  const found = keys.find(k => k.key === key && k.active);
+  if (!found) return res.status(403).json({ error: 'Clé API invalide ou désactivée' });
+  // Logger l'utilisation
+  found.lastUsed = new Date().toISOString();
+  found.useCount = (found.useCount || 0) + 1;
+  savePanelConfig();
+  req.apiKey = found;
+  next();
+}
+
+// ── Gestion des clés API (admin) ──────────────────────────────────────────────
+
+// GET /api/config/api-keys — lister les clés
+app.get('/api/config/api-keys', authMiddleware, adminOnly, (req, res) => {
+  const keys = (PANEL_CONFIG.apiKeys || []).map(k => ({
+    id: String(k.id), name: k.name, active: k.active,
+    created: k.created, lastUsed: k.lastUsed || null,
+    useCount: k.useCount || 0,
+    key: k.key // clé complète visible dans le panel admin
+  }));
+  res.json({ keys });
+});
+
+// POST /api/config/api-keys — créer une clé
+app.post('/api/config/api-keys', authMiddleware, adminOnly, (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Nom requis' });
+  if (!PANEL_CONFIG.apiKeys) PANEL_CONFIG.apiKeys = [];
+  const key = `kp_live_${crypto.randomBytes(24).toString('hex')}`;
+  const entry = { id: Date.now().toString(), name: name.trim(), key, active: true, created: new Date().toISOString(), useCount: 0 };
+  PANEL_CONFIG.apiKeys.push(entry);
+  savePanelConfig();
+  log('API_KEY', `Clé créée: ${name} par ${req.user.username}`, 'OK');
+  res.json({ success: true, key, id: entry.id, message: 'Copiez cette clé maintenant — elle ne sera plus affichée en entier.' });
+});
+
+// DELETE /api/config/api-keys/:id — supprimer une clé
+app.delete('/api/config/api-keys/:id', authMiddleware, adminOnly, (req, res) => {
+  if (!PANEL_CONFIG.apiKeys) return res.status(404).json({ error: 'Clé introuvable' });
+  const idx = PANEL_CONFIG.apiKeys.findIndex(k => String(k.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: 'Clé introuvable' });
+  PANEL_CONFIG.apiKeys.splice(idx, 1);
+  savePanelConfig();
+  res.json({ success: true });
+});
+
+// PATCH /api/config/api-keys/:id/toggle — activer/désactiver
+app.patch('/api/config/api-keys/:id/toggle', authMiddleware, adminOnly, (req, res) => {
+  const k = (PANEL_CONFIG.apiKeys||[]).find(k => String(k.id) === String(req.params.id));
+  if (!k) return res.status(404).json({ error: 'Clé introuvable' });
+  k.active = !k.active;
+  savePanelConfig();
+  res.json({ success: true, active: k.active });
+});
+
+// ── Endpoints API V1 ──────────────────────────────────────────────────────────
+
+// GET /api/v1/status — statut serveur
+app.get('/api/v1/status', apiKeyAuth, async (req, res) => {
+  try {
+    const cpu  = await runCmd("cat /proc/stat | awk 'NR==1{idle=$5;total=0;for(i=2;i<=NF;i++)total+=$i;print int((1-idle/total)*100)}'").catch(() => '0');
+    const ram  = await runCmd("free -m | awk 'NR==2{printf \"%.0f\", $3*100/$2}'").catch(() => '0');
+    const disk = await runCmd("df / | awk 'NR==2{gsub(/%/,\"\",$5);print $5}'").catch(() => '0');
+    res.json({ status: 'ok', version: KAZYPANEL_VERSION, cpu: parseInt(cpu), ram: parseInt(ram), disk: parseInt(disk), users: USERS.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/v1/users — lister les utilisateurs
+app.get('/api/v1/users', apiKeyAuth, (req, res) => {
+  const users = USERS.filter(u => u.role !== 'admin').map(u => ({
+    id: u.id, username: u.username, email: u.email || null,
+    role: u.role, createdAt: u.createdAt || null,
+    suspended: u.suspended || false
+  }));
+  res.json({ users, count: users.length });
+});
+
+// POST /api/v1/users — créer un utilisateur
+app.post('/api/v1/users', apiKeyAuth, async (req, res) => {
+  const { username, password, email, template: tplName, domain, sendEmail } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'username et password requis' });
+
+  // Valider username
+  if (!/^[a-z0-9_]{3,32}$/.test(username))
+    return res.status(400).json({ error: 'username: 3-32 caractères, minuscules, chiffres et _ uniquement' });
+  if (USERS.find(u => u.username === username))
+    return res.status(409).json({ error: `L'utilisateur "${username}" existe déjà` });
+
+  // Appliquer template si fourni
+  let tplConfig = {};
+  if (tplName) {
+    const tpl = (PANEL_CONFIG.bashrcTemplates || []).find(t => t.name.toLowerCase() === tplName.toLowerCase())
+              || (TEMPLATES || []).find(t => t.name.toLowerCase() === tplName.toLowerCase());
+    if (tpl) tplConfig = { ftpLimit: tpl.ftpLimit, dbLimit: tpl.dbLimit, domainLimit: tpl.domainLimit, diskLimit: tpl.diskLimit, templateName: tpl.name };
+  }
+
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    const newUser = {
+      id: Date.now(), username, password: hash,
+      email: email || null, role: 'user',
+      createdAt: new Date().toISOString(),
+      ftpAccounts: [], ...tplConfig
+    };
+    USERS.push(newUser);
+    saveUsers();
+
+    // Créer dossier FTP
+    const homeDir = `${CONFIG.FTP_ROOT}/${username}`;
+    try {
+      await runCmd(`sudo mkdir -p "${homeDir}" && sudo chown ${username}:${username} "${homeDir}" 2>/dev/null || true`);
+    } catch {}
+
+    // Créer domaine si fourni
+    if (domain) {
+      try { await runCmd(`sudo bash -c 'echo "domain=${domain}" >> /tmp/kp_api_domain'`); } catch {}
+    }
+
+    // Envoyer email si demandé et SMTP configuré
+    if (sendEmail !== false && email && PANEL_CONFIG.smtp?.host) {
+      try {
+        const tpl = PANEL_CONFIG.emailTemplate || DEFAULT_EMAIL_TEMPLATE;
+        const body = tpl.body
+          .replace(/\{\{username\}\}/g, username)
+          .replace(/\{\{password\}\}/g, password)
+          .replace(/\{\{role\}\}/g, 'user')
+          .replace(/\{\{panelUrl\}\}/g, PANEL_CONFIG.panelPublicUrl || '')
+          .replace(/\{\{date\}\}/g, new Date().toLocaleDateString('fr-FR'));
+        await sendSmtpEmail({ to: email, subject: tpl.subject.replace(/\{\{username\}\}/g, username), body });
+      } catch {}
+    }
+
+    log('API_V1', `Utilisateur créé: ${username} via clé "${req.apiKey.name}"`, 'OK');
+    res.status(201).json({ success: true, user: { id: newUser.id, username, email: email||null, role:'user', createdAt: newUser.createdAt } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/v1/users/:username — détails d'un utilisateur
+app.get('/api/v1/users/:username', apiKeyAuth, (req, res) => {
+  const user = USERS.find(u => u.username === req.params.username);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  res.json({ id: user.id, username: user.username, email: user.email||null, role: user.role, createdAt: user.createdAt||null, suspended: user.suspended||false, templateName: user.templateName||null });
+});
+
+// DELETE /api/v1/users/:username — supprimer un utilisateur
+app.delete('/api/v1/users/:username', apiKeyAuth, async (req, res) => {
+  const idx = USERS.findIndex(u => u.username === req.params.username && u.role !== 'admin');
+  if (idx === -1) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const user = USERS[idx];
+  USERS.splice(idx, 1);
+  saveUsers();
+  try { await runCmd(`sudo rm -rf "${CONFIG.FTP_ROOT}/${user.username}"`); } catch {}
+  log('API_V1', `Utilisateur supprimé: ${user.username} via clé "${req.apiKey.name}"`, 'OK');
+  res.json({ success: true });
+});
+
+// PATCH /api/v1/users/:username/suspend — suspendre
+app.patch('/api/v1/users/:username/suspend', apiKeyAuth, (req, res) => {
+  const user = USERS.find(u => u.username === req.params.username && u.role !== 'admin');
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  user.suspended = true;
+  saveUsers();
+  log('API_V1', `Utilisateur suspendu: ${user.username} via clé "${req.apiKey.name}"`, 'OK');
+  res.json({ success: true });
+});
+
+// PATCH /api/v1/users/:username/unsuspend — réactiver
+app.patch('/api/v1/users/:username/unsuspend', apiKeyAuth, (req, res) => {
+  const user = USERS.find(u => u.username === req.params.username && u.role !== 'admin');
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  user.suspended = false;
+  saveUsers();
+  log('API_V1', `Utilisateur réactivé: ${user.username} via clé "${req.apiKey.name}"`, 'OK');
+  res.json({ success: true });
+});
+
+// POST /api/v1/webhook/stripe — webhook Stripe
+app.post('/api/v1/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const stripeSecret = PANEL_CONFIG.stripeWebhookSecret;
+  const sig = req.headers['stripe-signature'];
+
+  let event;
+  try {
+    if (stripeSecret && sig) {
+      // Vérifier la signature Stripe avec HMAC
+      const payload   = req.body.toString();
+      const parts     = sig.split(',').reduce((acc, p) => { const [k,v] = p.split('='); acc[k]=v; return acc; }, {});
+      const timestamp = parts.t;
+      const expected  = crypto.createHmac('sha256', stripeSecret).update(`${timestamp}.${payload}`).digest('hex');
+      if (!crypto.timingSafeEqual(Buffer.from(parts.v1||''), Buffer.from(expected))) {
+        return res.status(400).json({ error: 'Signature Stripe invalide' });
+      }
+      event = JSON.parse(payload);
+    } else {
+      event = JSON.parse(req.body.toString());
+    }
+  } catch(e) { return res.status(400).json({ error: 'Payload invalide' }); }
+
+  if (event.type === 'checkout.session.completed' || event.type === 'payment_intent.succeeded') {
+    const session  = event.data.object;
+    const meta     = session.metadata || {};
+    const username = meta.username;
+    const password = meta.password || crypto.randomBytes(8).toString('hex');
+    const email    = session.customer_details?.email || meta.email;
+    const tpl      = meta.template || 'starter';
+
+    if (username) {
+      try {
+        // Créer le compte via la logique interne
+        if (!USERS.find(u => u.username === username)) {
+          const hash = await bcrypt.hash(password, 12);
+          const newUser = { id: Date.now(), username, password: hash, email: email||null, role:'user', createdAt: new Date().toISOString(), ftpAccounts:[], templateName: tpl };
+          USERS.push(newUser);
+          saveUsers();
+          try { await runCmd(`sudo mkdir -p "${CONFIG.FTP_ROOT}/${username}" && sudo chown ${username}:${username} "${CONFIG.FTP_ROOT}/${username}" 2>/dev/null || true`); } catch {}
+          // Email de bienvenue
+          if (email && PANEL_CONFIG.smtp?.host) {
+            try {
+              const t = PANEL_CONFIG.emailTemplate || DEFAULT_EMAIL_TEMPLATE;
+              const body = t.body.replace(/\{\{username\}\}/g, username).replace(/\{\{password\}\}/g, password).replace(/\{\{role\}\}/g, 'user').replace(/\{\{panelUrl\}\}/g, PANEL_CONFIG.panelPublicUrl||'').replace(/\{\{date\}\}/g, new Date().toLocaleDateString('fr-FR'));
+              await sendSmtpEmail({ to: email, subject: t.subject.replace(/\{\{username\}\}/g, username), body });
+            } catch {}
+          }
+          log('STRIPE_WEBHOOK', `Compte créé: ${username} (${email||'no email'}) — ${event.type}`, 'OK');
+        }
+      } catch(e) { log('STRIPE_WEBHOOK', `Erreur création ${username}: ${e.message}`, 'ERROR'); }
+    }
+  }
+
+  if (event.type === 'customer.subscription.deleted' || event.type === 'invoice.payment_failed') {
+    const meta = event.data.object.metadata || {};
+    const username = meta.username;
+    if (username) {
+      const user = USERS.find(u => u.username === username);
+      if (user) { user.suspended = true; saveUsers(); log('STRIPE_WEBHOOK', `Compte suspendu: ${username} — ${event.type}`, 'OK'); }
+    }
+  }
+
+  res.json({ received: true });
+});
+
+// ─── ROUTE: KAZYDEBUG (admin + kazydebug: true uniquement) ───────────────────
+
+const debugOnly = (req, res, next) => {
+  if (!CONFIG.KAZY_DEBUG) return res.status(403).json({ error: 'KazyDebug désactivé — ajoutez KAZY_DEBUG=true dans .env' });
+  next();
+};
+
+// GET /api/debug/file — lire index.html ou server.js
+app.get('/api/debug/file', authMiddleware, adminOnly, debugOnly, (req, res) => {
+  const { name } = req.query;
+  if (!['index.html', 'server.js'].includes(name))
+    return res.status(400).json({ error: 'Fichier non autorisé' });
+  try {
+    const filePath = name === 'index.html'
+      ? path.join(__dirname, 'public', 'index.html')
+      : path.join(__dirname, 'server.js');
+    const content  = fs.readFileSync(filePath, 'utf8');
+    res.json({ success: true, content, size: content.length, lines: content.split('\n').length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/debug/file — sauvegarder index.html ou server.js
+app.put('/api/debug/file', authMiddleware, adminOnly, debugOnly, async (req, res) => {
+  const { name, content } = req.body;
+  if (!['index.html', 'server.js'].includes(name))
+    return res.status(400).json({ error: 'Fichier non autorisé' });
+  if (!content) return res.status(400).json({ error: 'Contenu requis' });
+  try {
+    const filePath = name === 'index.html'
+      ? path.join(__dirname, 'public', 'index.html')
+      : path.join(__dirname, 'server.js');
+    const backup = `${filePath}.bak_${Date.now()}`;
+    fs.copyFileSync(filePath, backup);
+    fs.writeFileSync(filePath, content, 'utf8');
+
+    // Supprimer les anciens backups du même fichier (garder uniquement le dernier)
+    const dir     = path.dirname(filePath);
+    const base    = path.basename(filePath);
+    const allBaks = fs.readdirSync(dir)
+      .filter(f => f.startsWith(`${base}.bak_`))
+      .map(f => ({ name: f, ts: parseInt(f.split('.bak_')[1]) || 0 }))
+      .sort((a, b) => b.ts - a.ts);
+    // Supprimer tout sauf le plus récent
+    allBaks.slice(1).forEach(b => {
+      try { fs.unlinkSync(path.join(dir, b.name)); } catch {}
+    });
+
+    log('KAZYDEBUG', `${name} modifié (${content.length} chars) — backup: ${path.basename(backup)}`, 'OK');
+    res.json({ success: true, message: `${name} sauvegardé`, backup: path.basename(backup) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/debug/restart — redémarrer KazyPanel
+app.post('/api/debug/restart', authMiddleware, adminOnly, debugOnly, async (req, res) => {
+  log('KAZYDEBUG', 'Restart KazyPanel via KazyDebug', 'OK');
+  res.json({ success: true, message: 'Redémarrage en cours…' });
+  setTimeout(() => {
+    runCmd('sudo systemctl restart kazypanel').catch(() => process.exit(0));
+  }, 500);
+});
+
+// GET /api/debug/status — état kazydebug
+app.get('/api/debug/status', authMiddleware, adminOnly, (req, res) => {
+  res.json({ enabled: CONFIG.KAZY_DEBUG });
+});
+
+// POST /api/debug/toggle — activer/désactiver kazydebug dans .env
+app.post('/api/debug/toggle', authMiddleware, adminOnly, async (req, res) => {
+  const { enabled } = req.body;
+  try {
+    const envPath = path.join(__dirname, '.env');
+    let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+    if (envContent.includes('KAZY_DEBUG=')) {
+      envContent = envContent.replace(/^KAZY_DEBUG=.*/m, `KAZY_DEBUG=${enabled ? 'true' : 'false'}`);
+    } else {
+      envContent += `\nKAZY_DEBUG=${enabled ? 'true' : 'false'}\n`;
+    }
+    fs.writeFileSync(envPath, envContent, 'utf8');
+    CONFIG.KAZY_DEBUG = enabled;
+    log('KAZYDEBUG', `${enabled ? 'Activé' : 'Désactivé'} par ${req.user.username}`, 'OK');
+    res.json({ success: true, enabled, message: enabled
+      ? 'KazyDebug activé — rechargez la page pour voir le menu'
+      : 'KazyDebug désactivé — menu masqué'
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ─── ROUTE: TERMINAL (admin seulement) ───────────────────────────────────────
 // Sessions : Map<sessionId, { cwd, env, lastActivity }>

@@ -850,6 +850,13 @@
 
   /* LOADER */
   .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.2); border-top-color: white; border-radius: 50%; animation: spin .6s linear infinite; }
+  .term-qbtn {
+    font-family: var(--mono); font-size: 11px; padding: 5px 12px;
+    border-radius: 6px; border: 1px solid #313244;
+    background: #1e1e2e; color: #cdd6f4;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .term-qbtn:hover { background: #313244; border-color: #45475a; color: #cba6f7; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.5); } 50% { box-shadow: 0 0 0 5px rgba(245,158,11,0); } }
 
@@ -993,10 +1000,6 @@
         Mise à jour
         <span id="updateBadge" style="display:none;position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:#f59e0b;border:2px solid var(--surface);animation:pulse 2s infinite"></span>
       </button>
-      <button id="topbarAlertBtn" onclick="openPanelLogsModal()" class="admin-only tb-action-btn" style="display:none;position:relative" title="Alertes sécurité">
-        🚨 Alertes
-        <span id="alertBadge" style="display:none;position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;border:2px solid var(--surface);font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px"></span>
-      </button>
       <div style="position:relative;display:inline-flex;align-items:center">
         <button id="themeToggleBtn" onclick="toggleThemeMenu()" class="tb-action-btn" title="Changer le thème" style="width:34px;height:34px;padding:0;justify-content:center;font-size:15px">🌙</button>
         <div id="themeMenu" style="display:none;position:absolute;top:38px;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:999;min-width:150px;overflow:hidden">
@@ -1066,6 +1069,10 @@
       <div class="nav-item admin-only" id="navTerminal" onclick="showTerminalPage()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
         Terminal SSH
+      </div>
+      <div class="nav-item admin-only" id="navKazyDebug" onclick="showKazyDebug()" style="display:none;color:#ef4444">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        KazyDebug
       </div>
 
       <!-- ═══ UTILISATEUR ═══ -->
@@ -2050,15 +2057,18 @@
 
       <!-- ══ TERMINAL SSH PAGE SECTION ══ -->
       <div id="terminalPageSection" style="display:none">
-        <div class="page-header">
+        <div class="page-header" style="margin-bottom:16px">
           <div>
             <div class="page-title">Terminal SSH</div>
             <div class="page-subtitle">Shell bash local — accès administrateur complet</div>
           </div>
-          <div style="display:flex;gap:10px">
+          <div style="display:flex;gap:8px">
             <button class="btn btn-ghost btn-sm" onclick="termClear()" id="termClearBtn" style="display:none">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
               Effacer
+            </button>
+            <button class="btn btn-ghost btn-sm" id="termFullscreenBtn" onclick="termToggleFullscreen()" style="display:none" title="Plein écran">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
             </button>
             <button class="btn btn-ghost btn-sm" onclick="termClose()" id="termCloseBtn" style="display:none;color:#ef4444;border-color:rgba(220,38,38,.3)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -2067,62 +2077,86 @@
           </div>
         </div>
 
-        <!-- Terminal -->
-        <div class="table-container" style="padding:0;overflow:hidden">
-          <!-- État initial -->
-          <div id="termConnect" style="padding:40px;text-align:center">
-            <div style="font-size:40px;margin-bottom:16px">🖥️</div>
-            <div style="font-size:15px;font-weight:700;margin-bottom:8px">Terminal SSH</div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:24px">Ouvre un shell bash local en tant que <code style="font-size:11px">debian</code> avec sudo</div>
-            <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:8px;padding:12px 20px;font-size:11px;color:#ef4444;margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto">
-              ⚠️ Toutes les commandes sont exécutées sur le serveur. Utilisez avec précaution.
+        <!-- Écran de connexion -->
+        <div id="termConnect" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:48px;text-align:center">
+          <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#1e293b,#0f172a);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;border:1px solid #334155;box-shadow:0 8px 24px rgba(0,0,0,.4)">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <div style="font-size:17px;font-weight:700;margin-bottom:6px">Terminal Bash</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-family:var(--mono)">debian@kazypanel · sudo activé</div>
+          <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 16px;font-size:11px;color:#f87171;margin:16px auto 24px;max-width:420px;display:inline-block">
+            ⚠️ Toutes les commandes sont exécutées directement sur le serveur.
+          </div>
+          <div><button class="btn btn-primary" onclick="termOpen()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Ouvrir le terminal
+          </button></div>
+        </div>
+
+        <!-- Terminal actif -->
+        <div id="termActive" style="display:none;border-radius:14px;overflow:hidden;border:1px solid #313244;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+          <!-- Barre macOS -->
+          <div style="background:linear-gradient(180deg,#232634,#1e2030);padding:10px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #181926;user-select:none">
+            <div style="display:flex;gap:7px">
+              <div onclick="termClose()" title="Fermer" style="width:13px;height:13px;border-radius:50%;background:#ff5f57;cursor:pointer;border:1px solid rgba(0,0,0,.25);transition:filter .15s;display:flex;align-items:center;justify-content:center" onmouseover="this.innerHTML='<svg width=7 height=7 viewBox=&quot;0 0 10 10&quot; fill=&quot;none&quot; stroke=&quot;rgba(0,0,0,.5)&quot; stroke-width=&quot;1.5&quot;><line x1=&quot;1&quot; y1=&quot;1&quot; x2=&quot;9&quot; y2=&quot;9&quot;/><line x1=&quot;9&quot; y1=&quot;1&quot; x2=&quot;1&quot; y2=&quot;9&quot;/></svg>'" onmouseout="this.innerHTML=''"></div>
+              <div title="Minimiser" style="width:13px;height:13px;border-radius:50%;background:#febc2e;border:1px solid rgba(0,0,0,.25)"></div>
+              <div onclick="termToggleFullscreen()" title="Plein écran" style="width:13px;height:13px;border-radius:50%;background:#28c840;cursor:pointer;border:1px solid rgba(0,0,0,.25);transition:filter .15s" onmouseover="this.style.filter='brightness(1.2)'" onmouseout="this.style.filter=''"></div>
             </div>
-            <button class="btn btn-primary" onclick="termOpen()" style="gap:8px">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-              Ouvrir le terminal
-            </button>
+            <div style="flex:1;text-align:center;font-family:var(--mono);font-size:11px;color:#6e738d">
+              bash — <span style="color:#8aadf4">debian@</span><span id="termHostname" style="color:#cad3f5">kazypanel</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span id="termSessionTime" style="font-family:var(--mono);font-size:10px;color:#6e738d"></span>
+              <div id="termSpinner" style="display:none;width:8px;height:8px;border-radius:50%;background:#eed49f;box-shadow:0 0 8px #eed49f55;animation:blink 1s infinite"></div>
+            </div>
           </div>
 
-          <!-- Terminal actif -->
-          <div id="termActive" style="display:none">
-            <!-- Barre de statut -->
-            <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
-              <span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
-              <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">bash — debian@<span id="termHostname">kazylax.fr</span></span>
-              <span style="flex:1"></span>
-              <span id="termSessionTime" style="font-family:var(--mono);font-size:10px;color:var(--muted)"></span>
-            </div>
+          <!-- Output terminal -->
+          <div id="termOutput"
+            style="font-family:'DM Mono','Fira Code','Cascadia Code',monospace;font-size:13px;line-height:1.65;color:#cad3f5;background:#24273a;padding:16px 20px;min-height:480px;max-height:580px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;cursor:text;tab-size:4"
+            onclick="document.getElementById('termInput').focus()">
+          </div>
 
-            <!-- Sortie terminal -->
-            <div id="termOutput"
-              style="font-family:'DM Mono',monospace;font-size:12px;line-height:1.6;color:#e2e8f0;background:#0d1117;padding:16px;min-height:420px;max-height:520px;overflow-y:auto;white-space:pre-wrap;word-break:break-all">
+          <!-- Input line -->
+          <div style="display:flex;align-items:center;background:#1e2030;border-top:1px solid #181926">
+            <span id="termPromptLabel" style="font-family:'DM Mono',monospace;font-size:13px;padding:10px 6px 10px 18px;white-space:nowrap;flex-shrink:0"></span>
+            <input id="termInput" type="text" autocomplete="off" spellcheck="false" autocorrect="off"
+              style="flex:1;background:transparent;border:none;outline:none;font-family:'DM Mono',monospace;font-size:13px;color:#cad3f5;padding:10px 6px;caret-color:#c6a0f6"
+              onkeydown="termHandleKey(event)">
+            <div style="display:flex;border-left:1px solid #363a4f">
+              <button onclick="termSendCtrlC()" title="Ctrl+C (interrompre)" style="background:none;border:none;color:#ed8796;padding:10px 13px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;transition:background .15s" onmouseover="this.style.background='rgba(237,135,150,.08)'" onmouseout="this.style.background='none'">^C</button>
+              <button onclick="termSendCtrlD()" title="Ctrl+D (fin de fichier)" style="background:none;border:none;border-left:1px solid #363a4f;color:#f5a97f;padding:10px 11px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:700;transition:background .15s" onmouseover="this.style.background='rgba(245,169,127,.08)'" onmouseout="this.style.background='none'">^D</button>
+              <button onclick="termSend()" title="Envoyer (Entrée)" style="background:none;border:none;border-left:1px solid #363a4f;color:#a6da95;padding:10px 15px;cursor:pointer;font-size:13px;font-family:var(--mono);transition:background .15s" onmouseover="this.style.background='rgba(166,218,149,.08)'" onmouseout="this.style.background='none'">↵</button>
             </div>
+          </div>
 
-            <!-- Ligne de saisie -->
-            <div style="display:flex;align-items:center;gap:0;border-top:1px solid var(--border);background:#0d1117">
-              <span style="font-family:var(--mono);font-size:12px;color:#22c55e;padding:10px 8px 10px 16px;white-space:nowrap">$</span>
-              <input id="termInput" type="text" autocomplete="off" spellcheck="false"
-                style="flex:1;background:transparent;border:none;outline:none;font-family:'DM Mono',monospace;font-size:12px;color:#e2e8f0;padding:10px 8px"
-                placeholder="Entrez une commande..."
-                onkeydown="termHandleKey(event)">
-              <button onclick="termSend()" style="background:rgba(79,110,247,.15);border:none;border-left:1px solid var(--border);color:var(--accent2);padding:10px 16px;cursor:pointer;font-size:11px;font-family:var(--mono);transition:background .15s"
-                onmouseover="this.style.background='rgba(79,110,247,.3)'" onmouseout="this.style.background='rgba(79,110,247,.15)'">
-                Envoyer ↵
-              </button>
-            </div>
+          <!-- Status bar -->
+          <div style="display:flex;align-items:center;padding:4px 18px;background:#181926;border-top:1px solid #181926;gap:16px">
+            <span id="termStatusBar" style="font-family:var(--mono);font-size:10px;color:#6e738d;flex:1">Prêt</span>
+            <span style="font-family:var(--mono);font-size:10px;color:#6e738d" id="termCursorInfo">bash</span>
+            <span style="font-family:var(--mono);font-size:10px;color:#6e738d">UTF-8</span>
           </div>
         </div>
 
-        <!-- Aide commandes rapides -->
-        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px" id="termQuickCmds" style="display:none">
-          <button class="btn btn-ghost btn-sm" onclick="termQuick('kp-info')" style="font-family:var(--mono);font-size:11px">kp-info</button>
-          <button class="btn btn-ghost btn-sm" onclick="termQuick('sudo systemctl status kazypanel')" style="font-family:var(--mono);font-size:11px">status kazypanel</button>
-          <button class="btn btn-ghost btn-sm" onclick="termQuick('sudo ufw status numbered')" style="font-family:var(--mono);font-size:11px">ufw status</button>
-          <button class="btn btn-ghost btn-sm" onclick="termQuick('df -h')" style="font-family:var(--mono);font-size:11px">df -h</button>
-          <button class="btn btn-ghost btn-sm" onclick="termQuick('free -h')" style="font-family:var(--mono);font-size:11px">free -h</button>
-          <button class="btn btn-ghost btn-sm" onclick="termQuick('sudo journalctl -u kazypanel -n 30 --no-pager')" style="font-family:var(--mono);font-size:11px">logs kazypanel</button>
-          <button class="btn btn-ghost btn-sm" onclick="termQuick('sudo tail -f /var/log/apache2/error.log')" style="font-family:var(--mono);font-size:11px">apache errors</button>
-          <button class="btn btn-ghost btn-sm" onclick="termQuick('ls /var/www/')" style="font-family:var(--mono);font-size:11px">ls /var/www</button>
+        <!-- Commandes rapides -->
+        <div id="termQuickCmds" style="display:none;margin-top:14px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;font-family:var(--mono)">Commandes rapides</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <button class="term-qbtn" onclick="termQuick('sudo systemctl status kazypanel')">⚡ status panel</button>
+            <button class="term-qbtn" onclick="termQuick('sudo journalctl -u kazypanel -n 50 --no-pager')">📋 logs panel</button>
+            <button class="term-qbtn" onclick="termQuick('sudo systemctl restart kazypanel')">🔄 restart panel</button>
+            <button class="term-qbtn" onclick="termQuick('sudo ufw status numbered')">🛡️ ufw status</button>
+            <button class="term-qbtn" onclick="termQuick('df -h')">💾 disque</button>
+            <button class="term-qbtn" onclick="termQuick('free -h')">🧠 RAM</button>
+            <button class="term-qbtn" onclick="termQuick('top -bn1 | head -25')">📊 top</button>
+            <button class="term-qbtn" onclick="termQuick('sudo tail -f /var/log/kazypanel.log')">📜 kazy logs live</button>
+            <button class="term-qbtn" onclick="termQuick('sudo tail -50 /var/log/apache2/error.log')">🌐 apache errors</button>
+            <button class="term-qbtn" onclick="termQuick('ls -lah /var/www/')">📁 /var/www</button>
+            <button class="term-qbtn" onclick="termQuick('sudo fail2ban-client status')">🚫 fail2ban</button>
+            <button class="term-qbtn" onclick="termQuick('ps aux --sort=-%mem | head -15')">🔍 processus</button>
+            <button class="term-qbtn" onclick="termQuick('netstat -tlnp 2>/dev/null || ss -tlnp')">🔌 ports</button>
+            <button class="term-qbtn" onclick="termQuick('uptime && w')">⏱️ uptime</button>
+          </div>
         </div>
       </div>
 
@@ -2241,31 +2275,99 @@
           </div>
         </div>
 
-        <!-- Ressources système -->
-        <div id="statusResourceRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-          <div class="stat-card" style="padding:14px 16px">
-            <div class="stat-label" style="margin-bottom:6px">CPU</div>
-            <div id="resCpu" style="font-size:15px;font-weight:700;font-family:var(--mono)">—</div>
-            <div style="margin-top:8px;height:4px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--accent);border-radius:4px;width:0%;transition:width .8s ease" id="resCpuFill"></div></div>
+        <!-- ── GAUGES CIRCULAIRES ── -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+          <!-- CPU -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#6366f1,#8b5cf6)"></div>
+            <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:14px">CPU</div>
+            <div style="position:relative;width:90px;height:90px;margin:0 auto 14px">
+              <svg width="90" height="90" style="transform:rotate(-90deg)">
+                <circle cx="45" cy="45" r="36" fill="none" stroke="var(--border)" stroke-width="7"/>
+                <circle id="gaugeCpuArc" cx="45" cy="45" r="36" fill="none" stroke="#6366f1" stroke-width="7" stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="226" style="transition:stroke-dashoffset 1s ease"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                <div id="gaugeCpuVal" style="font-size:18px;font-weight:800;color:var(--text);font-family:var(--mono)">—</div>
+                <div style="font-size:9px;color:var(--muted)">%</div>
+              </div>
+            </div>
+            <div id="gaugeCpuLoad" style="font-family:var(--mono);font-size:10px;color:var(--muted)">load —</div>
           </div>
-          <div class="stat-card" style="padding:14px 16px">
-            <div class="stat-label" style="margin-bottom:6px">RAM</div>
-            <div id="resRam" style="font-size:15px;font-weight:700;font-family:var(--mono)">—</div>
-            <div style="margin-top:8px;height:4px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);border-radius:4px;width:0%;transition:width .8s ease" id="resRamFill"></div></div>
+          <!-- RAM -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#10b981,#059669)"></div>
+            <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:14px">RAM</div>
+            <div style="position:relative;width:90px;height:90px;margin:0 auto 14px">
+              <svg width="90" height="90" style="transform:rotate(-90deg)">
+                <circle cx="45" cy="45" r="36" fill="none" stroke="var(--border)" stroke-width="7"/>
+                <circle id="gaugeRamArc" cx="45" cy="45" r="36" fill="none" stroke="#10b981" stroke-width="7" stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="226" style="transition:stroke-dashoffset 1s ease"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                <div id="gaugeRamVal" style="font-size:18px;font-weight:800;color:var(--text);font-family:var(--mono)">—</div>
+                <div style="font-size:9px;color:var(--muted)">%</div>
+              </div>
+            </div>
+            <div id="gaugeRamDetail" style="font-family:var(--mono);font-size:10px;color:var(--muted)">— / —</div>
           </div>
-          <div class="stat-card" style="padding:14px 16px">
-            <div class="stat-label" style="margin-bottom:6px">Disque</div>
-            <div id="resDisk" style="font-size:15px;font-weight:700;font-family:var(--mono)">—</div>
-            <div style="margin-top:8px;height:4px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--yellow);border-radius:4px;width:0%;transition:width .8s ease" id="resDiskFill"></div></div>
+          <!-- DISQUE -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#f59e0b,#d97706)"></div>
+            <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:14px">Disque</div>
+            <div style="position:relative;width:90px;height:90px;margin:0 auto 14px">
+              <svg width="90" height="90" style="transform:rotate(-90deg)">
+                <circle cx="45" cy="45" r="36" fill="none" stroke="var(--border)" stroke-width="7"/>
+                <circle id="gaugeDiskArc" cx="45" cy="45" r="36" fill="none" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="226" style="transition:stroke-dashoffset 1s ease"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                <div id="gaugeDiskVal" style="font-size:18px;font-weight:800;color:var(--text);font-family:var(--mono)">—</div>
+                <div style="font-size:9px;color:var(--muted)">%</div>
+              </div>
+            </div>
+            <div id="gaugeDiskDetail" style="font-family:var(--mono);font-size:10px;color:var(--muted)">— / —</div>
           </div>
-          <div class="stat-card" style="padding:14px 16px">
-            <div class="stat-label" style="margin-bottom:6px">Charge</div>
-            <div id="resLoad" style="font-size:15px;font-weight:700;font-family:var(--mono)">—</div>
-            <div style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--muted)" id="resUptime">uptime —</div>
+          <!-- SERVEUR -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#3b82f6,#0ea5e9)"></div>
+            <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:14px">Serveur</div>
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;color:var(--text);font-family:var(--mono)" id="gaugeHostname">—</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:3px" id="gaugeOs">—</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:6px">
+                <span style="font-size:10px;color:var(--muted)">⏱ Uptime</span>
+                <span id="gaugeUptime" style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)">—</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:6px">
+                <span style="font-size:10px;color:var(--muted)">📦 Node</span>
+                <span id="gaugeNode" style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)">—</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:6px">
+                <span style="font-size:10px;color:var(--muted)">🌐 Domaines</span>
+                <span id="gaugeDomains" style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)">—</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Services -->
+        <!-- ── GRAPHIQUE HISTORIQUE CPU/RAM ── -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px">
+          <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:13px;font-weight:700">Historique des ressources</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Mis à jour toutes les 30 secondes — 20 dernières mesures</div>
+            </div>
+            <div style="display:flex;gap:14px">
+              <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)"><span style="width:10px;height:3px;background:#6366f1;border-radius:2px;display:inline-block"></span>CPU</div>
+              <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)"><span style="width:10px;height:3px;background:#10b981;border-radius:2px;display:inline-block"></span>RAM</div>
+            </div>
+          </div>
+          <div style="padding:16px 20px 8px;position:relative;height:140px">
+            <canvas id="resHistoryChart" style="width:100%;height:100%"></canvas>
+          </div>
+        </div>
+
+        <!-- ── SERVICES ── -->
         <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
           <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Services</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--muted)" id="statusSvcCount">—</div>
@@ -2274,15 +2376,96 @@
           <div class="stat-card"><div class="stat-label">Chargement…</div><div class="spinner" style="margin:4px 0 0"></div></div>
         </div>
 
-        <!-- Infos système -->
-        <div style="margin-bottom:8px;font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Informations système</div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <table style="width:100%;border-collapse:collapse">
-            <tbody id="statusInfoTable">
-              <tr><td colspan="2" style="padding:24px;text-align:center"><div class="spinner" style="margin:0 auto"></div></td></tr>
-            </tbody>
-          </table>
+        <!-- ── INFOS + STATS ── -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700">Informations système</div>
+            <table style="width:100%;border-collapse:collapse">
+              <tbody id="statusInfoTable">
+                <tr><td colspan="2" style="padding:24px;text-align:center"><div class="spinner" style="margin:0 auto"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700">Statistiques rapides</div>
+            <div style="padding:14px 16px;display:flex;flex-direction:column;gap:12px" id="statusQuickStats">
+              <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- ══ KAZYDEBUG ══ -->
+      <div id="kazyDebugSection" style="display:none">
+        <div class="page-header">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(239,68,68,.3)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div>
+              <div class="page-title" style="display:flex;align-items:center;gap:8px">KazyDebug <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2);font-weight:600">ADMIN ONLY</span></div>
+              <div class="page-subtitle">Éditeur de fichiers système — accès restreint</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="kazyDebugLoad()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Recharger
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="kazyDebugSelectAll()" title="Tout sélectionner (Ctrl+A)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+              Tout sélectionner
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="kazyDebugSave()" style="color:#10b981;border-color:rgba(16,185,129,.3)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Sauvegarder
+            </button>
+            <button class="btn btn-primary btn-sm" id="kazyDebugRestartBtn" onclick="kazyDebugRestart()" style="display:none;background:linear-gradient(135deg,#ef4444,#dc2626);border-color:#dc2626">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Restart KazyPanel
+            </button>
+          </div>
+        </div>
+        <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div style="font-size:11px;color:#ef4444"><strong>Zone dangereuse.</strong> Backup automatique avant chaque sauvegarde. Redémarrage requis après modification de <code>server.js</code>.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <button id="kazyTabHtml" onclick="kazyDebugSwitchFile('index.html')" style="padding:8px 18px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--mono)">index.html</button>
+            <button id="kazyTabJs" onclick="kazyDebugSwitchFile('server.js')" style="padding:8px 18px;background:transparent;color:var(--muted);border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--mono)">server.js</button>
+          </div>
+          <div id="kazyDebugMeta" style="font-family:var(--mono);font-size:10px;color:var(--muted)">—</div>
+          <div id="kazyDebugDirty" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:6px;background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.2)">● Modifié</div>
+          <div style="flex:1"></div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="kazyGotoLine" min="1" placeholder="Ligne…" style="width:80px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:11px;color:var(--text);outline:none" onkeydown="if(event.key==='Enter')kazyGotoLine()">
+            <button onclick="kazyGotoLine()" class="btn btn-ghost btn-sm" style="font-size:11px">↵</button>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="kazySearchInput" placeholder="🔍 Rechercher…" style="width:160px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-family:var(--mono);font-size:11px;color:var(--text);outline:none" oninput="kazySearch(this.value)">
+            <span id="kazySearchCount" style="font-size:10px;color:var(--muted)"></span>
+          </div>
+        </div>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+        <style>.CodeMirror{height:70vh!important;font-family:'DM Mono',monospace!important;font-size:13px!important;line-height:1.6!important;background:#1e1e2e!important}.CodeMirror-gutters{background:#181825!important;border-right:1px solid #313244!important}.CodeMirror-linenumber{color:#3d4663!important}.CodeMirror-cursor{border-left:2px solid #cba6f7!important}.CodeMirror-selected{background:rgba(203,166,247,.2)!important}</style>
+        <div style="background:#1e1e2e;border:1px solid #313244;border-radius:12px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:#181825;border-bottom:1px solid #313244">
+            <div style="display:flex;gap:5px">
+              <div style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></div>
+              <div style="width:11px;height:11px;border-radius:50%;background:#febc2e"></div>
+              <div style="width:11px;height:11px;border-radius:50%;background:#28c840"></div>
+            </div>
+            <span id="kazyEditorTitle" style="font-family:var(--mono);font-size:11px;color:#4a6d8c;flex:1;text-align:center">index.html</span>
+            <span id="kazyCursorPos" style="font-family:var(--mono);font-size:10px;color:#4a6d8c">Ln 1, Col 1</span>
+          </div>
+          <div id="kazyEditorContainer"></div>
+          <div style="padding:6px 16px;background:#181825;border-top:1px solid #313244;display:flex;align-items:center;gap:16px">
+            <span id="kazyStatusBar" style="font-family:var(--mono);font-size:10px;color:#4a6d8c">Prêt</span>
+            <span style="flex:1"></span>
+            <span style="font-family:var(--mono);font-size:10px;color:#4a6d8c">UTF-8</span>
+            <span id="kazyEditorLang" style="font-family:var(--mono);font-size:10px;color:#cba6f7">HTML</span>
+          </div>
+        </div>
+        <div id="kazyBackupInfo" style="display:none;margin-top:12px;padding:10px 16px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:11px;color:#10b981;font-family:var(--mono)"></div>
       </div>
 
       <!-- ══ SECTION CONFIGURATION (admin) ══ -->
@@ -2305,6 +2488,10 @@
             Serveur
           </button>
 
+          <button class="cfg-tab" data-tab="api" onclick="switchCfgTab('api')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+            API
+          </button>
           <button class="cfg-tab" data-tab="pma"        onclick="switchCfgTab('pma')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
             phpMyAdmin
@@ -2545,6 +2732,59 @@
             </div>
 
           </div>
+
+          <!-- KazyDebug -->
+          <div style="grid-column:1/-1;margin-top:4px">
+            <div class="cfg-card" style="border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.02)">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#ef4444,#dc2626)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div class="cfg-card-title" style="display:flex;align-items:center;gap:8px">
+                    KazyDebug
+                    <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2);font-weight:700">ADMIN ONLY</span>
+                  </div>
+                  <div class="cfg-card-sub">Éditeur de fichiers système — modifier <code style="font-size:10px">index.html</code> et <code style="font-size:10px">server.js</code> directement depuis le panel</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span id="kazyDebugStatusLabel" style="font-size:11px;color:var(--muted)">—</span>
+                  <label style="position:relative;display:inline-block;width:40px;height:22px;cursor:pointer">
+                    <input type="checkbox" id="kazyDebugToggle" style="opacity:0;width:0;height:0" onchange="cfgToggleKazyDebug(this.checked)">
+                    <span id="kazyDebugToggleTrack" style="position:absolute;inset:0;border-radius:11px;background:var(--border);transition:background .2s">
+                      <span id="kazyDebugToggleThumb" style="position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div class="cfg-card-body" style="padding-top:0">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+                  <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+                    <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">✏️ Ce que KazyDebug permet</div>
+                    <ul style="font-size:11px;color:var(--muted);margin:0;padding-left:16px;line-height:1.8">
+                      <li>Modifier <code style="font-size:10px">public/index.html</code> en direct</li>
+                      <li>Modifier <code style="font-size:10px">server.js</code> et redémarrer</li>
+                      <li>Coloration syntaxique HTML / JS / PHP / CSS</li>
+                      <li>Backup automatique avant chaque sauvegarde</li>
+                      <li>Aller à la ligne, recherche dans le fichier</li>
+                    </ul>
+                  </div>
+                  <div style="padding:10px 14px;background:rgba(239,68,68,.05);border-radius:8px;border:1px solid rgba(239,68,68,.15)">
+                    <div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:6px">⚠️ Précautions</div>
+                    <ul style="font-size:11px;color:var(--muted);margin:0;padding-left:16px;line-height:1.8">
+                      <li>Accès <strong>admin uniquement</strong></li>
+                      <li>Une erreur JS peut rendre le panel inaccessible</li>
+                      <li>Toujours tester après modification de <code style="font-size:10px">server.js</code></li>
+                      <li>Désactiver en production quand inutilisé</li>
+                      <li>Activé via <code style="font-size:10px">KAZY_DEBUG=true</code> dans <code style="font-size:10px">.env</code></li>
+                    </ul>
+                  </div>
+                </div>
+                <div id="kazyDebugEnvInfo" style="display:none;padding:10px 14px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:11px;color:#10b981;font-family:var(--mono)"></div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- ═══ ONGLET : BASHRC ═══ -->
@@ -2622,6 +2862,91 @@
         </div>
 
         <!-- ═══ ONGLET : PHPMYADMIN ═══ -->
+        <!-- ═══ ONGLET : API ═══ -->
+        <div id="cfgTab-api" class="cfg-tab-content" style="display:none">
+          <div style="max-width:800px;display:flex;flex-direction:column;gap:16px">
+
+            <!-- Info API -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div class="cfg-card-title">API REST publique v1</div>
+                  <div class="cfg-card-sub">Créer des utilisateurs, gérer les comptes via HTTP · Authentification par clé API</div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="cfgCreateApiKey()">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Nouvelle clé
+                </button>
+              </div>
+              <div class="cfg-card-body" style="padding-top:0">
+                <!-- Endpoints -->
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px;font-family:var(--mono);font-size:11px;line-height:2">
+                  <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Endpoints disponibles</div>
+                  <div><span style="color:#22c55e;font-weight:700">GET</span>    <span style="color:#8aadf4">/api/v1/status</span> <span style="color:var(--muted)">— Statut serveur</span></div>
+                  <div><span style="color:#22c55e;font-weight:700">GET</span>    <span style="color:#8aadf4">/api/v1/users</span> <span style="color:var(--muted)">— Lister les utilisateurs</span></div>
+                  <div><span style="color:#f59e0b;font-weight:700">POST</span>   <span style="color:#8aadf4">/api/v1/users</span> <span style="color:var(--muted)">— Créer un utilisateur</span></div>
+                  <div><span style="color:#22c55e;font-weight:700">GET</span>    <span style="color:#8aadf4">/api/v1/users/:username</span> <span style="color:var(--muted)">— Détails</span></div>
+                  <div><span style="color:#ef4444;font-weight:700">DELETE</span> <span style="color:#8aadf4">/api/v1/users/:username</span> <span style="color:var(--muted)">— Supprimer</span></div>
+                  <div><span style="color:#6366f1;font-weight:700">PATCH</span>  <span style="color:#8aadf4">/api/v1/users/:username/suspend</span> <span style="color:var(--muted)">— Suspendre</span></div>
+                  <div><span style="color:#6366f1;font-weight:700">PATCH</span>  <span style="color:#8aadf4">/api/v1/users/:username/unsuspend</span> <span style="color:var(--muted)">— Réactiver</span></div>
+                  <div><span style="color:#f59e0b;font-weight:700">POST</span>   <span style="color:#8aadf4">/api/v1/webhook/stripe</span> <span style="color:var(--muted)">— Webhook Stripe</span></div>
+                </div>
+                <!-- Exemple -->
+                <div style="background:#1e1e2e;border:1px solid #313244;border-radius:8px;padding:12px 16px;font-family:var(--mono);font-size:11px;line-height:1.8;color:#cad3f5">
+                  <div style="color:#6e738d;margin-bottom:6px"># Exemple : créer un utilisateur</div>
+                  <div style="color:#a6e3a1">curl</div> -X POST <span style="color:#f9e2af">"https://panel.kazylax.fr/api/v1/users"</span> \<br>
+                  &nbsp;&nbsp;-H <span style="color:#f9e2af">"X-Api-Key: kp_live_xxx"</span> \<br>
+                  &nbsp;&nbsp;-H <span style="color:#f9e2af">"Content-Type: application/json"</span> \<br>
+                  &nbsp;&nbsp;-d <span style="color:#f9e2af">'{"username":"client01","password":"pass","email":"client@mail.fr","template":"Starter","sendEmail":true}'</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Clés API -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Clés API</div><div class="cfg-card-sub">Gérez vos clés d'accès à l'API</div></div>
+              </div>
+              <div class="cfg-card-body" id="cfgApiKeysList" style="padding-top:0">
+                <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+              </div>
+            </div>
+
+            <!-- Stripe Webhook -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#635bff,#4b44d8)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                </div>
+                <div><div class="cfg-card-title">Stripe Webhook</div><div class="cfg-card-sub">Secret de validation des événements Stripe</div></div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label class="form-label">Webhook Secret (whsec_xxx)</label>
+                  <input class="form-input" type="password" id="cfgStripeSecret" placeholder="whsec_xxxxxxxxxxxxxxxx" style="font-family:var(--mono)">
+                  <div style="font-size:10px;color:var(--muted);margin-top:5px">Dashboard Stripe → Webhooks → Votre endpoint → Signing secret</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">URL du Webhook à configurer dans Stripe</label>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input class="form-input" id="cfgWebhookUrl" readonly style="font-family:var(--mono);color:var(--muted)" value="">
+                    <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('cfgWebhookUrl').value);showToast('URL copiée','success')">📋</button>
+                  </div>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveStripeSecret()" style="width:100%;justify-content:center">Enregistrer</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ═══ ONGLET : PMA ═══ -->
         <div id="cfgTab-pma" class="cfg-tab-content" style="display:none">
           <div style="max-width:600px">
             <div class="cfg-card">
@@ -4071,9 +4396,9 @@ function executeConfirm() {
   closeConfirmModal();
   if (cb) cb();
 }
-let token = sessionStorage.getItem('hp_token') || '';
+let token = localStorage.getItem('hp_token') || '';
 let _pmaUrl = '';
-let currentRole = sessionStorage.getItem('hp_role') || '';
+let currentRole = localStorage.getItem('hp_role') || '';
 let allDomains = [];
 let deleteTarget = null;
 let _currentUsername = '';
@@ -4086,8 +4411,8 @@ let _currentUsername = '';
   if (impToken && impUser) {
     token = impToken;
     currentRole = 'user';
-    sessionStorage.setItem('hp_token', token);
-    sessionStorage.setItem('hp_role', 'user');
+    localStorage.setItem('hp_token', token);
+    localStorage.setItem('hp_role', 'user');
     window.history.replaceState({}, '', window.location.pathname);
     document.addEventListener('DOMContentLoaded', () => {
       const banner = document.createElement('div');
@@ -4165,8 +4490,9 @@ async function doLogin() {
     }
     token = data.token;
     currentRole = data.role;
-    sessionStorage.setItem('hp_token', token);
-    sessionStorage.setItem('hp_role', currentRole);
+    localStorage.setItem('hp_token', token);
+    localStorage.setItem('hp_role', currentRole);
+    localStorage.setItem('hp_user', data.username || '');
     document.getElementById('topbarUser').textContent = data.username;
     const initials = (data.username||'?').slice(0,2).toUpperCase();
     const avatarDot = document.getElementById('topbarAvatarDot');
@@ -4229,21 +4555,23 @@ async function loadLoginServerStatus() {
 
 // Charger username mémorisé + bannière maintenance
 function initLoginPage() {
-  const saved = localStorage.getItem('kp_remember_user');
+  const saved      = localStorage.getItem('kp_remember_user');
+  const usernameEl = document.getElementById('loginUsername');
+  const passwordEl = document.getElementById('loginPassword');
+  const rememberEl = document.getElementById('loginRemember');
+  if (!usernameEl) return;
   if (saved) {
-    document.getElementById('loginUsername').value = saved;
-    document.getElementById('loginRemember').checked = true;
-    document.getElementById('loginPassword').focus();
+    usernameEl.value = saved;
+    if (rememberEl) rememberEl.checked = true;
+    if (passwordEl) passwordEl.focus();
   } else {
-    document.getElementById('loginUsername').focus();
+    usernameEl.focus();
   }
   loadLoginServerStatus();
-  // Bannière maintenance
   fetch(`${API}/api/maintenance`).then(r => r.json()).then(d => {
     if (d.enabled && d.message) {
       const b = document.getElementById('loginMaintenanceBanner');
-      b.textContent = '⚠️ ' + d.message;
-      b.style.display = 'block';
+      if (b) { b.textContent = '⚠️ ' + d.message; b.style.display = 'block'; }
     }
   }).catch(() => {});
 }
@@ -4304,8 +4632,9 @@ document.addEventListener('click', e => {
 function doLogout() {
   token = '';
   currentRole = '';
-  sessionStorage.removeItem('hp_token');
-  sessionStorage.removeItem('hp_role');
+  localStorage.removeItem('hp_token');
+  localStorage.removeItem('hp_role');
+  localStorage.removeItem('hp_user');
   document.getElementById('app').style.display = 'none';
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('loginPassword').value = '';
@@ -4378,6 +4707,7 @@ async function showApp() {
     loadDomains(); // chargement en arrière-plan pour la section Domaines
     showStatusSection();
     checkUpdateSilent(); // vérification silencieuse des mises à jour
+    initKazyDebug();
   } else {
     await loadUserProfile();
   }
@@ -4652,7 +4982,7 @@ function hideAllMainSections() {
    'configSection','userCrontabSection','userFilesSection','dnsPageSection','securitePageSection',
    'ufwPageSection','fail2banPageSection','loginsPageSection','terminalPageSection',
    'userProfileSection','userFtpSection','userDbSection','userDomainsSection','userDnsSection','userLogsSection',
-   'secPane_score','secPane_banned','secPane_ssh']
+   'secPane_score','secPane_banned','secPane_ssh','kazyDebugSection']
     .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 }
 
@@ -4669,6 +4999,253 @@ function showSection(s) {
   renderDomains(filtered);
 }
 
+// ── KazyDebug ─────────────────────────────────────────────────────────────────
+let _kazyCurrentFile = 'index.html';
+let _kazyOrigContent = '';
+let _kazyDirty       = false;
+let _kazyCM          = null;
+
+function kazyLoadCM(cb) {
+  if (window.CodeMirror) { cb(); return; }
+  const base = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16';
+  const srcs = [
+    base+'/codemirror.min.js',
+    base+'/mode/xml/xml.min.js',
+    base+'/mode/javascript/javascript.min.js',
+    base+'/mode/css/css.min.js',
+    base+'/mode/htmlmixed/htmlmixed.min.js',
+    base+'/mode/php/php.min.js',
+    base+'/addon/edit/matchbrackets.min.js',
+    base+'/addon/selection/active-line.min.js',
+    base+'/addon/search/searchcursor.min.js',
+  ];
+  const loadNext = i => {
+    if (i >= srcs.length) { cb(); return; }
+    const s = document.createElement('script');
+    s.src = srcs[i]; s.onload = () => loadNext(i+1); s.onerror = () => loadNext(i+1);
+    document.head.appendChild(s);
+  };
+  loadNext(0);
+}
+
+function kazyGetMode(name) {
+  if (name.endsWith('.js'))  return 'javascript';
+  if (name.endsWith('.php')) return 'php';
+  if (name.endsWith('.css')) return 'css';
+  return 'htmlmixed';
+}
+
+function kazyInitCM(content, mode) {
+  const container = document.getElementById('kazyEditorContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  _kazyCM = CodeMirror(container, {
+    value: content, mode, theme: 'dracula',
+    lineNumbers: true, tabSize: 2, indentWithTabs: false,
+    matchBrackets: true, styleActiveLine: true, lineWrapping: false,
+    extraKeys: {
+      'Ctrl-S': () => kazyDebugSave(),
+      'Cmd-S':  () => kazyDebugSave(),
+      'Ctrl-A': () => kazyDebugSelectAll(),
+      'Ctrl-G': () => { const el = document.getElementById('kazyGotoLine'); if(el) el.focus(); },
+      Tab: cm => cm.replaceSelection('  '),
+    }
+  });
+  _kazyCM.on('change', () => {
+    _kazyDirty = _kazyCM.getValue() !== _kazyOrigContent;
+    const d = document.getElementById('kazyDebugDirty');
+    if (d) d.style.display = _kazyDirty ? 'inline-block' : 'none';
+  });
+  _kazyCM.on('cursorActivity', () => {
+    const c = _kazyCM.getCursor();
+    const el = document.getElementById('kazyCursorPos');
+    if (el) el.textContent = `Ln ${c.line+1}, Col ${c.ch+1}`;
+  });
+  _kazyCM.setSize('100%', '70vh');
+  setTimeout(() => _kazyCM.refresh(), 100);
+}
+
+async function initKazyDebug() {
+  try {
+    const res  = await fetch(`${API}/api/debug/status`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    const nav  = document.getElementById('navKazyDebug');
+    if (nav) nav.style.display = data.enabled ? 'flex' : 'none';
+    // Mettre à jour le toggle dans Configuration
+    _kazyDebugEnabled = data.enabled;
+    kazyDebugUpdateToggleUI(data.enabled);
+  } catch {}
+}
+
+let _kazyDebugEnabled = false;
+
+function kazyDebugUpdateToggleUI(enabled) {
+  const toggle = document.getElementById('kazyDebugToggle');
+  const track  = document.getElementById('kazyDebugToggleTrack');
+  const thumb  = document.getElementById('kazyDebugToggleThumb');
+  const label  = document.getElementById('kazyDebugStatusLabel');
+  const nav    = document.getElementById('navKazyDebug');
+  if (toggle) toggle.checked = enabled;
+  if (track)  track.style.background  = enabled ? 'var(--green)' : 'var(--border)';
+  if (thumb)  thumb.style.transform   = enabled ? 'translateX(18px)' : 'translateX(0)';
+  if (label)  { label.textContent = enabled ? '● Actif' : '● Inactif'; label.style.color = enabled ? 'var(--green)' : 'var(--muted)'; }
+  if (nav)    nav.style.display = enabled ? 'flex' : 'none';
+}
+
+async function cfgToggleKazyDebug(enabled) {
+  try {
+    const res  = await fetch(`${API}/api/debug/toggle`, {
+      method: 'POST',
+      headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error, 'error'); kazyDebugUpdateToggleUI(!enabled); return; }
+    _kazyDebugEnabled = enabled;
+    kazyDebugUpdateToggleUI(enabled);
+    showToast(data.message, 'success');
+    // Afficher info .env
+    const info = document.getElementById('kazyDebugEnvInfo');
+    if (info) {
+      info.textContent = `✓ .env mis à jour : KAZY_DEBUG=${enabled ? 'true' : 'false'} — actif immédiatement, sans redémarrage`;
+      info.style.display = 'block';
+    }
+  } catch(e) { showToast(e.message, 'error'); kazyDebugUpdateToggleUI(!enabled); }
+}
+
+async function showKazyDebug() {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const nav = document.getElementById('navKazyDebug');
+  if (nav) nav.classList.add('active');
+  hideAllMainSections();
+  document.getElementById('kazyDebugSection').style.display = 'block';
+  setTopbarSection('KazyDebug');
+  kazyLoadCM(() => kazyDebugSwitchFile('index.html'));
+}
+
+async function kazyDebugSwitchFile(name) {
+  if (_kazyDirty && !confirm(`Modifications non sauvegardées sur ${_kazyCurrentFile}. Continuer ?`)) return;
+  _kazyCurrentFile = name;
+  _kazyDirty = false;
+  const isJs = name === 'server.js';
+  const th = document.getElementById('kazyTabHtml');
+  const tj = document.getElementById('kazyTabJs');
+  if (th) { th.style.background = !isJs ? 'var(--accent)' : 'transparent'; th.style.color = !isJs ? '#fff' : 'var(--muted)'; }
+  if (tj) { tj.style.background =  isJs ? 'var(--accent)' : 'transparent'; tj.style.color =  isJs ? '#fff' : 'var(--muted)'; }
+  const et = document.getElementById('kazyEditorTitle');
+  const el = document.getElementById('kazyEditorLang');
+  const rb = document.getElementById('kazyDebugRestartBtn');
+  const dd = document.getElementById('kazyDebugDirty');
+  const bi = document.getElementById('kazyBackupInfo');
+  if (et) et.textContent = name;
+  if (el) el.textContent = isJs ? 'JavaScript' : 'HTML';
+  if (rb) rb.style.display = isJs ? 'inline-flex' : 'none';
+  if (dd) dd.style.display = 'none';
+  if (bi) bi.style.display = 'none';
+  await kazyDebugLoad();
+}
+
+async function kazyDebugLoad() {
+  const sb = document.getElementById('kazyStatusBar');
+  if (sb) sb.textContent = 'Chargement…';
+  try {
+    const res  = await fetch(`${API}/api/debug/file?name=${_kazyCurrentFile}`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error, 'error'); return; }
+    _kazyOrigContent = data.content;
+    _kazyDirty = false;
+    const dm = document.getElementById('kazyDebugMeta');
+    if (dm) dm.textContent = `${data.lines.toLocaleString()} lignes · ${(data.size/1024).toFixed(1)} Ko`;
+    const mode = kazyGetMode(_kazyCurrentFile);
+    if (_kazyCM) { _kazyCM.setOption('mode', mode); _kazyCM.setValue(data.content); _kazyCM.clearHistory(); setTimeout(() => _kazyCM.refresh(), 50); }
+    else kazyInitCM(data.content, mode);
+    if (sb) sb.textContent = `Chargé — ${data.lines.toLocaleString()} lignes · ${(data.size/1024).toFixed(1)} Ko`;
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function kazyDebugSave() {
+  if (!_kazyCM) return;
+  const content = _kazyCM.getValue();
+  const sb = document.getElementById('kazyStatusBar');
+  if (sb) sb.textContent = 'Sauvegarde…';
+  try {
+    const res  = await fetch(`${API}/api/debug/file`, {
+      method: 'PUT',
+      headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ name: _kazyCurrentFile, content })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error, 'error'); return; }
+    _kazyOrigContent = content;
+    _kazyDirty = false;
+    const dd = document.getElementById('kazyDebugDirty');
+    const bi = document.getElementById('kazyBackupInfo');
+    if (dd) dd.style.display = 'none';
+    if (sb) sb.textContent = `Sauvegardé ✓ — backup : ${data.backup}`;
+    if (bi) { bi.textContent = `✓ Sauvegardé — backup : ${data.backup}`; bi.style.display = 'block'; }
+    showToast(`${_kazyCurrentFile} sauvegardé`, 'success');
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function kazyDebugRestart() {
+  showConfirm({ title:'Restart KazyPanel', subtitle:'KazyDebug',
+    body:'Le panel va redémarrer. Reconnexion automatique dans ~5 secondes.',
+    icon:'🔄', type:'warning', confirmText:'Redémarrer',
+    onConfirm: async () => {
+      try {
+        await fetch(`${API}/api/debug/restart`, { method:'POST', headers:{ Authorization:'Bearer '+token } });
+        showToast('Redémarrage en cours…', 'success');
+        let c = 6;
+        const sb = document.getElementById('kazyStatusBar');
+        const iv = setInterval(() => {
+          c--;
+          if (sb) sb.textContent = `Redémarrage… reconnexion dans ${c}s`;
+          if (c <= 0) { clearInterval(iv); location.reload(); }
+        }, 1000);
+      } catch {}
+    }
+  });
+}
+
+function kazyGotoLine() {
+  if (!_kazyCM) return;
+  const el = document.getElementById('kazyGotoLine');
+  const ln = parseInt(el?.value) - 1;
+  if (isNaN(ln)) return;
+  _kazyCM.setCursor({ line: ln, ch: 0 });
+  _kazyCM.scrollIntoView({ line: ln, ch: 0 }, 200);
+  _kazyCM.focus();
+  const sb = document.getElementById('kazyStatusBar');
+  if (sb) sb.textContent = `Ligne ${ln+1}`;
+}
+
+function kazyDebugSelectAll() {
+  if (!_kazyCM) return;
+  _kazyCM.execCommand('selectAll');
+  _kazyCM.focus();
+  const sb = document.getElementById('kazyStatusBar');
+  const total = _kazyCM.lineCount();
+  if (sb) sb.textContent = `Tout sélectionné — ${total.toLocaleString()} lignes`;
+}
+
+function kazySearch(query) {
+  if (!_kazyCM) return;
+  const cnt = document.getElementById('kazySearchCount');
+  if (!query) { if (cnt) cnt.textContent = ''; return; }
+  const content = _kazyCM.getValue();
+  const matches = content.match(new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'));
+  if (cnt) cnt.textContent = matches ? `${matches.length} résultat(s)` : 'Aucun';
+  if (matches) {
+    const idx = content.toLowerCase().indexOf(query.toLowerCase());
+    if (idx >= 0) {
+      const pos = _kazyCM.posFromIndex(idx);
+      _kazyCM.setSelection(pos, { line:pos.line, ch:pos.ch+query.length });
+      _kazyCM.scrollIntoView(pos, 100);
+      _kazyCM.focus();
+    }
+  }
+}
+
 async function showStatusSection() {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('navStatus').classList.add('active');
@@ -4678,81 +5255,133 @@ async function showStatusSection() {
   await loadStatusSection();
 }
 
+// ── Historique ressources ─────────────────────────────────────────────────────
+const _resHistory = { cpu: [], ram: [] };
+const MAX_RES_HISTORY = 20;
+
+function updateGauge(arcId, valId, pct, color) {
+  const arc = document.getElementById(arcId);
+  const val = document.getElementById(valId);
+  if (!arc || !val) return;
+  const circ = 2 * Math.PI * 36;
+  arc.style.strokeDashoffset = circ - (pct / 100) * circ;
+  const c = pct > 85 ? '#ef4444' : pct > 65 ? '#f59e0b' : color;
+  arc.style.stroke = c;
+  val.textContent = Math.round(pct);
+  val.style.color = c;
+}
+
+function drawResHistoryChart() {
+  const canvas = document.getElementById('resHistoryChart');
+  if (!canvas || _resHistory.cpu.length < 2) return;
+  const W = canvas.parentElement.offsetWidth - 40;
+  const H = 110;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  const n = _resHistory.cpu.length;
+  const padL = 30, padR = 10, padT = 8, padB = 20;
+  const gW = W - padL - padR, gH = H - padT - padB;
+  // Grille
+  ctx.strokeStyle = 'rgba(100,100,120,.15)'; ctx.lineWidth = 1;
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = padT + gH - (v / 100) * gH;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + gW, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(150,150,170,.5)'; ctx.font = '9px monospace';
+    ctx.fillText(v + '%', 0, y + 3);
+  });
+  const drawLine = (arr, color) => {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    arr.forEach((v, i) => { const x = padL + (i/(n-1))*gW, y = padT + gH - (v/100)*gH; i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+    ctx.stroke();
+    ctx.beginPath();
+    arr.forEach((v, i) => { const x = padL + (i/(n-1))*gW, y = padT + gH - (v/100)*gH; i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+    ctx.lineTo(padL+gW, padT+gH); ctx.lineTo(padL, padT+gH); ctx.closePath();
+    const grad = ctx.createLinearGradient(0, padT, 0, padT+gH);
+    grad.addColorStop(0, color.replace(')', ',.25)').replace('rgb', 'rgba'));
+    grad.addColorStop(1, color.replace(')', ',0)').replace('rgb', 'rgba'));
+    ctx.fillStyle = grad; ctx.fill();
+  };
+  drawLine(_resHistory.ram, 'rgb(16,185,129)');
+  drawLine(_resHistory.cpu, 'rgb(99,102,241)');
+  // Points courants
+  [{ arr: _resHistory.cpu, c: '#6366f1' }, { arr: _resHistory.ram, c: '#10b981' }].forEach(({ arr, c }) => {
+    const x = padL+gW, y = padT+gH-(arr[arr.length-1]/100)*gH;
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fillStyle = c; ctx.fill();
+    ctx.strokeStyle = '#1e1e2e'; ctx.lineWidth = 2; ctx.stroke();
+  });
+}
+
 async function loadStatusSection() {
   try {
     document.getElementById('statusLastUpdate').textContent = 'Chargement…';
     const res = await fetch(`${API}/api/status`, { headers: { Authorization: 'Bearer ' + token } });
     const d = await res.json();
 
-    // ─ Ressources ─
-    const cpuPct  = parseFloat(d.cpuPercent) || 0;
-    const ramPct  = parseFloat(d.ramPercent) || 0;
+    const cpuPct  = parseFloat(d.cpuPercent)  || 0;
+    const ramPct  = parseFloat(d.ramPercent)  || 0;
     const diskPct = parseFloat(d.diskPercent) || 0;
 
-    document.getElementById('resCpu').textContent   = d.cpuPercent  ? d.cpuPercent + '%'  : (d.load || '—');
-    document.getElementById('resRam').textContent   = d.memory || '—';
-    document.getElementById('resDisk').textContent  = d.disk || '—';
-    document.getElementById('resLoad').textContent  = d.load || '—';
-    document.getElementById('resUptime').textContent= d.uptime ? 'up ' + d.uptime : '—';
+    // Gauges
+    updateGauge('gaugeCpuArc',  'gaugeCpuVal',  cpuPct,  '#6366f1');
+    updateGauge('gaugeRamArc',  'gaugeRamVal',  ramPct,  '#10b981');
+    updateGauge('gaugeDiskArc', 'gaugeDiskVal', diskPct, '#f59e0b');
 
-    const cpuColor  = cpuPct  > 80 ? 'var(--red)' : cpuPct  > 60 ? 'var(--yellow)' : 'var(--accent)';
-    const ramColor  = ramPct  > 80 ? 'var(--red)' : ramPct  > 60 ? 'var(--yellow)' : 'var(--green)';
-    const diskColor = diskPct > 85 ? 'var(--red)' : diskPct > 65 ? 'var(--yellow)' : '#f59e0b';
-    document.getElementById('resCpuFill').style.cssText  = `height:100%;border-radius:4px;width:${cpuPct}%;background:${cpuColor};transition:width .8s ease`;
-    document.getElementById('resRamFill').style.cssText  = `height:100%;border-radius:4px;width:${ramPct}%;background:${ramColor};transition:width .8s ease`;
-    document.getElementById('resDiskFill').style.cssText = `height:100%;border-radius:4px;width:${diskPct}%;background:${diskColor};transition:width .8s ease`;
+    const el = id => document.getElementById(id);
+    if (el('gaugeCpuLoad'))    el('gaugeCpuLoad').textContent    = `load ${d.load||'—'}`;
+    if (el('gaugeRamDetail'))  el('gaugeRamDetail').textContent  = d.memory||'—';
+    if (el('gaugeDiskDetail')) el('gaugeDiskDetail').textContent = d.disk||'—';
+    if (el('gaugeHostname'))   el('gaugeHostname').textContent   = d.hostname||'—';
+    if (el('gaugeOs'))         el('gaugeOs').textContent         = d.os||'—';
+    if (el('gaugeUptime'))     el('gaugeUptime').textContent     = d.uptime||'—';
+    if (el('gaugeNode'))       el('gaugeNode').textContent       = d.nodeVersion||'—';
+    if (el('gaugeDomains'))    el('gaugeDomains').textContent    = `${d.domains??0} / ${d.users??0} users`;
 
-    // ─ Services ─
+    // Historique graphique
+    _resHistory.cpu.push(cpuPct); _resHistory.ram.push(ramPct);
+    if (_resHistory.cpu.length > MAX_RES_HISTORY) { _resHistory.cpu.shift(); _resHistory.ram.shift(); }
+    drawResHistoryChart();
+
+    // Services
     const services = [
-      { key: 'kazypanel', svc: 'kazypanel',                        label: 'KazyPanel',       icon: '⚡', kazy: true },
-      { key: 'apache',    svc: 'apache2',                          label: 'Apache',          icon: '🌐', ver: d.apacheVersion },
-      { key: 'php',       svc: `php${d.phpVersion||'8.4'}-fpm`,   label: `PHP ${d.phpVersion||'8.4'}`, icon: '🐘', ver: d.phpVersion },
-      { key: 'vsftpd',    svc: 'vsftpd',                          label: 'vsftpd (FTP)',    icon: '📂' },
-      { key: 'mariadb',   svc: 'mariadb',                         label: 'MariaDB',         icon: '🗄️', ver: d.mariadbVersion },
-      { key: 'ufw',       svc: 'ufw',                             label: 'UFW',             icon: '🛡️', noRestart: true },
-      { key: 'fail2ban',  svc: 'fail2ban',                        label: 'Fail2ban',        icon: '🚫' },
-      { key: 'bind9',     svc: 'bind9',                           label: 'BIND9 (DNS)',      icon: '🔗' },
+      { key:'kazypanel', svc:'kazypanel',                      label:'KazyPanel',       icon:'⚡', kazy:true },
+      { key:'apache',    svc:'apache2',                        label:'Apache',          icon:'🌐', ver:d.apacheVersion },
+      { key:'php',       svc:`php${d.phpVersion||'8.4'}-fpm`, label:`PHP ${d.phpVersion||'8.4'}`, icon:'🐘', ver:d.phpVersion },
+      { key:'vsftpd',    svc:'vsftpd',                         label:'vsftpd (FTP)',    icon:'📂' },
+      { key:'mariadb',   svc:'mariadb',                        label:'MariaDB',         icon:'🗄️', ver:d.mariadbVersion },
+      { key:'ufw',       svc:'ufw',                            label:'UFW',             icon:'🛡️', noRestart:true },
+      { key:'fail2ban',  svc:'fail2ban',                       label:'Fail2ban',        icon:'🚫' },
+      { key:'bind9',     svc:'bind9',                          label:'BIND9 (DNS)',     icon:'🔗' },
     ];
-
     let running = 0;
     const cards = services.map(sv => {
       const st = d[sv.key];
-      const on = st === 'running' || st === 'active' || st === 'enabled';
-      const unknown = !st || st === 'unknown';
+      const on = st==='running'||st==='active'||st==='enabled';
+      const unknown = !st||st==='unknown';
       if (on) running++;
-
       const badgeCls = unknown ? '' : (on ? 'badge-green' : '');
-      const badgeSt  = unknown
-        ? 'background:rgba(100,116,139,.08);color:var(--muted);border-color:var(--border)'
-        : on ? '' : 'background:rgba(220,38,38,.1);color:var(--red);border-color:rgba(220,38,38,.2)';
+      const badgeSt  = unknown ? 'background:rgba(100,116,139,.08);color:var(--muted);border-color:var(--border)' : on ? '' : 'background:rgba(220,38,38,.1);color:var(--red);border-color:rgba(220,38,38,.2)';
       const badgeTxt = unknown ? '—' : (on ? '● Actif' : '● Arrêté');
       const dotColor = unknown ? 'var(--muted)' : (on ? 'var(--green)' : 'var(--red)');
-
-      // Uptime du service
-      const svcUptime = d.uptimes && d.uptimes[sv.svc] && on
-        ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px">⏱ ${d.uptimes[sv.svc]}</div>`
-        : '';
-
+      const svcUptime = d.uptimes&&d.uptimes[sv.svc]&&on ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px">⏱ ${d.uptimes[sv.svc]}</div>` : '';
       const btns = sv.noRestart
         ? `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','start')">Enable</button>
            <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','stop')">Disable</button>`
         : sv.kazy
         ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','restart')">
              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-             Restart KazyPanel
-           </button>`
+             Restart KazyPanel</button>`
         : `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','start')">Start</button>
            <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','stop')">Stop</button>
            <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','restart')">Restart</button>`;
-
-      return `<div class="stat-card" style="padding:14px 16px;cursor:default${sv.kazy ? ';border-color:rgba(79,110,247,.2);background:rgba(79,110,247,.04)' : ''}" id="svc-card-${sv.svc}">
+      return `<div class="stat-card" style="padding:14px 16px${sv.kazy?';border-color:rgba(79,110,247,.2);background:rgba(79,110,247,.04)':''}" id="svc-card-${sv.svc}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};box-shadow:${on ? `0 0 6px ${dotColor}` : 'none'};flex-shrink:0"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};box-shadow:${on?`0 0 6px ${dotColor}`:'none'};flex-shrink:0"></div>
             <span style="font-size:12px">${sv.icon}</span>
             <div>
               <div style="font-weight:700;font-size:12px;line-height:1.2">${sv.label}</div>
-              ${sv.ver ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px">${sv.ver}</div>` : ''}
+              ${sv.ver?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px">${sv.ver}</div>`:''}
               ${svcUptime}
             </div>
           </div>
@@ -4761,32 +5390,47 @@ async function loadStatusSection() {
         <div style="display:flex;gap:5px">${btns}</div>
       </div>`;
     });
-
     document.getElementById('statusCards').innerHTML = cards.join('');
     document.getElementById('statusSvcCount').textContent = `${running}/${services.length} actifs`;
 
-    // ─ Infos système ─
+    // Infos système
     const rows = [
-      ['🖥️ Hostname',    d.hostname    || '—'],
-      ['🐧 OS',           d.os          || '—'],
-      ['⏱️ Uptime',       d.uptime      || '—'],
-      ['💾 RAM',          d.memory      || '—'],
-      ['💿 Disque (/)',   d.disk        || '—'],
-      ['⚙️ Charge',       d.load        || '—'],
-      ['📦 Node.js',      d.nodeVersion || '—'],
-      ['🌐 Domaines',     `${d.domains ?? 0} configurés`],
-      ['👤 Utilisateurs', `${d.users ?? 0} comptes`],
+      ['🖥️ Hostname', d.hostname||'—'], ['🐧 OS', d.os||'—'],
+      ['⏱️ Uptime', d.uptime||'—'], ['💾 RAM totale', d.memory||'—'],
+      ['💿 Disque (/)', d.disk||'—'], ['⚙️ Charge', d.load||'—'],
+      ['📦 Node.js', d.nodeVersion||'—'],
     ];
-    document.getElementById('statusInfoTable').innerHTML = rows.map(([k, v], i) =>
-      `<tr style="${i < rows.length-1 ? 'border-bottom:1px solid var(--border)' : ''}">
-        <td style="width:180px;color:var(--muted);font-size:12px;padding:10px 16px">${k}</td>
-        <td style="font-family:var(--mono);font-size:12px;padding:10px 16px;color:var(--text)">${v}</td>
-      </tr>`
-    ).join('');
+    document.getElementById('statusInfoTable').innerHTML = rows.map(([k,v],i) =>
+      `<tr style="${i<rows.length-1?'border-bottom:1px solid var(--border)':''}">
+        <td style="width:160px;color:var(--muted);font-size:12px;padding:9px 16px">${k}</td>
+        <td style="font-family:var(--mono);font-size:12px;padding:9px 16px;color:var(--text)">${v}</td>
+      </tr>`).join('');
 
-    document.getElementById('statusLastUpdate').textContent =
-      `Dernière mise à jour : ${new Date().toLocaleTimeString('fr-FR')}`;
+    // Stats rapides
+    const makeBar = (label, pct, color) => `
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-size:12px;color:var(--text)">${label}</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${color}">${Math.round(pct)}%</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;transition:width 1s ease"></div>
+        </div>
+      </div>`;
+    document.getElementById('statusQuickStats').innerHTML =
+      makeBar('CPU',    cpuPct,  cpuPct>85?'#ef4444':'#6366f1') +
+      makeBar('RAM',    ramPct,  ramPct>85?'#ef4444':'#10b981') +
+      makeBar('Disque', diskPct, diskPct>85?'#ef4444':'#f59e0b') +
+      `<div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
+        <span style="font-size:12px;color:var(--muted)">👤 Utilisateurs</span>
+        <span style="font-family:var(--mono);font-size:12px;font-weight:700">${d.users??0}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="font-size:12px;color:var(--muted)">🌐 Domaines</span>
+        <span style="font-family:var(--mono);font-size:12px;font-weight:700">${d.domains??0}</span>
+      </div>`;
 
+    document.getElementById('statusLastUpdate').textContent = `Dernière mise à jour : ${new Date().toLocaleTimeString('fr-FR')}`;
     refreshStatus(d);
   } catch(e) {
     document.getElementById('statusLastUpdate').textContent = 'Erreur : ' + e.message;
@@ -6383,9 +7027,7 @@ function showTerminalPage() {
 
 async function termOpen() {
   try {
-    const res  = await fetch(`${API}/api/terminal/session`, {
-      method: 'POST', headers: { Authorization: 'Bearer ' + token }
-    });
+    const res  = await fetch(`${API}/api/terminal/session`, { method:'POST', headers:{ Authorization:'Bearer '+token } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     _termSessionId  = data.sessionId;
@@ -6394,109 +7036,196 @@ async function termOpen() {
     _termHistory    = [];
     _termHistoryIdx = -1;
 
-    document.getElementById('termConnect').style.display   = 'none';
-    document.getElementById('termActive').style.display    = 'block';
-    document.getElementById('termQuickCmds').style.display = 'grid';
-    document.getElementById('termClearBtn').style.display  = 'inline-flex';
-    document.getElementById('termCloseBtn').style.display  = 'inline-flex';
+    document.getElementById('termConnect').style.display    = 'none';
+    document.getElementById('termActive').style.display     = 'block';
+    document.getElementById('termQuickCmds').style.display  = 'block';
+    document.getElementById('termClearBtn').style.display   = 'inline-flex';
+    document.getElementById('termCloseBtn').style.display   = 'inline-flex';
+    document.getElementById('termFullscreenBtn').style.display = 'inline-flex';
 
-    setInterval(() => {
+    if (window._termTimerIv) clearInterval(window._termTimerIv);
+    window._termTimerIv = setInterval(() => {
       if (!_termStartTime) return;
-      const s = Math.floor((Date.now() - _termStartTime) / 1000);
-      const m = Math.floor(s / 60), sec = s % 60;
+      const s = Math.floor((Date.now()-_termStartTime)/1000);
       const el = document.getElementById('termSessionTime');
-      if (el) el.textContent = `Session : ${m}m${sec.toString().padStart(2,'0')}s`;
+      if (el) el.textContent = `${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
     }, 1000);
 
-    termPrintPrompt();
+    termAppendHtml(
+      `<span style="color:#a6da95">╔══════════════════════════════════════╗</span>\n` +
+      `<span style="color:#a6da95">║</span>  <span style="color:#cad3f5;font-weight:700">KazyPanel Terminal</span> <span style="color:#8aadf4">v2.0</span>          <span style="color:#a6da95">║</span>\n` +
+      `<span style="color:#a6da95">║</span>  <span style="color:#6e738d">debian@kazypanel · sudo activé</span>    <span style="color:#a6da95">║</span>\n` +
+      `<span style="color:#a6da95">╚══════════════════════════════════════╝</span>\n` +
+      `  Tapez <span style="color:#c6a0f6">help</span> pour les commandes disponibles\n\n`
+    );
+    termUpdatePrompt();
     document.getElementById('termInput').focus();
   } catch(e) { showToast(e.message, 'error'); }
 }
 
-function termPrintPrompt() {
-  const short = _termCwd.replace('/home/debian', '~');
-  termAppendHtml(`<span style="color:#22c55e;font-weight:700">debian@kazypanel</span><span style="color:#64748b">:</span><span style="color:#60a5fa">${short}</span><span style="color:#e2e8f0">$</span> `);
+function termUpdatePrompt() {
+  const short = (_termCwd||'/').replace('/home/debian','~').replace('/root','~');
+  const label = document.getElementById('termPromptLabel');
+  if (label) label.innerHTML =
+    `<span style="color:#a6da95;font-weight:700">debian</span>` +
+    `<span style="color:#494d64">@</span>` +
+    `<span style="color:#8aadf4">kazypanel</span>` +
+    `<span style="color:#494d64">:</span>` +
+    `<span style="color:#91d7e3">${escHtml(short)}</span>` +
+    `<span style="color:#cad3f5"> $</span> `;
+  const sb = document.getElementById('termStatusBar');
+  if (sb) sb.textContent = `cwd: ${_termCwd||'/'}`;
 }
 
 async function termSend() {
   const input = document.getElementById('termInput');
   if (!input || !_termSessionId || _termRunning) return;
-  const cmd = input.value.trim();
+  const cmd = input.value;
   input.value = '';
-
-  // Afficher la commande tapée
-  termAppendHtml(`<span style="color:#e2e8f0">${escHtml(cmd)}</span>\n`);
-
-  if (!cmd) { termPrintPrompt(); return; }
-
-  // Historique
-  if (cmd) { _termHistory.unshift(cmd); if (_termHistory.length > 100) _termHistory.pop(); }
+  const short = (_termCwd||'/').replace('/home/debian','~').replace('/root','~');
+  termAppendHtml(`<span style="color:#a6da95;font-weight:700">debian</span><span style="color:#494d64">@</span><span style="color:#8aadf4">kazypanel</span><span style="color:#494d64">:</span><span style="color:#91d7e3">${escHtml(short)}</span><span style="color:#cad3f5"> $ ${escHtml(cmd)}</span>\n`);
+  if (!cmd.trim()) { termUpdatePrompt(); return; }
+  _termHistory.unshift(cmd);
+  if (_termHistory.length > 300) _termHistory.pop();
   _termHistoryIdx = -1;
-
-  // Commande clear locale
-  if (cmd === 'clear') { termClear(); termPrintPrompt(); return; }
-
+  if (cmd.trim() === 'clear')   { termClear(); return; }
+  if (cmd.trim() === 'help') {
+    termAppendHtml(
+      `<span style="color:#c6a0f6;font-weight:700">Raccourcis clavier :</span>\n` +
+      `  <span style="color:#91d7e3">↑ / ↓</span>      Naviguer dans l'historique\n` +
+      `  <span style="color:#91d7e3">Tab</span>         Auto-complétion depuis l'historique\n` +
+      `  <span style="color:#91d7e3">Ctrl+C</span>      Interrompre la commande\n` +
+      `  <span style="color:#91d7e3">Ctrl+D</span>      Fin de fichier\n` +
+      `  <span style="color:#91d7e3">Ctrl+L</span>      Effacer l'écran\n` +
+      `  <span style="color:#91d7e3">Ctrl+U</span>      Effacer la ligne\n\n` +
+      `<span style="color:#c6a0f6;font-weight:700">Commandes internes :</span>\n` +
+      `  <span style="color:#91d7e3">clear</span>       Effacer l'écran\n` +
+      `  <span style="color:#91d7e3">history</span>     Afficher l'historique\n\n`
+    );
+    termUpdatePrompt(); return;
+  }
+  if (cmd.trim() === 'history') {
+    termAppendHtml(_termHistory.slice(0,50).map((c,i) => `  <span style="color:#494d64">${String(_termHistory.length-i).padStart(4)}</span>  ${escHtml(c)}`).join('\n') + '\n\n');
+    termUpdatePrompt(); return;
+  }
   _termRunning = true;
-  document.getElementById('termInput').disabled = true;
-
+  input.disabled = true;
+  const spinner = document.getElementById('termSpinner');
+  const sb      = document.getElementById('termStatusBar');
+  if (spinner) spinner.style.display = 'block';
+  if (sb) sb.textContent = 'Exécution…';
   try {
     const res  = await fetch(`${API}/api/terminal/${_termSessionId}/exec`, {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      method: 'POST', headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
       body: JSON.stringify({ cmd })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     _termCwd = data.cwd || _termCwd;
-    if (data.output) termAppend(data.output);
+    if (data.output) termAppend(data.output.trimEnd() + '\n');
+    if (data.exitCode && data.exitCode !== 0)
+      termAppendHtml(`<span style="color:#ed8796;font-size:11px">exit ${data.exitCode}</span>\n`);
   } catch(e) {
-    termAppendHtml(`<span style="color:#ef4444">${escHtml(e.message)}</span>\n`);
+    termAppendHtml(`<span style="color:#ed8796">✗ ${escHtml(e.message)}</span>\n`);
   } finally {
-    _termRunning = false;
-    document.getElementById('termInput').disabled = false;
-    document.getElementById('termInput').focus();
-    termPrintPrompt();
+    _termRunning = false; input.disabled = false; input.focus();
+    if (spinner) spinner.style.display = 'none';
+    termUpdatePrompt();
   }
 }
 
 function termHandleKey(e) {
   const input = document.getElementById('termInput');
-  if (e.key === 'Enter') { e.preventDefault(); termSend(); }
+  if (e.key === 'Enter')           { e.preventDefault(); termSend(); }
+  else if (e.key === 'c' && e.ctrlKey) { e.preventDefault(); termSendCtrlC(); }
+  else if (e.key === 'd' && e.ctrlKey) { e.preventDefault(); termSendCtrlD(); }
+  else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); termClear(); }
+  else if (e.key === 'u' && e.ctrlKey) { e.preventDefault(); if (input) input.value = ''; }
   else if (e.key === 'ArrowUp') {
     e.preventDefault();
-    if (_termHistoryIdx < _termHistory.length - 1) {
-      _termHistoryIdx++;
-      input.value = _termHistory[_termHistoryIdx];
-      setTimeout(() => input.setSelectionRange(input.value.length, input.value.length), 0);
-    }
+    if (_termHistoryIdx < _termHistory.length-1) { _termHistoryIdx++; input.value = _termHistory[_termHistoryIdx]; setTimeout(() => input.setSelectionRange(input.value.length, input.value.length), 0); }
   }
   else if (e.key === 'ArrowDown') {
     e.preventDefault();
     if (_termHistoryIdx > 0) { _termHistoryIdx--; input.value = _termHistory[_termHistoryIdx]; }
     else { _termHistoryIdx = -1; input.value = ''; }
   }
-  else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); termClear(); termPrintPrompt(); }
+  else if (e.key === 'Tab') {
+    e.preventDefault();
+    const partial = input.value;
+    if (partial) { const match = _termHistory.find(h => h.startsWith(partial) && h !== partial); if (match) input.value = match; }
+  }
 }
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+async function termSendCtrlC() {
+  termAppendHtml(`<span style="color:#ed8796;font-weight:700">^C</span>\n`);
+  if (_termSessionId) { try { await fetch(`${API}/api/terminal/${_termSessionId}/exec`, { method:'POST', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' }, body: JSON.stringify({ cmd:'\x03' }) }); } catch {} }
+  _termRunning = false;
+  const input = document.getElementById('termInput');
+  if (input) { input.disabled = false; input.value = ''; input.focus(); }
+  const spinner = document.getElementById('termSpinner');
+  if (spinner) spinner.style.display = 'none';
+  termUpdatePrompt();
+}
+
+async function termSendCtrlD() {
+  termAppendHtml(`<span style="color:#f5a97f;font-weight:700">^D</span>\n`);
+  if (_termSessionId) { try { await fetch(`${API}/api/terminal/${_termSessionId}/exec`, { method:'POST', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' }, body: JSON.stringify({ cmd:'\x04' }) }); } catch {} }
+  termUpdatePrompt();
+}
+
+let _termFullscreen = false;
+function termToggleFullscreen() {
+  const win = document.getElementById('termActive');
+  _termFullscreen = !_termFullscreen;
+  if (_termFullscreen) {
+    win.style.position='fixed'; win.style.inset='0'; win.style.zIndex='9999'; win.style.borderRadius='0';
+    document.getElementById('termOutput').style.maxHeight = 'calc(100vh - 108px)';
+    document.getElementById('termOutput').style.minHeight = 'calc(100vh - 108px)';
+  } else {
+    win.style.position=''; win.style.inset=''; win.style.zIndex=''; win.style.borderRadius='14px';
+    document.getElementById('termOutput').style.maxHeight = '580px';
+    document.getElementById('termOutput').style.minHeight = '480px';
+  }
+  document.getElementById('termInput').focus();
 }
 
 function termAppend(text) {
-  // Conversion basique ANSI → HTML
-  const html = escHtml(text)
-    .replace(/\x1b\[0m/g,  '</span>')
-    .replace(/\x1b\[1m/g,  '<span style="font-weight:700">')
-    .replace(/\x1b\[31m/g, '<span style="color:#ef4444">')
-    .replace(/\x1b\[32m/g, '<span style="color:#22c55e">')
-    .replace(/\x1b\[33m/g, '<span style="color:#f59e0b">')
-    .replace(/\x1b\[34m/g, '<span style="color:#60a5fa">')
-    .replace(/\x1b\[35m/g, '<span style="color:#a78bfa">')
-    .replace(/\x1b\[36m/g, '<span style="color:#22d3ee">')
-    .replace(/\x1b\[90m/g, '<span style="color:#64748b">')
-    .replace(/\x1b\[[0-9;]*m/g, '')
-    .replace(/\x1b\[[A-HJK]/g, '')
-    .replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Catppuccin Macchiato palette
+  const ansiColors = {
+    '30':'#494d64','31':'#ed8796','32':'#a6da95','33':'#eed49f',
+    '34':'#8aadf4','35':'#f5bde6','36':'#8bd5ca','37':'#cad3f5',
+    '90':'#5b6078','91':'#ed8796','92':'#a6da95','93':'#eed49f',
+    '94':'#8aadf4','95':'#c6a0f6','96':'#91d7e3','97':'#cad3f5',
+  };
+  let html = escHtml(text);
+  html = html.replace(/\x1b\[([0-9;]*)m/g, (_, codes) => {
+    if (!codes || codes === '0') return '</span>';
+    const parts = codes.split(';');
+    const styles = [];
+    for (let i = 0; i < parts.length; i++) {
+      const c = parts[i];
+      if      (c === '1') styles.push('font-weight:700');
+      else if (c === '2') styles.push('opacity:.55');
+      else if (c === '3') styles.push('font-style:italic');
+      else if (c === '4') styles.push('text-decoration:underline');
+      else if (c === '7') styles.push('filter:invert(1)');
+      else if (ansiColors[c]) styles.push(`color:${ansiColors[c]}`);
+      else if (c === '38' && parts[i+1] === '2') {
+        styles.push(`color:rgb(${parts[i+2]},${parts[i+3]},${parts[i+4]})`); i += 4;
+      } else if (c === '38' && parts[i+1] === '5') {
+        // 256 couleurs — approximation
+        const idx = parseInt(parts[i+2]); i += 2;
+        if (idx < 16 && ansiColors[String(idx < 8 ? 30+idx : 82+idx)]) {
+          styles.push(`color:${ansiColors[String(idx < 8 ? 30+idx : 82+idx)]}`);
+        }
+      }
+    }
+    return styles.length ? `<span style="${styles.join(';')}">` : '';
+  });
+  html = html.replace(/\x1b\[[0-9;]*[A-HJKSTsu]/g, '');
+  html = html.replace(/\x1b\][^\x07]*\x07/g, '');
+  html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   termAppendHtml(html);
 }
 
@@ -6509,7 +7238,7 @@ function termAppendHtml(html) {
 
 function termQuick(cmd) {
   const input = document.getElementById('termInput');
-  if (input) { input.value = cmd; input.focus(); }
+  if (input) { input.value = cmd; input.focus(); termSend(); }
 }
 
 function termClear() {
@@ -6519,22 +7248,23 @@ function termClear() {
 
 async function termClose() {
   showConfirm({title:'Fermer le terminal',subtitle:'Session SSH',body:'La session terminal sera fermée.',icon:'🖥️',type:'warning',confirmText:'Fermer',onConfirm:async()=>{
-  if (_termSessionId) {
-    try {
-      await fetch(`${API}/api/terminal/${_termSessionId}`, {
-        method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
-      });
-    } catch {}
-    _termSessionId = null;
-  }
-  _termStartTime = null;
-  document.getElementById('termActive').style.display    = 'none';
-  document.getElementById('termConnect').style.display   = 'block';
-  document.getElementById('termQuickCmds').style.display = 'none';
-  document.getElementById('termClearBtn').style.display  = 'none';
-  document.getElementById('termCloseBtn').style.display  = 'none';
-  document.getElementById('termOutput').innerHTML = '';
-  showToast('Session terminal fermée', 'success');
+    if (_termSessionId) {
+      try { await fetch(`${API}/api/terminal/${_termSessionId}`, { method:'DELETE', headers:{ Authorization:'Bearer '+token } }); } catch {}
+      _termSessionId = null;
+    }
+    _termStartTime = null; _termFullscreen = false;
+    const win = document.getElementById('termActive');
+    win.style.position = ''; win.style.inset = ''; win.style.zIndex = ''; win.style.borderRadius = '14px';
+    document.getElementById('termOutput').style.maxHeight = '560px';
+    document.getElementById('termOutput').style.minHeight = '460px';
+    document.getElementById('termActive').style.display    = 'none';
+    document.getElementById('termConnect').style.display   = 'block';
+    document.getElementById('termQuickCmds').style.display = 'none';
+    document.getElementById('termClearBtn').style.display  = 'none';
+    document.getElementById('termCloseBtn').style.display  = 'none';
+    document.getElementById('termFullscreenBtn').style.display = 'none';
+    document.getElementById('termOutput').innerHTML = '';
+    showToast('Session terminal fermée', 'success');
   }});
 }
 
@@ -8343,25 +9073,48 @@ document.addEventListener('keydown', e => {
 
 // ── AUTO-LOGIN ────────────────────────────────────────────────
 if (token) {
+  // Afficher immédiatement depuis le cache sans attendre la vérification
+  const cachedRole = localStorage.getItem('hp_role') || '';
+  const cachedUser = localStorage.getItem('hp_user') || '';
+  if (cachedRole) {
+    currentRole = cachedRole;
+    const topbarUser = document.getElementById('topbarUser');
+    if (topbarUser && cachedUser) topbarUser.textContent = cachedUser;
+    showApp();
+  }
+  // Vérifier en arrière-plan
   fetch(`${API}/api/me`, { headers: { Authorization: 'Bearer ' + token } })
     .then(async r => {
       if (r.ok) {
         const data = await r.json();
-        currentRole = data.role || sessionStorage.getItem('hp_role') || '';
-        sessionStorage.setItem('hp_role', currentRole);
-        document.getElementById('topbarUser').textContent = data.username || '';
-        showApp();
+        currentRole = data.role || cachedRole;
+        localStorage.setItem('hp_role', currentRole);
+        localStorage.setItem('hp_user', data.username || '');
+        const topbarUser = document.getElementById('topbarUser');
+        if (topbarUser) topbarUser.textContent = data.username || '';
+        if (!cachedRole) showApp();
       } else {
         token = '';
         currentRole = '';
-        sessionStorage.removeItem('hp_token');
-        sessionStorage.removeItem('hp_role');
-        initLoginPage();
+        localStorage.removeItem('hp_token');
+        localStorage.removeItem('hp_role');
+        localStorage.removeItem('hp_user');
+        const app = document.getElementById('app');
+        const loginPage = document.getElementById('loginPage');
+        if (app) app.style.display = 'none';
+        if (loginPage) loginPage.style.display = 'flex';
+        setTimeout(initLoginPage, 0);
       }
     })
-    .catch(() => { initLoginPage(); });
+    .catch(() => {
+      if (!cachedRole) setTimeout(initLoginPage, 0);
+    });
 } else {
-  initLoginPage();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLoginPage);
+  } else {
+    setTimeout(initLoginPage, 0);
+  }
 }
 
 // Vérification périodique des demandes IP (toutes les 30 secondes, admin seulement)
@@ -8696,15 +9449,161 @@ function switchCfgTab(tab) {
   document.getElementById(`cfgTab-${tab}`).style.display = '';
   if (tab === 'system')       loadPanelUsage();
   if (tab === 'https')        loadHttpsStatus();
-  if (tab === 'server')       { cfgLoadSshAllowUsers(); cfgLoadHostname(); }
+  if (tab === 'server')       { cfgLoadSshAllowUsers(); cfgLoadHostname(); initKazyDebug(); }
   if (tab === 'bashrc')       cfgLoadBashrc();
   if (tab === 'smtp')         { cfgLoadGeneral(); cfgLoadEmailTemplate(); }
   if (tab === 'backup-sched') cfgLoadBackupSchedule();
   if (tab === 'network')      { cfgLoadNetwork(); cfgLoadSslStatus(); cfgLoadNtp(); }
   if (tab === 'sshkeys')      loadSshKeys();
+  if (tab === 'api')          cfgLoadApiKeys();
 }
 
 // ── Config générale : defaults + JWT + SMTP ──────────────────────────────────
+// ── API Keys ──────────────────────────────────────────────────────────────────
+async function cfgLoadApiKeys() {
+  const el = document.getElementById('cfgApiKeysList');
+  if (!el) return;
+  const urlEl = document.getElementById('cfgWebhookUrl');
+  if (urlEl) urlEl.value = `${window.location.origin}/api/v1/webhook/stripe`;
+  try {
+    const res  = await fetch(`${API}/api/config/general`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    const sec  = document.getElementById('cfgStripeSecret');
+    if (sec && data.stripeWebhookSecret) sec.value = data.stripeWebhookSecret;
+  } catch {}
+  try {
+    const res  = await fetch(`${API}/api/config/api-keys`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (!data.keys?.length) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">Aucune clé API — cliquez "Nouvelle clé"</div>';
+      return;
+    }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted);font-weight:600">Nom</th>
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted);font-weight:600">Clé API</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;color:var(--muted);font-weight:600">Utilisations</th>
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted);font-weight:600">Dernière utilisation</th>
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted);font-weight:600">Statut</th>
+        <th style="padding:8px 12px"></th>
+      </tr></thead>
+      <tbody>${data.keys.map(k => `
+        <tr style="border-bottom:1px solid var(--border)" id="api-key-row-${k.id}">
+          <td style="padding:10px 12px;font-weight:600;font-size:13px">${escHtml(k.name)}</td>
+          <td style="padding:10px 12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <code style="font-family:var(--mono);font-size:11px;background:var(--surface2);padding:3px 8px;border-radius:5px;border:1px solid var(--border);color:#a6e3a1;word-break:break-all">${escHtml(k.key)}</code>
+              <button title="Copier" onclick="navigator.clipboard.writeText('${escHtml(k.key)}');showToast('Clé copiée','success')"
+                style="flex-shrink:0;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 7px;cursor:pointer;color:var(--muted);transition:all .15s"
+                onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">📋</button>
+            </div>
+          </td>
+          <td style="padding:10px 12px;text-align:center;font-family:var(--mono);font-size:12px">${k.useCount}</td>
+          <td style="padding:10px 12px;font-size:11px;color:var(--muted)">${k.lastUsed ? new Date(k.lastUsed).toLocaleString('fr-FR') : '—'}</td>
+          <td style="padding:10px 12px">
+            <span class="badge ${k.active?'badge-green':''}" style="${!k.active?'background:rgba(220,38,38,.1);color:var(--red);border-color:rgba(220,38,38,.2)':''}">
+              ${k.active ? '● Actif' : '● Inactif'}
+            </span>
+          </td>
+          <td style="padding:10px 12px">
+            <div style="display:flex;gap:6px;justify-content:flex-end">
+              <button class="btn btn-ghost btn-sm" onclick="cfgToggleApiKey('${k.id}')">${k.active?'Désactiver':'Activer'}</button>
+              <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25)" onclick="cfgDeleteApiKey('${k.id}','${escHtml(k.name)}')">Supprimer</button>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  } catch(e) { el.innerHTML = `<div style="color:var(--red);padding:12px">${e.message}</div>`; }
+}
+
+// Modal créer clé
+function cfgCreateApiKey() {
+  document.getElementById('apiKeyNameInput').value = '';
+  document.getElementById('apiKeyCreateModal').classList.add('open');
+  setTimeout(() => document.getElementById('apiKeyNameInput').focus(), 100);
+}
+function closeApiKeyCreateModal() {
+  document.getElementById('apiKeyCreateModal').classList.remove('open');
+}
+async function submitCreateApiKey() {
+  const name = document.getElementById('apiKeyNameInput').value.trim();
+  if (!name) { showToast('Nom requis', 'error'); return; }
+  closeApiKeyCreateModal();
+  try {
+    const res  = await fetch(`${API}/api/config/api-keys`, {
+      method: 'POST', headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error, 'error'); return; }
+    // Afficher la clé dans le modal dédié
+    document.getElementById('apiKeyShowValue').textContent = data.key;
+    document.getElementById('apiKeyExampleHeader').textContent = `"X-Api-Key: ${data.key}"`;
+    document.getElementById('apiKeyShowModal').classList.add('open');
+    cfgLoadApiKeys();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+function cfgCopyApiKey() {
+  const key = document.getElementById('apiKeyShowValue').textContent;
+  navigator.clipboard.writeText(key).then(() => {
+    const btn = document.getElementById('apiKeyCopyBtn');
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span style="font-size:10px;font-family:var(--mono)">Copié !</span>';
+    btn.style.color = '#a6e3a1'; btn.style.borderColor = 'rgba(166,227,161,.3)';
+    setTimeout(() => {
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg><span style="font-size:10px;font-family:var(--mono)">Copier</span>';
+      btn.style.color = '#8aadf4'; btn.style.borderColor = 'rgba(99,102,241,.3)';
+    }, 2000);
+  });
+}
+function closeApiKeyShowModal() {
+  document.getElementById('apiKeyShowModal').classList.remove('open');
+}
+
+// Toggle
+async function cfgToggleApiKey(id) {
+  try {
+    await fetch(`${API}/api/config/api-keys/${id}/toggle`, { method:'PATCH', headers:{ Authorization:'Bearer '+token } });
+    cfgLoadApiKeys();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// Modal supprimer clé
+let _apiKeyDeleteId = null;
+function cfgDeleteApiKey(id, name) {
+  _apiKeyDeleteId = id;
+  document.getElementById('apiKeyDeleteName').textContent = name;
+  document.getElementById('apiKeyDeleteModal').classList.add('open');
+}
+function closeApiKeyDeleteModal() {
+  document.getElementById('apiKeyDeleteModal').classList.remove('open');
+  _apiKeyDeleteId = null;
+}
+async function submitDeleteApiKey() {
+  if (!_apiKeyDeleteId) return;
+  const idToDelete = _apiKeyDeleteId; // sauvegarder AVANT de fermer le modal
+  closeApiKeyDeleteModal();
+  try {
+    const res = await fetch(`${API}/api/config/api-keys/${idToDelete}`, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Erreur suppression', 'error'); return; }
+    showToast('Clé supprimée', 'success');
+    cfgLoadApiKeys();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function cfgSaveStripeSecret() {
+  const secret = document.getElementById('cfgStripeSecret').value.trim();
+  try {
+    const res  = await fetch(`${API}/api/config/stripe`, {
+      method: 'PUT', headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ stripeWebhookSecret: secret })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error, 'error'); return; }
+    showToast('Secret Stripe enregistré', 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
 async function cfgLoadGeneral() {
   try {
     const res  = await fetch(`${API}/api/config/general`, { headers:{ Authorization:'Bearer '+token } });
@@ -10376,8 +11275,6 @@ async function checkUpdateSilent() {
       }
     }
   } catch (e) { /* silencieux */ }
-  // Vérifier les alertes sécurité en même temps
-  checkAlerts();
 }
 
 // ── Mise à jour one-click ─────────────────────────────────────────────────────
@@ -10901,8 +11798,7 @@ function openPanelLogsModal() {
   document.getElementById('panelLogsModal').classList.add('open');
   loadPanelLogs();
   // Marquer alertes comme lues
-  fetch(`${API}/api/logs/alerts/read`, { method:'POST', headers:{ Authorization:'Bearer '+token } })
-    .then(() => { _alertBadge = 0; updateAlertBadge(0); });
+  fetch(`${API}/api/logs/alerts/read`, { method:'POST', headers:{ Authorization:'Bearer '+token } }).catch(() => {});
 }
 
 function closePanelLogsModal() {
@@ -10935,32 +11831,6 @@ async function clearPanelLogs() {
   if (!confirm(`Vider le fichier ${type === 'error' ? 'kazypanel-error.log' : 'kazypanel.log'} ?`)) return;
   await fetch(`${API}/api/logs/panel?type=${type}`, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
   loadPanelLogs();
-}
-
-let _alertBadge = 0;
-function updateAlertBadge(count) {
-  const badge = document.getElementById('alertBadge');
-  const btn   = document.getElementById('topbarAlertBtn');
-  if (!badge || !btn) return;
-  if (count > 0) {
-    badge.textContent = count > 99 ? '99+' : count;
-    badge.style.display = 'flex';
-    btn.style.display = '';
-    btn.style.color = '#f87171';
-    btn.style.borderColor = 'rgba(239,68,68,.4)';
-  } else {
-    badge.style.display = 'none';
-    btn.style.color = '';
-    btn.style.borderColor = '';
-  }
-}
-
-async function checkAlerts() {
-  try {
-    const res  = await fetch(`${API}/api/logs/alerts`, { headers:{ Authorization:'Bearer '+token } });
-    const data = await res.json();
-    if (data.count > 0) updateAlertBadge(data.count);
-  } catch {}
 }
 
 // ── Mot de passe aléatoire ────────────────────────────────────────────────────
@@ -11076,4 +11946,99 @@ function copyUserTemplate() {
     </div>
   </div>
 </div>
+<!-- ── MODAL CRÉER CLÉ API ── -->
+<div class="modal-overlay" id="apiKeyCreateModal" onclick="if(event.target===this)closeApiKeyCreateModal()">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+        </div>
+        <div class="modal-title">Nouvelle clé API</div>
+      </div>
+      <button class="modal-close" onclick="closeApiKeyCreateModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Nom de la clé *</label>
+        <input class="form-input" id="apiKeyNameInput" placeholder="ex : WHMCS, kazylax.fr, n8n…" autofocus
+          onkeydown="if(event.key==='Enter')submitCreateApiKey()">
+        <div style="font-size:11px;color:var(--muted);margin-top:5px">Permet d'identifier l'application qui utilise cette clé</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeApiKeyCreateModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitCreateApiKey()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Créer la clé
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL AFFICHAGE CLÉ GÉNÉRÉE ── -->
+<div class="modal-overlay" id="apiKeyShowModal" onclick="if(event.target===this)closeApiKeyShowModal()">
+  <div class="modal" style="width:540px">
+    <div class="modal-header" style="background:linear-gradient(135deg,rgba(99,102,241,.1),rgba(79,110,247,.06));border-bottom:1px solid rgba(99,102,241,.2)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:20px">🔑</div>
+        <div class="modal-title" style="color:#8aadf4">Clé API créée</div>
+      </div>
+      <button class="modal-close" onclick="closeApiKeyShowModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:#f87171;display:flex;gap:8px;align-items:flex-start">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div><strong>Copiez cette clé maintenant.</strong> Elle ne sera plus jamais affichée en entier. Si vous la perdez, vous devrez en créer une nouvelle.</div>
+      </div>
+      <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Votre clé API</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="apiKeyShowValue" style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:8px;padding:12px 16px;font-family:var(--mono);font-size:12px;color:#a6e3a1;word-break:break-all;line-height:1.6"></div>
+        <button onclick="cfgCopyApiKey()" id="apiKeyCopyBtn"
+          style="flex-shrink:0;padding:12px 16px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);border-radius:8px;color:#8aadf4;cursor:pointer;font-size:13px;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:4px"
+          onmouseover="this.style.background='rgba(99,102,241,.25)'" onmouseout="this.style.background='rgba(99,102,241,.15)'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          <span style="font-size:10px;font-family:var(--mono)">Copier</span>
+        </button>
+      </div>
+      <div style="margin-top:16px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Exemple d'utilisation</div>
+        <div style="font-family:var(--mono);font-size:11px;color:#cad3f5;line-height:1.8">
+          curl -X POST <span style="color:#f9e2af">"<?php echo isset($_SERVER['HTTP_HOST']) ? 'https://'.$_SERVER['HTTP_HOST'] : 'https://panel.kazylax.fr' ?>/api/v1/users"</span> \<br>
+          &nbsp;&nbsp;-H <span id="apiKeyExampleHeader" style="color:#f9e2af">"X-Api-Key: …"</span> \<br>
+          &nbsp;&nbsp;-H <span style="color:#f9e2af">"Content-Type: application/json"</span> \<br>
+          &nbsp;&nbsp;-d <span style="color:#f9e2af">'{"username":"client01","password":"pass"}'</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeApiKeyShowModal()">J'ai copié ma clé</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL SUPPRESSION CLÉ API ── -->
+<div class="modal-overlay" id="apiKeyDeleteModal" onclick="if(event.target===this)closeApiKeyDeleteModal()">
+  <div class="modal" style="width:440px">
+    <div class="modal-header" style="background:rgba(239,68,68,.06);border-bottom:1px solid rgba(239,68,68,.15)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:20px">🗑️</div>
+        <div class="modal-title" style="color:#f87171">Supprimer la clé API</div>
+      </div>
+      <button class="modal-close" onclick="closeApiKeyDeleteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--text);margin-bottom:10px">Supprimer la clé <strong id="apiKeyDeleteName" style="color:#f87171"></strong> ?</p>
+      <p style="font-size:13px;color:var(--muted)">Toutes les intégrations utilisant cette clé cesseront immédiatement de fonctionner.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeApiKeyDeleteModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitDeleteApiKey()" style="background:linear-gradient(135deg,#ef4444,#dc2626);border-color:#dc2626">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+        Supprimer
+      </button>
+    </div>
+  </div>
+</div>
+
 </html>
