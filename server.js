@@ -2,7 +2,11 @@
  * KazyPanel - Serveur Node.js
  * Gestion des domaines/sous-domaines Apache + PHP 8.4
  * Port: 8080
+<<<<<<< Updated upstream
  * Node.js 24 LTS — Dernière modification : 21/03/2026
+=======
+ * Dernière modification : 19/03/2026 22:21
+>>>>>>> Stashed changes
  */
 
 'use strict';
