@@ -6,7 +6,7 @@
 
 > Panel d'administration web pour serveurs Apache/PHP — léger, rapide, sans dépendances lourdes.
 
-![Version](https://img.shields.io/badge/version-1.5.0-blue)
+![Version](https://img.shields.io/badge/version-1.6.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D24.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
@@ -48,7 +48,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 ## ✨ Fonctionnalités
 
 ### Administration
-- 📊 **Statut serveur** — CPU, RAM, disque, uptime (mois/j/h/min), charge système
+- 📊 **Statut serveur** — jauges circulaires CPU/RAM/Disque/Serveur, graphique historique Canvas, auto-refresh 30s
 - 🌐 **Domaines & sous-domaines** — création, activation/désactivation, configuration Apache
 - 🔒 **SSL Let's Encrypt** — génération et renouvellement de certificats en 1 clic
 - ⚙️ **Configuration PHP** — par domaine (version, mémoire, upload, etc.)
@@ -65,9 +65,12 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 - 🔑 **Clés SSH** — gestion des clés autorisées (`authorized_keys`) par utilisateur
 - 🌐 **Réseau FTP** — ports passifs configurables, IP publique
 - ⏱️ **NTP** — serveur de temps configurable
-- 📜 **Logs du panel** — consultation `kazypanel.log` / `kazypanel-error.log` avec filtres et alertes
+- 📜 **Logs du panel** — consultation `kazypanel.log` / `kazypanel-error.log` avec filtres
 - 🔒 **Sécurité avancée** — score /100, IPs bloquées, audit SSH, bannir/débannir en 1 clic
 - 👤 **Gestion utilisateurs** — template email bienvenue personnalisable, envoi automatique à la création
+- 🔌 **API REST publique v1** — 8 endpoints, clés API, webhook Stripe, intégration WHMCS/n8n/Zapier
+- 🛠️ **KazyDebug** — éditeur `index.html` / `server.js` en direct, CodeMirror, backup auto, activable depuis la config
+- 💻 **Terminal SSH professionnel** — thème Catppuccin Macchiato, historique, Ctrl+C/D/L/U, commandes rapides
 
 ### Espace utilisateur
 - 📂 **Explorateur de fichiers** — navigation, création, renommage, suppression, upload, téléchargement
@@ -378,13 +381,48 @@ npx nodemon server.js
 
 ## 🔌 API REST
 
+KazyPanel expose deux types d'API :
+
+### API interne (JWT)
+
 Toutes les routes (sauf `/api/login` et `/api/version`) requièrent un header d'authentification :
 
 ```
 Authorization: Bearer <token>
 ```
 
-### Authentification
+### API publique v1 (clé API)
+
+Accessible depuis n'importe quel site ou service externe. Authentification par header :
+
+```
+X-Api-Key: kp_live_xxxxxxxxxxxxxxxx
+```
+
+Les clés se gèrent dans **Configuration > API**.
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/v1/status` | Statut serveur (CPU, RAM, disque) |
+| GET | `/api/v1/users` | Lister les utilisateurs |
+| POST | `/api/v1/users` | Créer un utilisateur |
+| GET | `/api/v1/users/:username` | Détails d'un utilisateur |
+| DELETE | `/api/v1/users/:username` | Supprimer un utilisateur |
+| PATCH | `/api/v1/users/:username/suspend` | Suspendre |
+| PATCH | `/api/v1/users/:username/unsuspend` | Réactiver |
+| POST | `/api/v1/webhook/stripe` | Webhook Stripe (HMAC SHA256) |
+
+**Exemple — créer un utilisateur :**
+```bash
+curl -X POST "https://panel.kazylax.fr/api/v1/users" \
+  -H "X-Api-Key: kp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"client01","password":"pass","email":"client@mail.fr","template":"Starter","sendEmail":true}'
+```
+
+**Intégrations compatibles :** WHMCS, WooCommerce, PrestaShop, n8n, Make, Zapier, PHP, Python, Node.js
+
+### Authentification interne
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
@@ -841,9 +879,68 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ---
 
-*KazyPanel v1.5.0 — Dernière mise à jour : Mars 2026*
+*KazyPanel v1.6.0 — Dernière mise à jour : 29 Mars 2026*
 
 ## Changelog
+
+### v1.6.0 — 2026-03-29
+
+#### 🌐 API REST publique v1
+- ✨ **8 endpoints API** authentifiés par clé `X-Api-Key` :
+  - `GET /api/v1/status` — statut serveur (CPU, RAM, disque, nb utilisateurs)
+  - `GET /api/v1/users` — lister les utilisateurs
+  - `POST /api/v1/users` — créer un utilisateur (avec envoi email optionnel)
+  - `GET/DELETE /api/v1/users/:username` — détails / suppression
+  - `PATCH /api/v1/users/:username/suspend|unsuspend` — suspendre / réactiver
+  - `POST /api/v1/webhook/stripe` — webhook Stripe avec vérification HMAC SHA256
+- 🔑 **Gestion des clés API** dans Configuration > API :
+  - Création, activation/désactivation, suppression
+  - Clé complète visible + bouton copier par ligne
+  - Compteur d'utilisations et date de dernière utilisation
+- 💳 **Intégration Stripe** — secret webhook configurable, URL auto-générée
+- 📄 **Page de commande `order.php`** pour kazylax.fr :
+  - 3 offres (Starter / Standard / Pro) avec redirect Stripe Checkout
+  - Vérification disponibilité username avant paiement
+  - Pages succès / annulation stylées
+
+#### 🖥️ Dashboard Statut serveur
+- ✨ **4 jauges circulaires SVG** animées (CPU, RAM, Disque, Serveur)
+- Couleur dynamique : vert → orange (>65%) → rouge (>85%)
+- 📈 **Graphique historique Canvas** CPU + RAM (20 mesures, courbes + gradient)
+- Section infos système + barres de progression stats rapides
+- Auto-refresh toutes les 30 secondes
+
+#### ⚙️ Configuration > Serveur — KazyDebug
+- ✨ **Toggle on/off** KazyDebug directement depuis Configuration > Serveur
+- Mise à jour immédiate du `.env` (`KAZY_DEBUG=true/false`) sans redémarrage
+- 2 colonnes d'explications : ce que ça permet + précautions
+- Indicateur `● Actif / ● Inactif` avec couleur
+
+#### 🛠️ KazyDebug — Éditeur système
+- ✨ **Bouton "Tout sélectionner"** + raccourci `Ctrl+A`
+- Backup automatique limité à **1 seul fichier** par source (ancien supprimé automatiquement)
+- Raccourci `Ctrl+G` pour aller à une ligne
+
+#### 💻 Terminal SSH
+- ✨ **Thème Catppuccin Macchiato** (`#24273a`) — couleurs plus fidèles
+- **Barre de statut bas** avec `cwd:` en temps réel
+- **Message d'accueil** ASCII art `╔══════════════════════════╗`
+- `Ctrl+D` (^D orange) — fin de fichier
+- `Ctrl+U` — effacer la ligne
+- ANSI étendu : couleurs 256, strip séquences OSC, inverse vidéo
+- 2 nouvelles commandes rapides : `ps aux` et `netstat`
+- Police étendue : `DM Mono, Fira Code, Cascadia Code`
+
+#### 🔧 Optimisations & corrections
+- ⚡ **Suppression dépendances** : `bcryptjs`, `jsonwebtoken`, `cors`, `helmet` remplacés par implémentations natives Node.js 24 (`crypto.scrypt`, `crypto.createHmac`)
+- 📦 `node_modules` réduit de ~15 Mo à **4.7 Mo**
+- 🗑️ **Suppression `uptimeRecord`** — historique uptime retiré du panel et de `panel_config.json`
+- 🚨 **Suppression bouton Alertes** de la topbar (`🚨 Alertes`, pastille rouge, `checkAlerts`)
+- 💾 **RAM affichée en Go** quand ≥ 1 Go (`free -m` avec conversion automatique)
+- 🐛 Fix : suppression clé API — `_apiKeyDeleteId` écrasé à `null` avant le fetch
+- 🐛 Fix : comparaison id numérique/string dans DELETE/PATCH clés API
+- 🐛 Fix : `initLoginPage` null focus — guard null + `setTimeout`
+- 🐛 Fix : onglet phpMyAdmin fusionné visuellement avec onglet API (balise `<div>` manquante)
 
 ### v1.5.0 — 2026-03-26
 
