@@ -35,6 +35,7 @@
 - [Logs & Monitoring](#-logs--monitoring)
 - [Sécurité avancée](#-sécurité-avancée)
 - [FAQ](#-faq)
+
 ---
 
 ## 🎯 Présentation
@@ -59,14 +60,16 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 - 🔗 **DNS (BIND9)** — zones, enregistrements A/AAAA/CNAME/MX/TXT
 - 💾 **Sauvegardes** — création manuelle + planification automatique (cron + rétention configurable)
 - 📋 **Logs Apache** — consultation par domaine
-- 🕐 **Crontab** — gestion des tâches planifiées par utilisateur
+- 🕐 **Crontab simplifié** — interface débutant avec 12 presets visuels (boutons avec icônes et descriptions), formulaire guidé en 3 étapes, plus besoin de connaître la syntaxe cron
 - 🔑 **Connexions** — historique avec navigateur détecté, graphique 7 jours, alertes brute-force
 - 📧 **SMTP** — relay email natif Node.js (STARTTLS), test d'envoi, template configurable
 - 🔑 **Clés SSH** — gestion des clés autorisées (`authorized_keys`) par utilisateur
 - 🌐 **Réseau FTP** — ports passifs configurables, IP publique
-- ⏱️ **NTP** — serveur de temps configurable
+- ⏱️ **NTP** — serveur de temps configurable depuis le panel
 - 📜 **Logs du panel** — consultation `kazypanel.log` / `kazypanel-error.log` avec filtres
-- 🔒 **Sécurité avancée** — score /100, IPs bloquées, audit SSH, bannir/débannir en 1 clic
+- 🔒 **Sécurité avancée** — score /100, IPs bloquées, audit SSH professionnel, bannir/débannir en 1 clic
+- 🔄 **Mises à jour système** — vérification apt, liste des paquets, installation en streaming avec terminal temps réel
+- 🛡️ **Sécurité Apache** — configuration `ServerTokens` / `ServerSignature` depuis l'interface, fichier dédié `kazypanel-security.conf`
 - 👤 **Gestion utilisateurs** — template email bienvenue personnalisable, envoi automatique à la création
 - 🔌 **API REST publique v1** — 8 endpoints, clés API, webhook Stripe, intégration WHMCS/n8n/Zapier
 - 🛠️ **KazyDebug** — éditeur `index.html` / `server.js` en direct, CodeMirror, backup auto, activable depuis la config
@@ -87,7 +90,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 
 ### Gestion multi-utilisateurs
 - 👥 Rôles **Admin** et **Utilisateur**
-- 📋 **Templates de ressources** — limites FTP, BDD, domaines, disque
+- 📋 **Templates de ressources** — limites FTP, BDD, domaines, disque, crontab
 - 🎲 Génération de mot de passe aléatoire sécurisé
 - ✉️ Template de message de bienvenue copiable (Gmail, etc.)
 - 🔐 Indicateur de force de mot de passe
@@ -97,7 +100,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 ## 🛠️ Prérequis
 
 ### Système
-- Ubuntu 20.04 / 22.04 / 24.04 (ou Debian équivalent)
+- Ubuntu 20.04 / 22.04 / 24.04 ou Debian 11 / 12
 - Accès root ou sudo
 
 ### Services requis
@@ -165,21 +168,21 @@ Installation du serveur DNS avec création du répertoire `/etc/bind/zones` et d
 Installation de Certbot avec le plugin Apache pour la génération de certificats SSL Let's Encrypt en 1 clic depuis le panel.
 
 **11. phpMyAdmin**
-Téléchargement de la dernière version stable (récupérée automatiquement depuis phpmyadmin.net) directement depuis le site officiel. Configuration automatique avec une clé `blowfish_secret` générée aléatoirement. Si une URL personnalisée a été fournie (ex: `pma.mondomaine.fr`), un vhost Apache dédié est créé. Sinon, phpMyAdmin est accessible via `/phpmyadmin` sur l'IP du serveur. L'URL est automatiquement injectée dans le `.env` de KazyPanel pour que le bouton phpMyAdmin dans le panel fonctionne directement.
+Téléchargement de la dernière version stable directement depuis le site officiel. Configuration automatique avec une clé `blowfish_secret` générée aléatoirement. Si une URL personnalisée a été fournie (ex: `pma.mondomaine.fr`), un vhost Apache dédié est créé. Sinon, phpMyAdmin est accessible via `/phpmyadmin` sur l'IP du serveur.
 
-**11. UFW (pare-feu)**
+**12. UFW (pare-feu)**
 Configuration et activation d'UFW avec les règles essentielles : SSH, HTTP (80), HTTPS (443), port du panel, FTP (21), plage passif FTP (40000-50000), DNS (53). Toute autre connexion entrante est bloquée par défaut.
 
-**12. Fail2ban**
+**13. Fail2ban**
 Configuration d'un `jail.local` avec protection SSH, Apache et vsftpd. Bannissement automatique après 5 tentatives échouées en 10 minutes, pour 1 heure.
 
-**13. KazyPanel**
+**14. KazyPanel**
 Clone du dépôt GitHub dans le répertoire choisi, `npm install --production`, création du fichier `.env` avec toutes les variables remplies automatiquement (dont une clé JWT de 128 caractères générée aléatoirement via `openssl rand`).
 
-**14. Service systemd**
+**15. Service systemd**
 Création et activation du service `kazypanel.service` avec redémarrage automatique en cas de crash, logs dans `journald` et chargement automatique du `.env`.
 
-**15. Résumé final**
+**16. Résumé final**
 Le script affiche l'URL d'accès, les identifiants admin, la liste des services installés avec leurs versions et les commandes utiles.
 
 #### Exemple de déroulement
@@ -307,6 +310,9 @@ ADMIN_PASSWORD=Admin@1234!
 
 # ── Serveur ───────────────────────────────────────────────
 PORT=8080
+
+# ── CORS — origines autorisées (séparées par virgule, optionnel) ──
+# PANEL_ALLOWED_ORIGINS=https://panel.votredomaine.fr
 
 # ── Base de données ───────────────────────────────────────
 # Mot de passe root MariaDB (laisser vide si pas de mot de passe)
@@ -515,21 +521,22 @@ curl -X POST "https://panel.kazylax.fr/api/v1/users" \
 | GET | `/api/backup` | Lister les sauvegardes |
 | POST | `/api/backup` | Créer une sauvegarde |
 | DELETE | `/api/backup/:name` | Supprimer une sauvegarde |
-| GET | `/api/status/public` | Statut serveur sans auth (page login) |
-| GET | `/api/maintenance` | État bannière maintenance sans auth |
-| GET/PUT/DELETE | `/api/config/email-template` | Template email de bienvenue |
-| PUT | `/api/config/panel-url` | URL publique du panel |
-| POST | `/api/users/welcome-email` | Envoi email de bienvenue |
 | GET | `/api/security/score` | Score de sécurité /100 |
 | GET | `/api/security/banned` | IPs bannies toutes jails |
 | POST | `/api/security/ban` | Bannir une IP manuellement |
-| GET | `/api/security/ssh-audit` | Audit tentatives SSH |
+| GET | `/api/security/ssh-audit` | Audit tentatives SSH (journald + auth.log) |
 | GET | `/api/security/logins/stats` | Stats connexions 7 jours |
-| GET | `/api/update/check` | Vérifier les mises à jour |
+| GET | `/api/server-config/apache-security` | Lire ServerTokens/ServerSignature |
+| POST | `/api/server-config/apache-security` | Appliquer ServerTokens/ServerSignature |
+| POST | `/api/server-config/apache-security/repair` | Réparer si erreur de syntaxe Apache |
+| GET | `/api/system/updates/check` | Vérifier les mises à jour apt |
+| GET | `/api/system/updates/upgradable` | Liste des paquets (cache) |
+| GET | `/api/system/updates/upgrade/stream` | Lancer apt-get upgrade (SSE streaming) |
+| GET | `/api/system/updates/status` | État mise à jour en cours |
+| GET | `/api/update/check` | Vérifier les mises à jour KazyPanel |
 | POST | `/api/update/apply` | Appliquer une mise à jour one-click |
 | GET | `/api/logs/panel` | Logs du panel (filtres niveau/type) |
 | DELETE | `/api/logs/panel` | Vider les logs |
-| GET | `/api/logs/alerts` | Alertes brute-force non lues |
 | GET | `/api/config/general` | Paramètres généraux |
 | PUT | `/api/config/defaults` | Limites par défaut utilisateurs |
 | PUT | `/api/config/jwt` | Expiration des sessions |
@@ -538,7 +545,7 @@ curl -X POST "https://panel.kazylax.fr/api/v1/users" \
 | GET/PUT | `/api/config/backup-schedule` | Planification sauvegardes |
 | GET/PUT | `/api/config/network` | Ports FTP passif + IP publique |
 | GET/PUT | `/api/config/ntp` | Serveur NTP |
-| GET | `/api/config/ssl-status` | Statut certificats Let's Encrypt |
+| GET | `/api/config/ssl-status` | Statut certificats Let's Encrypt (filtrés par vhosts réels) |
 | GET/POST/DELETE | `/api/config/ssh-keys` | Gestion clés SSH autorisées |
 
 ---
@@ -636,31 +643,58 @@ ADMIN_PASSWORD=VotreMotDePasseTresSécurisé!123
 
 ### Bonnes pratiques
 
-- **Ne pas exposer le port 8080 publiquement** — utiliser un reverse proxy Apache/Nginx
+- **Ne pas exposer le port 8080 publiquement** — utiliser un reverse proxy Apache
 - Activer **HTTPS** avec un certificat SSL sur le panel lui-même
 - Activer **UFW** et n'autoriser que les ports nécessaires
 - Activer **Fail2ban** pour protéger les accès SSH et Apache
+- Configurer **ServerTokens Prod** et **ServerSignature Off** depuis Configuration > Réseau > Sécurité Apache
 
-### Reverse proxy Apache (exemple)
+### Reverse proxy Apache (recommandé)
 
 ```apache
+<VirtualHost *:80>
+    ServerName panel.votredomaine.fr
+    RewriteEngine On
+    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+</VirtualHost>
+
+<IfModule mod_ssl.c>
 <VirtualHost *:443>
     ServerName panel.votredomaine.fr
+
     SSLEngine on
-    SSLCertificateFile /etc/letsencrypt/live/panel.votredomaine.fr/fullchain.pem
+    SSLCertificateFile    /etc/letsencrypt/live/panel.votredomaine.fr/fullchain.pem
     SSLCertificateKeyFile /etc/letsencrypt/live/panel.votredomaine.fr/privkey.pem
 
-    ProxyPass / http://127.0.0.1:8080/
+    ProxyPreserveHost On
+    ProxyPass        / http://127.0.0.1:8080/
     ProxyPassReverse / http://127.0.0.1:8080/
 
-    ProxyPreserveHost On
-    RequestHeader set X-Forwarded-Proto "https"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Content-Security-Policy "frame-ancestors 'self'"
+    Header always unset X-Powered-By
+
+    Include /etc/letsencrypt/options-ssl-apache.conf
 </VirtualHost>
+</IfModule>
 ```
+
+### Sécurité Apache — ServerTokens / ServerSignature
+
+KazyPanel permet de configurer ces directives directement depuis l'interface (**Configuration > Réseau > Sécurité Apache**). Les valeurs sont écrites dans un fichier dédié `/etc/apache2/conf-available/kazypanel-security.conf` sans modifier le fichier Debian d'origine.
+
+| Directive | Valeur recommandée | Effet |
+|-----------|-------------------|-------|
+| `ServerTokens` | `Prod` | Le header HTTP `Server:` n'affiche que `Apache` |
+| `ServerSignature` | `Off` | Aucune version affichée dans les pages d'erreur Apache |
 
 ---
 
 ## 🔄 Mise à jour
+
+### KazyPanel
 
 **Via le panel (recommandé)** — cliquer sur le bouton 🔔 dans la topbar puis "Lancer la mise à jour". Le panel exécute `git pull`, `npm install` et redémarre automatiquement avec les logs en temps réel.
 
@@ -674,6 +708,15 @@ systemctl restart kazypanel
 ```
 
 Le panel vérifie automatiquement les nouvelles versions au démarrage et affiche une notification dans la topbar.
+
+### Système (paquets Debian/Ubuntu)
+
+Depuis **Sécurité > Mises à jour** :
+- Vérification de la liste des paquets (`apt-get update`)
+- Affichage de tous les paquets disponibles avec distinction sécurité / standard
+- Badge rouge sur l'onglet si des correctifs de sécurité sont en attente
+- Installation en streaming avec terminal temps réel
+- Deux modes : **Tout mettre à jour** ou **Sécurité uniquement**
 
 ---
 
@@ -698,11 +741,12 @@ sudo systemctl restart systemd-resolved
 sudo systemctl start named
 ```
 
-**`named-checkconf : command not found` avec sudo**
-→ sudo ne trouve pas `/usr/sbin` dans son PATH. KazyPanel résout le chemin dynamiquement — vérifier que `named-checkconf` est bien installé :
+**Erreur de syntaxe Apache après configuration ServerTokens**
+→ Utiliser le bouton **Réparer** dans Configuration > Réseau > Sécurité Apache, ou manuellement :
 ```bash
-which named-checkconf || find /usr /sbin /bin -name named-checkconf
-sudo apt install bind9utils
+sudo rm -f /etc/apache2/conf-enabled/kazypanel-security.conf
+sudo rm -f /etc/apache2/conf-available/kazypanel-security.conf
+sudo apache2ctl -t && sudo systemctl reload apache2
 ```
 
 **Erreur `EACCES` sur `/var/www/`**
@@ -718,6 +762,19 @@ sudo chmod -R 755 /var/www/username
 systemctl status kazypanel
 ss -tlnp | grep 8080
 curl -I http://127.0.0.1:8080/
+```
+
+**Audit SSH — aucune donnée (Debian 12)**
+→ Sur Debian 12, `/var/log/auth.log` n'existe pas par défaut. KazyPanel lit automatiquement `journald`. Si vous voulez le fichier classique :
+```bash
+sudo apt install rsyslog
+```
+
+**`named-checkconf : command not found` avec sudo**
+→ sudo ne trouve pas `/usr/sbin` dans son PATH :
+```bash
+which named-checkconf || find /usr /sbin /bin -name named-checkconf
+sudo apt install bind9utils
 ```
 
 **Syntaxe `named.conf.local` invalide**
@@ -799,13 +856,19 @@ Pour débloquer une IP manuellement (reset en mémoire) :
 sudo systemctl restart kazypanel
 ```
 
-### Alertes brute-force
+### Audit SSH professionnel
 
-Le badge 🚨 dans la topbar s'allume si une IP déclenche une alerte. L'alerte est également écrite dans `kazypanel-error.log`.
+L'onglet **Sécurité > Audit SSH** affiche :
+- 4 compteurs : total tentatives, échecs, succès, IPs uniques
+- Tableau avec colonnes Statut / Date-Heure / Utilisateur / IP source
+- Filtres temps réel (Tout / Échecs / Succès) + recherche par IP ou nom
+- Classement Top 10 IPs attaquantes avec barres de progression et médailles
+- Bannissement en 1 clic directement depuis la liste
+- Compatible **Debian 12** (journald) et systèmes avec `/var/log/auth.log`
 
 ### Recommandations de production
 
-- Utiliser un **reverse proxy HTTPS** (Apache ou Nginx) devant le port 8080
+- Utiliser un **reverse proxy HTTPS** (Apache) devant le port 8080
 - Ne jamais exposer le port 8080 publiquement
 - Définir une clé `JWT_SECRET` longue et aléatoire dans `.env` :
 ```bash
@@ -813,6 +876,7 @@ JWT_SECRET=$(openssl rand -hex 64)
 ```
 - Activer **Fail2ban** avec le filtre KazyPanel inclus dans `jail.local`
 - Configurer le **PTR record** (reverse DNS) sur l'IP du serveur pour la délivrabilité mail
+- Appliquer `ServerTokens Prod` + `ServerSignature Off` depuis le panel
 
 ### Filtre Fail2ban pour KazyPanel
 
@@ -820,7 +884,7 @@ Le fichier `/etc/fail2ban/filter.d/kazypanel.conf` est créé automatiquement. I
 
 ---
 
-
+## ❓ FAQ
 
 **Le panel ne démarre pas**
 → Vérifiez les logs : `journalctl -u kazypanel -f`
@@ -837,7 +901,7 @@ Le fichier `/etc/fail2ban/filter.d/kazypanel.conf` est créé automatiquement. I
 
 **Configuration SMTP — Fournisseurs compatibles**
 
-KazyPanel utilise SMTP natif Node.js avec **STARTTLS sur le port 587** — compatible avec tout serveur SMTP standard :
+KazyPanel utilise SMTP natif Node.js avec **STARTTLS sur le port 587** :
 
 | Fournisseur | Hôte SMTP | Port |
 |---|---|---|
@@ -879,141 +943,135 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ---
 
-*KazyPanel v1.6.0 — Dernière mise à jour : 29 Mars 2026*
+*KazyPanel v1.7.0 — Dernière mise à jour : 31 Mars 2026*
+
+---
 
 ## Changelog
 
 ### v1.7.0 — 2026-03-31
 
-### v1.6.0 — 2026-03-29
+#### 🔄 Mises à jour système
+- ✨ **Nouvel onglet "Mises à jour"** dans Sécurité
+  - Vérification `apt-get update` + liste complète des paquets upgradables
+  - Distinction paquets de **sécurité** (badge rouge) et paquets standard
+  - **Badge** sur l'onglet indiquant le nombre de mises à jour en attente
+  - **Terminal streaming en temps réel** (SSE via fetch+ReadableStream, compatible auth JWT)
+  - Mode **"Tout mettre à jour"** et mode **"Sécurité uniquement"**
+  - Confirmation obligatoire avant toute installation avec nombre de paquets concernés
+  - Cache 5 minutes pour éviter les appels apt répétés
+  - `DEBIAN_FRONTEND=noninteractive` pour éviter les prompts interactifs
 
-### v1.6.0 — 2026-03-29
+#### 🛡️ Sécurité Apache
+- ✨ **Bloc "Sécurité Apache"** dans Configuration > Réseau
+  - Configuration `ServerTokens` (Prod/Major/Minor/OS/Full) et `ServerSignature` (Off/On/Email)
+  - Fichier dédié `/etc/apache2/conf-available/kazypanel-security.conf` — ne modifie jamais `security.conf` Debian
+  - Vérification syntaxe Apache avant rechargement
+  - **Bouton Réparer** en cas d'erreur de syntaxe (503)
+  - `ServerSignature Off` + `Header always unset X-Powered-By/Server` ajoutés automatiquement à tous les nouveaux vhosts
+- 🔧 `a2enconf`, `a2disconf`, `ln -sf`, `apt-get`, `apt` ajoutés à la whitelist sudo
+
+#### 🔍 Audit SSH professionnel
+- ✨ **Refonte complète** de l'onglet Audit SSH
+  - 4 compteurs : Total / Échecs / Succès / IPs uniques
+  - Tableau structuré avec colonnes : Statut (badge) / Date-Heure / Utilisateur / IP source
+  - Filtres temps réel Tout / ❌ Échecs / ✅ Succès + recherche par IP ou nom
+  - **Classement Top IPs** avec médailles 🥇🥈🥉, barres de progression proportionnelles
+  - Bannissement en 1 clic sur chaque ligne et dans le classement
+  - Formulaire de bannissement intégré avec choix du jail
+- ✨ **Support Debian 12** — fallback automatique vers `journald` si `/var/log/auth.log` absent
+  - `journalctl _SYSTEMD_UNIT=ssh.service` lu nativement
+  - Parsing adapté au format ISO journald vs syslog classique
+  - Affichage de la source des logs (journald / auth.log)
+  - `journalctl` et `ssh -V` ajoutés à NO_SUDO_PREFIXES
+
+#### 🐛 Corrections de bugs
+- 🔴 Fix critique : `runCmdOut` utilisée avant sa déclaration (lignes 779/1193) → déplacée après `runCmd`
+- 🔴 Fix critique : CORS reflétait toute origine avec `Credentials: true` → whitelist par hôte (`PANEL_ALLOWED_ORIGINS`)
+- 🟠 Fix : 8 doublons `cacheInvalidate` dans les routes domaines, utilisateurs, services
+- 🟠 Fix : `timedatectl set-timezone` sans guillemets → injection potentielle
+- 🟠 Fix : `userOwnsDocRoot(user, null)` crashait sur `.startsWith(undefined)`
+- 🟠 Fix : Path traversal potentiel sur backup download/delete → `path.resolve` + `startsWith(BACKUP_DIR + sep)`
+- 🟡 Fix : 65 occurrences `parseInt()` sans base 10 sur données HTTP
+- 🟡 Fix : `catch {}` silencieux sur `bcryptjs` → `console.warn` ajouté
+- 🟠 Fix : `Content-Security-Policy: frame-ancestors 'self'` ajouté (X-Frame-Options déprécié)
+- 🟠 Fix : doublon définition `runCmdOut` en bas du fichier supprimé
+- 🟡 Fix : double commentaire `// ─── ROUTE: SAUVEGARDE` supprimé
+- 🐛 Fix : Certificats SSL — affichage filtré par vhosts réels uniquement (plus de sous-domaines fantômes)
+  - Croisement avec `ServerName`/`ServerAlias` des `.conf` Apache actifs
+  - Domaines sans vhost affichés en `+N autre(s) dans le cert` avec tooltip
+- 🐛 Fix : fonction `readApacheDirective` — template literal avec backtick invalide remplacé par concaténation
+
+#### 🕐 Crontab simplifié (rôle utilisateur)
+- ✨ **Refonte complète** de l'interface crontab utilisateur
+  - 12 boutons presets visuels avec icônes et descriptions (Toutes les 5 min, Chaque nuit à 2h, etc.)
+  - Formulaire guidé en **3 étapes** : Quand / Commande / Nom
+  - Prévisualisation de l'expression cron qui apparaît à la sélection
+  - Bouton "Ajouter" grisé tant que les champs obligatoires ne sont pas remplis
+  - Suppression des 5 champs manuels (cronMin/cronHour/…) — inutiles pour les débutants
+  - `renderCrontabList` amélioré : description humaine en priorité, expression cron en badge discret
+- ✨ CSS `.cron-preset-card` et `.cron-preset-card.selected` ajoutés
+
+---
 
 ### v1.6.0 — 2026-03-29
 
 #### 🌐 API REST publique v1
-- ✨ **8 endpoints API** authentifiés par clé `X-Api-Key` :
-  - `GET /api/v1/status` — statut serveur (CPU, RAM, disque, nb utilisateurs)
-  - `GET /api/v1/users` — lister les utilisateurs
-  - `POST /api/v1/users` — créer un utilisateur (avec envoi email optionnel)
-  - `GET/DELETE /api/v1/users/:username` — détails / suppression
-  - `PATCH /api/v1/users/:username/suspend|unsuspend` — suspendre / réactiver
-  - `POST /api/v1/webhook/stripe` — webhook Stripe avec vérification HMAC SHA256
-- 🔑 **Gestion des clés API** dans Configuration > API :
-  - Création, activation/désactivation, suppression
-  - Clé complète visible + bouton copier par ligne
-  - Compteur d'utilisations et date de dernière utilisation
-- 💳 **Intégration Stripe** — secret webhook configurable, URL auto-générée
-- 📄 **Page de commande `order.php`** pour kazylax.fr :
-  - 3 offres (Starter / Standard / Pro) avec redirect Stripe Checkout
-  - Vérification disponibilité username avant paiement
-  - Pages succès / annulation stylées
+- ✨ **8 endpoints API** authentifiés par clé `X-Api-Key`
+- 🔑 Gestion des clés API dans Configuration > API
+- 💳 Intégration Stripe — secret webhook configurable, URL auto-générée
+- 📄 Page de commande `order.php` pour kazylax.fr
 
 #### 🖥️ Dashboard Statut serveur
 - ✨ **4 jauges circulaires SVG** animées (CPU, RAM, Disque, Serveur)
-- Couleur dynamique : vert → orange (>65%) → rouge (>85%)
-- 📈 **Graphique historique Canvas** CPU + RAM (20 mesures, courbes + gradient)
-- Section infos système + barres de progression stats rapides
+- 📈 **Graphique historique Canvas** CPU + RAM (20 mesures)
 - Auto-refresh toutes les 30 secondes
 
 #### ⚙️ Configuration > Serveur — KazyDebug
-- ✨ **Toggle on/off** KazyDebug directement depuis Configuration > Serveur
-- Mise à jour immédiate du `.env` (`KAZY_DEBUG=true/false`) sans redémarrage
-- 2 colonnes d'explications : ce que ça permet + précautions
-- Indicateur `● Actif / ● Inactif` avec couleur
+- ✨ Toggle on/off KazyDebug depuis Configuration > Serveur
+- Mise à jour immédiate du `.env` sans redémarrage
 
 #### 🛠️ KazyDebug — Éditeur système
-- ✨ **Bouton "Tout sélectionner"** + raccourci `Ctrl+A`
-- Backup automatique limité à **1 seul fichier** par source (ancien supprimé automatiquement)
+- ✨ Bouton "Tout sélectionner" + raccourci `Ctrl+A`
+- Backup automatique limité à 1 seul fichier par source
 - Raccourci `Ctrl+G` pour aller à une ligne
 
 #### 💻 Terminal SSH
-- ✨ **Thème Catppuccin Macchiato** (`#24273a`) — couleurs plus fidèles
-- **Barre de statut bas** avec `cwd:` en temps réel
-- **Message d'accueil** ASCII art `╔══════════════════════════╗`
-- `Ctrl+D` (^D orange) — fin de fichier
-- `Ctrl+U` — effacer la ligne
-- ANSI étendu : couleurs 256, strip séquences OSC, inverse vidéo
+- ✨ Thème Catppuccin Macchiato
+- Barre de statut bas avec `cwd:` en temps réel
+- `Ctrl+D`, `Ctrl+U`, ANSI 256 couleurs
 - 2 nouvelles commandes rapides : `ps aux` et `netstat`
-- Police étendue : `DM Mono, Fira Code, Cascadia Code`
 
-#### 🔧 Optimisations & corrections
-- ⚡ **Suppression dépendances** : `bcryptjs`, `jsonwebtoken`, `cors`, `helmet` remplacés par implémentations natives Node.js 24 (`crypto.scrypt`, `crypto.createHmac`)
-- 📦 `node_modules` réduit de ~15 Mo à **4.7 Mo**
-- 🗑️ **Suppression `uptimeRecord`** — historique uptime retiré du panel et de `panel_config.json`
-- 🚨 **Suppression bouton Alertes** de la topbar (`🚨 Alertes`, pastille rouge, `checkAlerts`)
-- 💾 **RAM affichée en Go** quand ≥ 1 Go (`free -m` avec conversion automatique)
-- 🐛 Fix : suppression clé API — `_apiKeyDeleteId` écrasé à `null` avant le fetch
-- 🐛 Fix : comparaison id numérique/string dans DELETE/PATCH clés API
-- 🐛 Fix : `initLoginPage` null focus — guard null + `setTimeout`
-- 🐛 Fix : onglet phpMyAdmin fusionné visuellement avec onglet API (balise `<div>` manquante)
+#### 🔧 Optimisations
+- ⚡ Suppression dépendances : `bcryptjs`, `jsonwebtoken`, `cors`, `helmet` remplacés par implémentations natives Node.js 24
+- 📦 `node_modules` réduit de ~15 Mo à 4.7 Mo
+
+---
 
 ### v1.5.0 — 2026-03-26
 
 #### 🔐 Page login
-- ✨ **Fond animé** — grille de points en mouvement + orbe lumineux flottant
-- 👁 **Afficher/masquer le mot de passe** — bouton dédié
-- 🟢 **Statut serveur** — indicateurs Apache / MariaDB / KazyPanel visibles avant connexion
-- ⚠️ **Bannière maintenance** — affichée sans connexion si maintenance activée
-- 💾 **Se souvenir de moi** — username mémorisé en localStorage
-- ⌨️ **Navigation clavier** — Enter username → focus password → Enter → login
-- 🔴 **Animation shake** sur erreur de connexion
+- ✨ Fond animé, afficher/masquer MDP, statut serveur, bannière maintenance, se souvenir de moi
 
 #### 📧 Emails
-- ✨ **SMTP natif Node.js** — STARTTLS sur port 587, zéro dépendance externe
-- 📝 **Template email personnalisable** — sujet + corps avec variables `{{username}}`, `{{password}}`, `{{role}}`, `{{panelUrl}}`, `{{date}}`
-- 👁 **Aperçu en temps réel** avec données fictives
-- 📧 **Bouton "Template email"** dans Gestion des utilisateurs
-- 🌐 **URL publique du panel** configurable (utilisée dans les mails)
-- ✉️ **Envoi automatique** à la création d'utilisateur si email fourni
+- ✨ SMTP natif Node.js STARTTLS, template personnalisable avec variables, aperçu temps réel
 
 #### 🛡️ Sécurité
-- 📊 **Score de sécurité** — 7 vérifications, note /100, grade A/B/C/D
-- 🚫 **IPs bloquées** — liste toutes jails Fail2ban, débannir/bannir en 1 clic
-- 🔍 **Audit SSH** — analyse `/var/log/auth.log`, top 10 IPs attaquantes
-- 📈 **Graphique connexions** — barres OK/FAIL sur 7 jours
+- Score de sécurité /100, IPs bloquées, Audit SSH, graphique connexions 7 jours
 
 #### ⚙️ Configuration
-- 📧 **Onglet Emails** — SMTP + limites par défaut + expiration JWT + URL publique
-- 💾 **Onglet Sauvegardes** — planification cron avec raccourcis + rétention
-- 🌐 **Onglet Réseau** — ports FTP passif + IP publique + certificats SSL + NTP
-- 🔑 **Onglet Clés SSH** — ajout/suppression `authorized_keys` par utilisateur
+- Onglets Emails, Sauvegardes, Réseau, Clés SSH
 
-#### 🐛 Corrections
-- Fix : suppression utilisateur — `sudo rm -rf` pour les dossiers `/var/www/`
-- Fix : sections admin (Sécurité, DNS) visibles pour les utilisateurs
-- Fix : `userFilesSection` persistait lors de la navigation
-- Fix : IDs dupliqués dans les formulaires (`logLinesSelect`, `genPwBtn`, `profileDiskRow`)
-- Fix : BIND9 et UFW sans uptime dans le dashboard Services
-
-#### 🔧 install.sh
-- ✨ **Question URL publique** pendant l'installation (pré-remplit `{{panelUrl}}`)
-- 📄 **`panel_config.json` initial** créé avec l'URL et phpMyAdmin configurés
-- 🔄 **`backup-cron.js`** créé automatiquement si absent après `git clone`
-- 🛡️ Jail Fail2ban `[kazypanel]` ajouté automatiquement
-- 📋 Logrotate configuré à l'installation
-- 📦 Paquet `s-nail` ajouté (SMTP)
+---
 
 ### v1.4.0 — 2026-03-25
-- ✨ **Explorateur de fichiers utilisateur** — navigation arborescence, vue liste/grille, fil d'Ariane
-- ✏️ **Éditeur de fichiers intégré** — édition en ligne avec coloration (PHP, HTML, CSS, JS, JSON, .htaccess…)
-- 🔒 **Gestion des permissions** (chmod) — interface visuelle avec cases à cocher
-- 🖱️ **Menu contextuel clic droit** — ouvrir, éditer, télécharger, renommer, supprimer, chmod
-- ⬆️ **Upload de fichiers** — multi-fichiers avec barre de progression
-- 🔄 **Mise à jour one-click** depuis le modal — git pull + npm install + restart avec logs en temps réel
-- 🗄️ **BIND9** ajouté au dashboard statut, uptime et contrôle des services
-- 📋 **Logs panel améliorés** — format structuré (INFO/WARN/ERROR), fichier d'erreurs séparé, alertes brute-force, modal de consultation avec filtres
-- 🔑 **Historique connexions enrichi** — navigateur détecté, IP dans Détails
-- 📧 **Configuration SMTP** — relay email avec test d'envoi intégré
-- 🔑 **Gestion clés SSH** — ajout/suppression `authorized_keys` par utilisateur
-- 💾 **Sauvegardes planifiées** — cron configurable + rétention automatique
-- 🌐 **Configuration réseau FTP** — ports passifs et IP publique configurables
-- ⏱️ **NTP** — serveur de temps configurable depuis le panel
-- 📜 **Statut SSL** — expiration des certificats Let's Encrypt dans Configuration
-- ⚙️ **Limites par défaut** — configurables pour les nouveaux utilisateurs
-- 🔐 **Expiration JWT** — durée de session configurable (1h à 30j)
-- 🐛 Fix : `named-checkconf` / `named-checkzone` — résolution dynamique du chemin
-- 🐛 Fix : modal Mise à jour — version lue depuis `version.json` local en priorité
-- 🐛 Fix : IDs dupliqués dans les formulaires
+
+- ✨ Explorateur de fichiers utilisateur, éditeur intégré, chmod visuel, menu contextuel
+- Mise à jour one-click, BIND9 dans le dashboard, logs structurés
+- SMTP, clés SSH, sauvegardes planifiées, réseau FTP, NTP, expiration JWT
+
+---
 
 ### v1.4.0 — 2026-03-23
+
+- Première version publique stable
