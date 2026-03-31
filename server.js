@@ -18,8 +18,7 @@ const os         = require('os');
 const crypto     = require('crypto');
 const net        = require('net');
 const tls        = require('tls');
-const cors       = null; // remplacé par middleware natif
-const helmet     = null; // remplacé par middleware natif
+// cors et helmet remplacés par middleware natif (voir app.use sécurité & CORS)
 
 // ─── JWT NATIF (remplace jsonwebtoken) ────────────────────────────────────────
 const jwt = {
@@ -53,7 +52,6 @@ function parseDuration(d) {
 const bcrypt = {
   async hash(password, rounds = 12) {
     const salt = crypto.randomBytes(16);
-    const cost = Math.pow(2, rounds); // scrypt N = 2^rounds
     const key  = await new Promise((res, rej) =>
       crypto.scrypt(password, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => e ? rej(e) : res(k))
     );
@@ -68,7 +66,10 @@ const bcrypt = {
         try {
           const bc = require('bcryptjs');
           return await bc.compare(password, hash);
-        } catch { return false; }
+        } catch (e) {
+          console.warn('⚠️  bcryptjs indisponible pour ancien hash — installez bcryptjs ou migrez les mots de passe :', e.message);
+          return false;
+        }
       }
       const parts = hash.split('$');
       if (parts[1] !== 'scrypt') return false;
@@ -173,7 +174,35 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.6.0';
+const KAZYPANEL_VERSION = '1.7.0';
+
+// ─── MICRO-CACHE ──────────────────────────────────────────────────────────────
+// Cache en mémoire pour les routes coûteuses (shell commands).
+// TTL configurable par route — invalide automatiquement à l'expiration.
+const _cache = new Map(); // key → { data, expiresAt }
+
+function cacheGet(key) {
+  const entry = _cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _cache.delete(key); return null; }
+  return entry.data;
+}
+
+function cacheSet(key, data, ttlMs) {
+  _cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+function cacheInvalidate(...keys) {
+  keys.forEach(k => _cache.delete(k));
+}
+
+// TTL par route (ms)
+const CACHE_TTL = {
+  status:  8000,   // /api/status   — 8s  (services systèmes)
+  domains: 5000,   // /api/domains  — 5s  (liste des vhosts)
+  users:   10000,  // /api/users    — 10s (liste utilisateurs)
+};
+
 
 // ─── NETTOYAGE DÉMARRAGE ──────────────────────────────────────────────────────
 (function cleanupOnStart() {
@@ -400,10 +429,23 @@ async function initUsers() {
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 // ─── SÉCURITÉ & CORS — natif (sans helmet ni cors) ───────────────────────────
 app.use((req, res, next) => {
-  // CORS
-  const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // CORS — origines autorisées : même hôte uniquement (+ PANEL_ALLOWED_ORIGINS si défini)
+  const allowedOrigins = (process.env.PANEL_ALLOWED_ORIGINS || '')
+    .split(',').map(o => o.trim()).filter(Boolean);
+  const reqOrigin = req.headers.origin || '';
+  const isSameHost = !reqOrigin
+    || reqOrigin.includes(req.headers.host)
+    || allowedOrigins.includes(reqOrigin);
+
+  if (isSameHost && reqOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else if (!reqOrigin) {
+    // Requête directe (curl, Postman…) — pas de header Origin à poser
+  } else {
+    // Origine non autorisée — on répond sans header CORS (le navigateur bloquera)
+    if (req.method === 'OPTIONS') { res.sendStatus(204); return; }
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
   if (req.method === 'OPTIONS') { res.sendStatus(204); return; }
@@ -411,6 +453,7 @@ app.use((req, res, next) => {
   // Headers sécurité (équivalent helmet)
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
@@ -424,7 +467,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use((req, res, next) => {
   const ae = req.headers['accept-encoding'] || '';
   if (!ae.includes('gzip')) return next();
-  const origSend = res.send.bind(res);
   const origJson = res.json.bind(res);
   res.json = function(body) {
     const str = JSON.stringify(body);
@@ -525,7 +567,7 @@ function log(action, detail, status = 'OK', ip = null) {
 // utilisateur non-privilégié (ex: debian). Assurez-vous que /etc/sudoers.d/kazypanel
 // autorise ces commandes en NOPASSWD pour l'utilisateur qui lance KazyPanel.
 const SUDO_PREFIXES = [
-  'a2ensite', 'a2dissite', 'a2enmod',
+  'a2ensite', 'a2dissite', 'a2enmod', 'a2enconf', 'a2disconf',
   'systemctl',
   'useradd', 'userdel', 'usermod',
   'chpasswd',
@@ -533,6 +575,7 @@ const SUDO_PREFIXES = [
   'mkdir',
   'cp ',
   'rm -rf', 'rm -f',
+  'ln -sf',
   'rndc',
   'named-checkzone', 'named-checkconf',
   'certbot',
@@ -545,6 +588,8 @@ const SUDO_PREFIXES = [
   'apache2ctl', 'apachectl',
   'bash -c "source',
   'passwd ',
+  'apt-get ',
+  'apt ',
 ];
 
 // Commandes de lecture qui ne nécessitent PAS sudo
@@ -569,6 +614,8 @@ const NO_SUDO_PREFIXES = [
   'tail ',
   'head ',
   'find ',
+  'journalctl ',
+  'ssh -V',
 ];
 
 function needsSudo(cmd) {
@@ -587,6 +634,17 @@ function runCmd(cmd, opts = {}) {
       const msg = (err.stderr?.trim() || err.stdout?.trim() || err.message || 'Commande échouée').split('\n')[0];
       throw new Error(msg);
     });
+}
+
+// Variante retournant { stdout, stderr } — doit être déclarée ici (hoisting async)
+async function runCmdOut(cmd, opts = {}) {
+  const finalCmd = needsSudo(cmd) ? `sudo ${cmd}` : cmd;
+  try {
+    const { stdout, stderr } = await execAsync(finalCmd, { timeout: opts.timeout || 30000, maxBuffer: opts.maxBuffer || 1024 * 1024 });
+    return { stdout, stderr };
+  } catch (err) {
+    throw new Error(err.stderr?.trim() || err.message, { cause: err });
+  }
 }
 
 // Utilise spawn + stdin pour éviter les problèmes d'échappement avec chpasswd
@@ -678,6 +736,11 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).json({ error: 'Identifiants incorrects' });
   }
 
+  if (user.suspended) {
+    log('LOGIN', `${username} — compte suspendu ua:${ua.slice(0,120)}`, 'FAIL', ip);
+    return res.status(403).json({ error: 'Compte suspendu. Contactez l\'administrateur.', suspended: true });
+  }
+
   loginAttempts.delete(ip);
   const token = jwt.sign(
     { id: user.id, username: user.username, role: user.role },
@@ -691,7 +754,7 @@ app.post('/api/login', async (req, res) => {
 // ─── ROUTE: CHANGER LE MOT DE PASSE ──────────────────────────────────────────
 app.post('/api/change-password', authMiddleware, async (req, res) => {
   const { currentPassword, newPassword, confirmPassword } = req.body;
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (!currentPassword || !newPassword || !confirmPassword)
     return res.status(400).json({ error: 'Tous les champs sont requis' });
@@ -847,6 +910,141 @@ app.post('/api/server-config/motd', authMiddleware, adminOnly, async (req, res) 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── ROUTES: ServerTokens / ServerSignature (sécurité Apache) ────────────────
+// On écrit dans un fichier DÉDIÉ pour ne jamais altérer security.conf de Debian
+
+const APACHE_SECURITY_CONF        = '/etc/apache2/conf-available/security.conf';           // lecture seule
+const APACHE_KP_SECURITY_CONF     = '/etc/apache2/conf-available/kazypanel-security.conf'; // fichier KazyPanel
+const APACHE_KP_SECURITY_ENABLED  = '/etc/apache2/conf-enabled/kazypanel-security.conf';
+
+// Lit la valeur active d'une directive Apache (ignore les lignes commentées)
+function readApacheDirective(filePath, directive) {
+  try {
+    const c = fs.readFileSync(filePath, 'utf8');
+    const m = c.match(new RegExp('^\\s*' + directive + '\\s+(\\S+)', 'm'));
+    return m ? m[1].trim() : null;
+  } catch { return null; }
+}
+
+// GET /api/server-config/apache-security
+app.get('/api/server-config/apache-security', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const tokensKP    = readApacheDirective(APACHE_KP_SECURITY_CONF, 'ServerTokens');
+    const signatureKP = readApacheDirective(APACHE_KP_SECURITY_CONF, 'ServerSignature');
+    const tokensDebian    = readApacheDirective(APACHE_SECURITY_CONF, 'ServerTokens');
+    const signatureDebian = readApacheDirective(APACHE_SECURITY_CONF, 'ServerSignature');
+    res.json({
+      serverTokens:    tokensKP    || tokensDebian    || 'OS',
+      serverSignature: signatureKP || signatureDebian || 'On',
+      source: tokensKP ? 'kazypanel' : 'debian',
+      confPath: APACHE_KP_SECURITY_CONF,
+      info: {
+        serverTokens: {
+          description: "Contrôle ce qu'Apache révèle dans le header HTTP \"Server:\"",
+          values: { 'Prod':'Affiche uniquement "Apache" — recommandé', 'Major':'Affiche "Apache/2"', 'Minor':'Affiche "Apache/2.4"', 'OS':'Affiche Apache + OS (défaut Debian)', 'Full':'Affiche tout (déconseillé)' }
+        },
+        serverSignature: {
+          description: "Affiche ou masque la version Apache dans les pages d'erreur",
+          values: { 'Off':'Aucune signature — recommandé', 'On':'Affiche la version Apache', 'Email':'Version + lien ServerAdmin' }
+        }
+      }
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/server-config/apache-security
+app.post('/api/server-config/apache-security', authMiddleware, adminOnly, async (req, res) => {
+  const { serverTokens, serverSignature } = req.body;
+  const validTokens    = ['Prod', 'Major', 'Minor', 'Min', 'OS', 'Full'];
+  const validSignature = ['Off', 'On', 'Email'];
+  if (serverTokens    && !validTokens.includes(serverTokens))
+    return res.status(400).json({ error: `ServerTokens invalide. Valeurs : ${validTokens.join(', ')}` });
+  if (serverSignature && !validSignature.includes(serverSignature))
+    return res.status(400).json({ error: `ServerSignature invalide. Valeurs : ${validSignature.join(', ')}` });
+  if (!serverTokens && !serverSignature)
+    return res.status(400).json({ error: 'Au moins une valeur requise' });
+  try {
+    const curTokens    = readApacheDirective(APACHE_KP_SECURITY_CONF, 'ServerTokens')    || 'OS';
+    const curSignature = readApacheDirective(APACHE_KP_SECURITY_CONF, 'ServerSignature') || 'On';
+    const finalTokens    = serverTokens    || curTokens;
+    const finalSignature = serverSignature || curSignature;
+
+    // Fichier propre — uniquement nos deux directives, aucun bloc <IfModule>
+    const newContent = [
+      '# KazyPanel — securite Apache',
+      '# Genere automatiquement, ne pas modifier manuellement',
+      '',
+      `ServerTokens    ${finalTokens}`,
+      `ServerSignature ${finalSignature}`,
+      ''
+    ].join('\n');
+
+    const tmp = `/tmp/kp_apache_sec_${Date.now()}.conf`;
+
+    fs.writeFileSync(tmp, newContent, 'utf8');
+
+    try {
+      // 1. Copier le fichier dans conf-available
+      await runCmd(`sudo cp "${tmp}" "${APACHE_KP_SECURITY_CONF}" && sudo chmod 644 "${APACHE_KP_SECURITY_CONF}"`);
+
+      // 2. Créer le symlink dans conf-enabled manuellement (sudo ln -sf)
+      await runCmd(`sudo ln -sf "${APACHE_KP_SECURITY_CONF}" "${APACHE_KP_SECURITY_ENABLED}"`);
+
+      // 3. Vérifier la syntaxe avec notre fichier actif
+      await runCmd('apache2ctl -t');
+
+      // 4. Recharger Apache
+      await runCmd('systemctl reload apache2');
+
+    } catch (err) {
+      // Rollback — supprimer symlink et fichier
+      await runCmd(`sudo rm -f "${APACHE_KP_SECURITY_ENABLED}" "${APACHE_KP_SECURITY_CONF}"`).catch(() => {});
+      throw new Error(`Erreur Apache — rollback effectué. Détail : ${err.message}`);
+    } finally {
+      try { fs.unlinkSync(tmp); } catch {}
+    }
+
+    const parts = [];
+    if (serverTokens)    parts.push(`ServerTokens → ${finalTokens}`);
+    if (serverSignature) parts.push(`ServerSignature → ${finalSignature}`);
+    log('APACHE_SECURITY', parts.join(', '), 'OK');
+    res.json({ success: true, message: `Appliqué : ${parts.join(', ')}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/server-config/apache-security/repair — supprime le fichier KazyPanel cassé et recharge Apache
+app.post('/api/server-config/apache-security/repair', authMiddleware, adminOnly, async (req, res) => {
+  const results = [];
+  try {
+    // Désactiver et supprimer le fichier KazyPanel s'il existe
+    if (fs.existsSync(APACHE_KP_SECURITY_ENABLED)) {
+      await runCmd(`sudo rm -f "${APACHE_KP_SECURITY_ENABLED}"`).catch(() => {});
+      results.push('Symlink kazypanel-security supprimé');
+    }
+    if (fs.existsSync(APACHE_KP_SECURITY_CONF)) {
+      await runCmd(`sudo rm -f "${APACHE_KP_SECURITY_CONF}"`);
+      results.push('Fichier kazypanel-security.conf supprimé');
+    }
+    // Nettoyer les éventuels fichiers de test temporaires
+    await runCmd('sudo rm -f /etc/apache2/conf-available/kp_sec_test_*.conf /etc/apache2/conf-enabled/kp_sec_test_*.conf').catch(() => {});
+    results.push('Fichiers temporaires nettoyés');
+
+    // Tester la syntaxe Apache après nettoyage
+    await runCmd('apache2ctl -t');
+    results.push('Syntaxe Apache OK');
+
+    // Recharger Apache
+    await runCmd('systemctl reload apache2');
+    results.push('Apache rechargé avec succès');
+
+    log('APACHE_SECURITY_REPAIR', results.join(' | '), 'OK');
+    res.json({ success: true, message: 'Apache réparé', steps: results });
+  } catch (err) {
+    log('APACHE_SECURITY_REPAIR', err.message, 'ERROR');
+    res.status(500).json({ error: err.message, steps: results });
+  }
+});
+
 // POST /api/server-config/fail2ban — écrire jail.local + créer le filtre kazypanel + redémarrer
 const KAZYPANEL_FILTER = `[Definition]
 # Filtre Fail2ban pour KazyPanel
@@ -906,7 +1104,7 @@ app.post('/api/server-config/timezone', authMiddleware, adminOnly, async (req, r
   if (!timezone || !/^[A-Za-z_/]+$/.test(timezone))
     return res.status(400).json({ error: 'Fuseau horaire invalide' });
   try {
-    await runCmd(`timedatectl set-timezone ${timezone}`);
+    await runCmd(`timedatectl set-timezone "${timezone}"`);
     log('TIMEZONE', `Fuseau changé vers ${timezone}`, 'OK');
     res.json({ success: true, message: `Fuseau horaire défini sur ${timezone}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1267,7 +1465,7 @@ app.post('/api/update/apply', authMiddleware, adminOnly, async (req, res) => {
 
 // ─── ROUTE: LOGS DU PANEL ────────────────────────────────────────────────────
 app.get('/api/logs/panel', authMiddleware, adminOnly, async (req, res) => {
-  const lines  = parseInt(req.query.lines) || 200;
+  const lines  = parseInt(req.query.lines, 10) || 200;
   const level  = req.query.level || 'all'; // all | info | warn | error
   const file   = req.query.type === 'error' ? ERROR_LOG_FILE : CONFIG.LOG_FILE;
   try {
@@ -1310,7 +1508,7 @@ app.post('/api/logs/alerts/read', authMiddleware, adminOnly, (req, res) => {
 app.get('/api/logins', authMiddleware, async (req, res) => {
   const isAdmin = req.user.role === 'admin';
   const filter  = req.query.filter || 'all'; // all | ok | fail
-  const limit   = Math.min(parseInt(req.query.limit) || 100, 500);
+  const limit   = Math.min(parseInt(req.query.limit, 10) || 100, 500);
 
   let logContent = '';
   try { logContent = fs.readFileSync(CONFIG.LOG_FILE, 'utf8'); } catch { logContent = ''; }
@@ -1459,7 +1657,7 @@ app.post('/api/templates', authMiddleware, adminOnly, (req, res) => {
 // Modifier un template
 app.put('/api/templates/:id', authMiddleware, adminOnly, (req, res) => {
   try {
-  const tpl = TEMPLATES.find(t => t.id === parseInt(req.params.id));
+  const tpl = TEMPLATES.find(t => t.id === parseInt(req.params.id, 10));
   if (!tpl) return res.status(404).json({ error: 'Template introuvable' });
 
   const { name, description, ftpLimit, dbLimit, domainLimit, subdomainLimit, diskLimit, dbStorageLimit, cronLimit } = req.body || {};
@@ -1481,7 +1679,7 @@ app.put('/api/templates/:id', authMiddleware, adminOnly, (req, res) => {
 
 // Supprimer un template
 app.delete('/api/templates/:id', authMiddleware, adminOnly, (req, res) => {
-  const idx = TEMPLATES.findIndex(t => t.id === parseInt(req.params.id));
+  const idx = TEMPLATES.findIndex(t => t.id === parseInt(req.params.id, 10));
   if (idx === -1) return res.status(404).json({ error: 'Template introuvable' });
   const [tpl] = TEMPLATES.splice(idx, 1);
   saveTemplates();
@@ -1491,9 +1689,9 @@ app.delete('/api/templates/:id', authMiddleware, adminOnly, (req, res) => {
 
 // Appliquer un template à un utilisateur
 app.post('/api/users/:id/template', authMiddleware, adminOnly, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
-  const tpl = TEMPLATES.find(t => t.id === parseInt(req.body.templateId));
+  const tpl = TEMPLATES.find(t => t.id === parseInt(req.body.templateId, 10));
   if (!tpl) return res.status(404).json({ error: 'Template introuvable' });
 
   user.ftpLimit       = tpl.ftpLimit;
@@ -1514,6 +1712,8 @@ app.post('/api/users/:id/template', authMiddleware, adminOnly, (req, res) => {
 
 // Lister tous les utilisateurs
 app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
+  const cached = cacheGet('users');
+  if (cached) return res.json(cached);
   const users = await Promise.all(USERS.map(async u => {
     // Compter les domaines/sous-domaines
     let domainCount = 0, subdomainCount = 0;
@@ -1555,6 +1755,8 @@ app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
       id: u.id,
       username: u.username,
       role: u.role,
+      suspended:     u.suspended     || false,
+      suspendReason: u.suspendReason || '',
       createdAt: u.createdAt || null,
       ftpAccounts: u.ftpAccounts || [],
       ftpLimit:       u.ftpLimit       ?? CONFIG.FTP_DEFAULT_LIMIT,
@@ -1575,10 +1777,9 @@ app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
       cronCount
     };
   }));
+  cacheSet('users', { users }, CACHE_TTL.users);
   res.json({ users });
 });
-
-// Créer un utilisateur
 app.post('/api/users', authMiddleware, adminOnly, async (req, res) => {
   const { username, password, role = 'user' } = req.body;
 
@@ -1647,6 +1848,7 @@ app.post('/api/users', authMiddleware, adminOnly, async (req, res) => {
   USERS.push(newUser);
   saveUsers();
   log('CREATE_USER', `${username} (rôle: ${role}) par ${req.user.username}`, 'OK');
+  cacheInvalidate('users');
 
   const ftpStatus = ftpInfo ? ` — Compte FTP créé dans ${homeDir}` : ' — ⚠️ Compte FTP non créé (vérifiez les logs)';
   res.status(201).json({
@@ -1776,7 +1978,7 @@ app.post('/api/users/welcome-email', authMiddleware, adminOnly, async (req, res)
 
 // Modifier le rôle d'un utilisateur
 app.put('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (user.username === 'admin') return res.status(403).json({ error: 'Le compte admin ne peut pas être modifié' });
 
@@ -1792,19 +1994,363 @@ app.put('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
     const check = validatePassword(newPassword);
     if (!check.valid) return res.status(400).json({ error: 'Mot de passe trop faible', rules: check.errors });
     user.password = await bcrypt.hash(newPassword, 12);
-
-    // Synchroniser le mot de passe FTP système si le compte existe
     try { await setSystemPassword(user.username, newPassword); } catch {}
   }
 
   saveUsers();
   log('UPDATE_USER', `${user.username} par ${req.user.username}`, 'OK');
+  cacheInvalidate('users');
   res.json({ success: true, message: `Utilisateur ${user.username} mis à jour` });
+});
+
+// ─── SUSPENSION DE COMPTE — PAGE ET VHOSTS ───────────────────────────────────
+
+const SUSPEND_PAGE_DIR  = '/var/www/kazypanel-suspended';
+const SUSPEND_PAGE_FILE = `${SUSPEND_PAGE_DIR}/index.html`;
+
+// Génère la page HTML de suspension — même style que defaultIndexPage
+function buildSuspensionPage(username, reason) {
+  const msg  = (reason || '').trim();
+  const year = new Date().getFullYear();
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${username} — Compte suspendu</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117;
+      --surface: #171c2a;
+      --surface2: #1e2438;
+      --border: rgba(255,255,255,.07);
+      --accent: #4f6ef7;
+      --accent2: #7c8fff;
+      --text: #e8ecf4;
+      --muted: #6b7280;
+      --red: #f87171;
+      --green: #22c55e;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 40px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .header-brand .logo {
+      width: 30px;
+      height: 30px;
+      background: linear-gradient(135deg, var(--accent), #6d5acd);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+    .header-tag { font-size: 11px; color: var(--muted); font-weight: 400; }
+    .header-domain {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: var(--red);
+      background: rgba(248,113,113,.08);
+      border: 1px solid rgba(248,113,113,.2);
+      border-radius: 20px;
+      padding: 4px 14px;
+    }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 24px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 48px 40px;
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(248,113,113,.08);
+      border: 1px solid rgba(248,113,113,.25);
+      color: var(--red);
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 14px;
+      margin-bottom: 28px;
+      letter-spacing: .3px;
+    }
+    .status-badge::before {
+      content: '';
+      display: block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 0 2px rgba(248,113,113,.25);
+    }
+    .card h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      letter-spacing: -.3px;
+    }
+    .card h1 span { color: var(--red); }
+    .card .subtitle {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+    .info-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      text-align: left;
+      margin-bottom: 14px;
+    }
+    .info-box .info-title {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: var(--muted); }
+    .info-value { font-family: 'Courier New', monospace; font-weight: 600; color: var(--text); }
+    .reason-box {
+      background: rgba(248,113,113,.05);
+      border: 1px solid rgba(248,113,113,.15);
+      border-radius: 10px;
+      padding: 16px 20px;
+      text-align: left;
+      margin-bottom: 14px;
+    }
+    .reason-box .info-title { color: var(--red); }
+    .reason-text { font-size: 13px; color: #d1d5db; line-height: 1.65; }
+    code {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: var(--accent2);
+      background: rgba(79,110,247,.08);
+      border: 1px solid rgba(79,110,247,.15);
+      border-radius: 5px;
+      padding: 2px 7px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 16px 24px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    footer a { color: var(--accent2); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a class="header-brand" href="https://www.kazylax.fr" target="_blank" rel="noopener">
+      <div class="logo">🛡️</div>
+      <div>
+        <div>KazyPanel</div>
+        <div class="header-tag">pour hébergeur de site</div>
+      </div>
+    </a>
+    <div class="header-domain">⏸ ${username}</div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="status-badge">Compte suspendu</div>
+      <h1>Ce site est <span>temporairement</span> indisponible</h1>
+      <p class="subtitle">
+        L'accès à cet hébergement a été désactivé par l'administrateur.<br>
+        Vos fichiers et données restent intégralement conservés.
+      </p>
+
+      <hr class="divider">
+
+      ${msg ? `<div class="reason-box">
+        <div class="info-title">📋 Motif communiqué</div>
+        <p class="reason-text">${msg.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+      </div>` : ''}
+
+      <div class="info-box">
+        <div class="info-title">ℹ️ Informations</div>
+        <div class="info-row">
+          <span class="info-label">Compte</span>
+          <span class="info-value">${username}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Statut</span>
+          <span style="color:var(--red);font-weight:700;font-size:12px">⏸ Suspendu</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Fichiers</span>
+          <span style="color:var(--green);font-weight:600;font-size:12px">✓ Intacts</span>
+        </div>
+      </div>
+
+      <div class="info-box">
+        <div class="info-title">📩 Que faire ?</div>
+        <p style="font-size:13px;color:#9ca3af;line-height:1.6">
+          Contactez votre administrateur d'hébergement pour obtenir des informations sur la réactivation de votre compte.
+          Mentionnez votre identifiant <code>${username}</code>.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    &copy; ${year} <a href="https://www.kazylax.fr" target="_blank" rel="noopener">kazylax.fr</a>
+    &nbsp;·&nbsp; KazyPanel pour hébergeur de site &nbsp;·&nbsp;
+    By <a href="https://www.kazylax.fr" target="_blank" rel="noopener">www.kazylax.fr</a>
+  </footer>
+
+</body>
+</html>`;
+}
+
+// Écrit la page et configure/déconfigure les vhosts d'un utilisateur
+async function applySuspensionToVhosts(user, suspend, reason) {
+  const username = user.username;
+
+  // 1. Préparer le dossier de suspension avec la page HTML
+  if (suspend) {
+    try {
+      await runCmd(`sudo mkdir -p "${SUSPEND_PAGE_DIR}"`);
+      const tmpPage = `/tmp/kp_suspend_page_${Date.now()}.html`;
+      fs.writeFileSync(tmpPage, buildSuspensionPage(username, reason), 'utf8');
+      // Écrire index.html ET index.php (pour les sites PHP qui servent index.php par défaut)
+      await runCmd(`sudo cp "${tmpPage}" "${SUSPEND_PAGE_DIR}/index.html" && sudo chmod 644 "${SUSPEND_PAGE_DIR}/index.html"`);
+      await runCmd(`sudo cp "${tmpPage}" "${SUSPEND_PAGE_DIR}/index.php" && sudo chmod 644 "${SUSPEND_PAGE_DIR}/index.php"`);
+      // .htaccess vide pour désactiver tout override du site
+      await runCmd(`sudo bash -c 'echo "" > "${SUSPEND_PAGE_DIR}/.htaccess"' && sudo chmod 644 "${SUSPEND_PAGE_DIR}/.htaccess"`);
+      fs.unlinkSync(tmpPage);
+    } catch(e) { log('SUSPEND_VHOST', `Impossible de créer la page: ${e.message}`, 'ERROR'); return; }
+  }
+
+  // 2. Parcourir tous les vhosts de l'utilisateur
+  if (!fs.existsSync(CONFIG.APACHE_SITES_PATH)) return;
+  const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
+    .filter(f => f.endsWith('.conf')
+      && !['000-default.conf','default-ssl.conf'].includes(f)
+      && !f.includes('-le-ssl.conf')
+      && !f.includes('phpmyadmin'));
+
+  let changed = false;
+  for (const file of files) {
+    const confPath = path.join(CONFIG.APACHE_SITES_PATH, file);
+    let conf = fs.readFileSync(confPath, 'utf8');
+    const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
+    if (!userOwnsDocRoot(user, docRoot)) continue;
+
+    if (suspend) {
+      if (conf.includes('# KP-SUSPENDED')) continue; // déjà suspendu
+      // Sauvegarder le DocumentRoot original dans un commentaire
+      // Remplacer DocumentRoot + AllowOverride pour pointer vers la page de suspension
+      conf = conf
+        .replace(/(DocumentRoot\s+)(.+)/, `$1${SUSPEND_PAGE_DIR} # KP-SUSPENDED-ORIG:$2`)
+        .replace(/AllowOverride\s+\S+/, 'AllowOverride None # KP-SUSPENDED');
+    } else {
+      if (!conf.includes('# KP-SUSPENDED')) continue; // pas suspendu
+      // Restaurer le DocumentRoot original
+      conf = conf
+        .replace(/DocumentRoot\s+\S+\s*# KP-SUSPENDED-ORIG:(.+)/, 'DocumentRoot $1')
+        .replace(/AllowOverride\s+\S+\s*# KP-SUSPENDED/, 'AllowOverride All');
+    }
+
+    const tmp = `/tmp/kp_vhost_susp_${Date.now()}.conf`;
+    fs.writeFileSync(tmp, conf);
+    await runCmd(`sudo cp "${tmp}" "${confPath}" && sudo chmod 644 "${confPath}"`);
+    fs.unlinkSync(tmp);
+    changed = true;
+    log('SUSPEND_VHOST', `${suspend ? '⏸' : '▶️'} ${file} → ${suspend ? SUSPEND_PAGE_DIR : docRoot}`, 'OK');
+  }
+
+  if (changed) {
+    await runCmd('systemctl reload apache2').catch(() => {});
+  }
+}
+
+// ─── ROUTE: SUSPENDRE / RÉACTIVER un utilisateur (admin) ─────────────────────
+app.patch('/api/users/:id/suspend', authMiddleware, adminOnly, async (req, res) => {
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  if (user.username === 'admin') return res.status(403).json({ error: 'Impossible de suspendre le compte admin' });
+  const { suspended, reason = '' } = req.body;
+  if (typeof suspended !== 'boolean') return res.status(400).json({ error: 'Le champ "suspended" (boolean) est requis' });
+
+  cacheInvalidate('users');
+  user.suspended       = suspended;
+  user.suspendReason   = suspended ? reason.trim().slice(0, 500) : '';
+  saveUsers();
+
+  const action = suspended ? 'suspendu' : 'réactivé';
+  log('SUSPEND_USER', `${user.username} ${action} par ${req.user.username}${reason ? ` — motif: ${reason.slice(0,80)}` : ''}`, 'OK');
+
+  // Appliquer/retirer la page de suspension sur tous les vhosts de l'utilisateur
+  applySuspensionToVhosts(user, suspended, reason).catch(e =>
+    log('SUSPEND_VHOST', `Erreur vhosts ${user.username}: ${e.message}`, 'ERROR')
+  );
+
+  res.json({ success: true, suspended, message: `Compte ${user.username} ${action}` });
 });
 
 // Supprimer un utilisateur
 app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
-  const idx = USERS.findIndex(u => u.id === parseInt(req.params.id));
+  const idx = USERS.findIndex(u => u.id === parseInt(req.params.id, 10));
   if (idx === -1) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (USERS[idx].username === 'admin')
     return res.status(403).json({ error: 'Le compte admin ne peut pas être supprimé' });
@@ -1870,6 +2416,7 @@ app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
 
   saveUsers();
   log('DELETE_USER', `${deleted.username} par ${req.user.username}`, 'OK');
+  cacheInvalidate('users', 'domains');
 
   const msg = errors.length
     ? `Utilisateur ${deleted.username} supprimé (${errors.length} avertissement(s) : ${errors.join(', ')})`
@@ -1880,7 +2427,7 @@ app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
 
 // ─── ROUTE: IMPERSONATION (admin → token utilisateur) ────────────────────────
 app.post('/api/users/:id/impersonate', authMiddleware, adminOnly, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (user.username === 'admin') return res.status(403).json({ error: 'Impossible d\'impersonner le compte admin' });
 
@@ -2031,7 +2578,7 @@ async function deleteFtpSystemAccount(ftpUsername) {
 
 // Lister les comptes FTP d'un utilisateur
 app.get('/api/users/:id/ftp', authMiddleware, adminOnly, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json({
     ftpAccounts: user.ftpAccounts || [],
@@ -2041,7 +2588,7 @@ app.get('/api/users/:id/ftp', authMiddleware, adminOnly, (req, res) => {
 
 // Créer un compte FTP (admin — contourne la limite)
 app.post('/api/users/:id/ftp', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const { ftpPassword, ftpSuffix, ftpDir } = req.body;
@@ -2074,7 +2621,7 @@ app.post('/api/users/:id/ftp', authMiddleware, adminOnly, async (req, res) => {
 
 // Changer le mot de passe d'un compte FTP (admin)
 app.put('/api/users/:id/ftp/:ftpUser', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const ftpUser = req.params.ftpUser;
   if (!user.ftpAccounts || !user.ftpAccounts.find(a => a.ftpUsername === ftpUser))
@@ -2092,7 +2639,7 @@ app.put('/api/users/:id/ftp/:ftpUser', authMiddleware, adminOnly, async (req, re
 
 // Supprimer un compte FTP (admin)
 app.delete('/api/users/:id/ftp/:ftpUser', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const ftpUser = req.params.ftpUser;
   if (!user.ftpAccounts || !user.ftpAccounts.find(a => a.ftpUsername === ftpUser))
@@ -2108,7 +2655,7 @@ app.delete('/api/users/:id/ftp/:ftpUser', authMiddleware, adminOnly, async (req,
 
 // Définir la limite de comptes FTP (admin)
 app.put('/api/users/:id/ftplimit', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { limit } = req.body;
   if (typeof limit !== 'number' || limit < 0 || limit > 20)
@@ -2123,7 +2670,7 @@ app.put('/api/users/:id/ftplimit', authMiddleware, adminOnly, async (req, res) =
 
 // Lister mes comptes FTP
 app.get('/api/me/ftp', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json({
     ftpAccounts: user.ftpAccounts || [],
@@ -2134,7 +2681,7 @@ app.get('/api/me/ftp', authMiddleware, (req, res) => {
 
 // Créer un de mes comptes FTP
 app.post('/api/me/ftp', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const limit = user.ftpLimit ?? CONFIG.FTP_DEFAULT_LIMIT;
@@ -2203,7 +2750,7 @@ app.post('/api/me/ftp', authMiddleware, async (req, res) => {
 
 // Changer le mot de passe d'un de mes comptes FTP
 app.put('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const ftpUser = req.params.ftpUser;
   // Vérifier que le compte appartient bien à cet utilisateur
@@ -2221,7 +2768,7 @@ app.put('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
 });
 
 app.delete('/api/me/ftp/:ftpUser', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const ftpUser = req.params.ftpUser;
   if (!user.ftpAccounts || !user.ftpAccounts.find(a => a.ftpUsername === ftpUser))
@@ -2324,7 +2871,7 @@ app.get('/api/ftp/diagnostic', authMiddleware, adminOnly, async (req, res) => {
 
 // ─── ROUTE: MON PROFIL (utilisateur connecté) ────────────────────────────────
 app.get('/api/me', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   // Uptime serveur en secondes (via /proc/uptime, plus fiable que la commande uptime)
@@ -2375,6 +2922,8 @@ app.get('/api/me', authMiddleware, async (req, res) => {
     diskLimit:      user.diskLimit      ?? 0,
     // Crontab
     cronLimit:      user.cronLimit      ?? 10,
+    // Statut
+    suspended:      user.suspended      || false,
     // Serveur
     uptimeSeconds
   });
@@ -2384,7 +2933,7 @@ app.get('/api/me', authMiddleware, async (req, res) => {
 
 // Lister les bases de l'utilisateur connecté
 app.get('/api/me/databases', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const databases = await getUserDatabases(user.username);
   const limit = user.dbLimit ?? CONFIG.DB_DEFAULT_LIMIT;
@@ -2393,7 +2942,7 @@ app.get('/api/me/databases', authMiddleware, async (req, res) => {
 
 // Créer une base de données
 app.post('/api/me/databases', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const { dbName, dbPassword } = req.body;
@@ -2441,7 +2990,7 @@ app.post('/api/me/databases', authMiddleware, async (req, res) => {
 
 // Supprimer une base de données
 app.delete('/api/me/databases/:name', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const safeName = req.params.name.replace(/[^a-zA-Z0-9_]/g, '');
@@ -2460,7 +3009,7 @@ app.delete('/api/me/databases/:name', authMiddleware, async (req, res) => {
 
 // ─── ROUTE ADMIN : définir la limite de BDD d'un utilisateur ─────────────────
 app.put('/api/users/:id/dblimit', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const { limit } = req.body;
@@ -2474,9 +3023,9 @@ app.put('/api/users/:id/dblimit', authMiddleware, adminOnly, async (req, res) =>
 });
 
 app.put('/api/users/:id/dbstoragelimit', authMiddleware, adminOnly, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
-  const mb = parseInt(req.body.limit);
+  const mb = parseInt(req.body.limit, 10);
   if (isNaN(mb) || mb < 0) return res.status(400).json({ error: 'Quota invalide (Mo, 0 = illimité)' });
   user.dbStorageLimit = mb;
   saveUsers();
@@ -2487,7 +3036,7 @@ app.put('/api/users/:id/dbstoragelimit', authMiddleware, adminOnly, (req, res) =
 
 // ─── ROUTE ADMIN : quota disque utilisateur ──────────────────────────────────
 app.put('/api/users/:id/disklimit', authMiddleware, adminOnly, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { limit } = req.body;
   const mb = parseInt(limit);
@@ -2501,7 +3050,7 @@ app.put('/api/users/:id/disklimit', authMiddleware, adminOnly, (req, res) => {
 
 // Usage disque réel d'un utilisateur
 app.get('/api/users/:id/diskusage', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const userDir = `${CONFIG.FTP_ROOT}/${user.username}`;
   let usedMb = 0;
@@ -2518,7 +3067,7 @@ app.get('/api/users/:id/diskusage', authMiddleware, adminOnly, async (req, res) 
 
 // Usage disque — route utilisateur (profil)
 app.get('/api/me/diskusage', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const userDir = `${CONFIG.FTP_ROOT}/${user.username}`;
   let usedMb = 0;
@@ -2578,9 +3127,16 @@ async function writeUserCrontabFile(username, content) {
   await runCmd(`sudo cp "${tmpPath}" "${filePath}" && sudo chmod 600 "${filePath}" && sudo chown ${username}: "${filePath}" 2>/dev/null; rm -f "${tmpPath}"`);
 }
 
+// GET /crontab/simple — page simplifiée pour débutants
+app.get('/crontab/simple', authMiddleware, (req, res) => {
+  const p = path.join(__dirname, 'public', 'crontab-simple.html');
+  if (fs.existsSync(p)) return res.sendFile(p);
+  res.status(404).send('Page introuvable — assurez-vous que public/crontab-simple.html est présent.');
+});
+
 // GET /api/me/crontab
 app.get('/api/me/crontab', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   try {
     const raw = readUserCrontabFile(user.username);
@@ -2590,7 +3146,7 @@ app.get('/api/me/crontab', authMiddleware, async (req, res) => {
 
 // POST /api/me/crontab — ajouter une entrée
 app.post('/api/me/crontab', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { label = '', schedule, command } = req.body;
   if (!schedule || !command) return res.status(400).json({ error: 'schedule et command requis' });
@@ -2618,9 +3174,9 @@ app.post('/api/me/crontab', authMiddleware, async (req, res) => {
 
 // DELETE /api/me/crontab/:id — supprimer une entrée par index
 app.delete('/api/me/crontab/:id', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
-  const targetId = parseInt(req.params.id);
+  const targetId = parseInt(req.params.id, 10);
   if (isNaN(targetId)) return res.status(400).json({ error: 'ID invalide' });
   try {
     const raw   = readUserCrontabFile(user.username);
@@ -2676,7 +3232,7 @@ const TEXT_EXTS = new Set([
 
 // GET /api/me/files — lister un dossier
 app.get('/api/me/files', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   try {
     const dir = safeUserPath(user, req.query.path || '');
@@ -2715,7 +3271,7 @@ app.get('/api/me/files', authMiddleware, async (req, res) => {
 
 // GET /api/me/files/content — lire un fichier
 app.get('/api/me/files/content', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   try {
     const file = safeUserPath(user, req.query.path || '');
@@ -2732,7 +3288,7 @@ app.get('/api/me/files/content', authMiddleware, async (req, res) => {
 
 // PUT /api/me/files/content — sauvegarder un fichier édité
 app.put('/api/me/files/content', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { path: reqPath, content } = req.body;
   if (content === undefined) return res.status(400).json({ error: 'Contenu requis' });
@@ -2751,7 +3307,7 @@ app.put('/api/me/files/content', authMiddleware, async (req, res) => {
 
 // POST /api/me/files/mkdir — créer un dossier
 app.post('/api/me/files/mkdir', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { path: reqPath } = req.body;
   if (!reqPath) return res.status(400).json({ error: 'Chemin requis' });
@@ -2766,7 +3322,7 @@ app.post('/api/me/files/mkdir', authMiddleware, async (req, res) => {
 
 // POST /api/me/files/touch — créer un fichier vide
 app.post('/api/me/files/touch', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { path: reqPath } = req.body;
   if (!reqPath) return res.status(400).json({ error: 'Chemin requis' });
@@ -2781,7 +3337,7 @@ app.post('/api/me/files/touch', authMiddleware, async (req, res) => {
 
 // POST /api/me/files/rename — renommer
 app.post('/api/me/files/rename', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { path: reqPath, newName } = req.body;
   if (!reqPath || !newName) return res.status(400).json({ error: 'Chemin et nouveau nom requis' });
@@ -2800,7 +3356,7 @@ app.post('/api/me/files/rename', authMiddleware, async (req, res) => {
 
 // DELETE /api/me/files — supprimer un fichier ou dossier
 app.delete('/api/me/files', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const reqPath = req.body.path || req.query.path;
   if (!reqPath) return res.status(400).json({ error: 'Chemin requis' });
@@ -2836,7 +3392,7 @@ app.get('/api/me/files/download', async (req, res) => {
 
 // POST /api/me/files/upload — uploader un ou plusieurs fichiers
 app.post('/api/me/files/upload', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   // Récupérer les données multipart manuellement avec busboy
@@ -2882,7 +3438,7 @@ app.post('/api/me/files/upload', authMiddleware, async (req, res) => {
 
 // POST /api/me/files/chmod — changer les permissions
 app.post('/api/me/files/chmod', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const { path: reqPath, mode } = req.body;
   if (!reqPath || !mode) return res.status(400).json({ error: 'Chemin et mode requis' });
@@ -2900,7 +3456,7 @@ app.post('/api/me/files/chmod', authMiddleware, async (req, res) => {
 
 // ─── ROUTE ADMIN : lister les bases d'un utilisateur ────────────────────────
 app.get('/api/users/:id/databases', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const databases = await getUserDatabases(user.username);
   const limit = user.dbLimit ?? CONFIG.DB_DEFAULT_LIMIT;
@@ -2909,7 +3465,7 @@ app.get('/api/users/:id/databases', authMiddleware, adminOnly, async (req, res) 
 
 // ─── ROUTE ADMIN : supprimer une base d'un utilisateur ──────────────────────
 app.delete('/api/users/:id/databases/:dbname', authMiddleware, adminOnly, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.params.id));
+  const user = USERS.find(u => u.id === parseInt(req.params.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const safeName = req.params.dbname.replace(/[^a-zA-Z0-9_]/g, '');
   if (!safeName.startsWith(`${user.username}_`))
@@ -2937,7 +3493,7 @@ async function getDbSizeMb(dbName) {
 app.get('/api/databases/:dbname/usage', authMiddleware, async (req, res) => {
   const isAdmin = req.user.role === 'admin';
   const dbname  = req.params.dbname.replace(/[^a-zA-Z0-9_]/g, '');
-  const user    = USERS.find(u => u.id === parseInt(req.user.id));
+  const user    = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!isAdmin) {
     const dbs = await getUserDatabases(user.username).catch(() => []);
     if (!dbs.includes(dbname)) return res.status(403).json({ error: 'Cette base ne vous appartient pas' });
@@ -2954,7 +3510,8 @@ function getUserFtpDirs(user) {
 }
 
 function userOwnsDocRoot(user, docRoot) {
-  return getUserFtpDirs(user).some(dir => docRoot.startsWith(dir));
+  if (!user || !docRoot) return false;
+  return getUserFtpDirs(user).some(dir => dir && docRoot.startsWith(dir));
 }
 
 function getPrimaryFtpDir(user) {
@@ -2965,7 +3522,7 @@ function getPrimaryFtpDir(user) {
 
 // Lister les domaines de l'utilisateur connecté
 app.get('/api/me/domains', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (!user.ftpAccounts || !user.ftpAccounts.length)
     return res.status(403).json({ error: 'Aucun compte FTP configuré. Contactez l\'administrateur.' });
@@ -3026,7 +3583,7 @@ app.get('/api/me/domains', authMiddleware, (req, res) => {
 
 // Créer un domaine/sous-domaine dans le répertoire FTP de l'utilisateur
 app.post('/api/me/domains', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (!user.ftpAccounts || !user.ftpAccounts.length)
     return res.status(403).json({ error: 'Aucun compte FTP configuré. Contactez l\'administrateur.' });
@@ -3125,7 +3682,7 @@ app.post('/api/me/domains', authMiddleware, async (req, res) => {
 
 // Voir la configuration Apache d'un domaine (utilisateur)
 app.get('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user || !user.ftpAccounts || !user.ftpAccounts.length) return res.status(403).json({ error: 'Accès refusé' });
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
   const confFile = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
@@ -3138,7 +3695,7 @@ app.get('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
 
 // Modifier la configuration Apache d'un domaine (utilisateur)
 app.put('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user || !user.ftpAccounts || !user.ftpAccounts.length)
     return res.status(403).json({ error: 'Accès refusé' });
 
@@ -3192,7 +3749,7 @@ app.put('/api/me/domains/:name/config', authMiddleware, async (req, res) => {
 
 // Supprimer un domaine de l'utilisateur
 app.delete('/api/me/domains/:name', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user || !user.ftpAccounts || !user.ftpAccounts.length)
     return res.status(403).json({ error: 'Aucun compte FTP configuré.' });
 
@@ -3222,8 +3779,11 @@ app.delete('/api/me/domains/:name', authMiddleware, async (req, res) => {
 // ─── ROUTE: JOURNAUX APACHE D'UN DOMAINE UTILISATEUR ─────────────────────────
 // GET /api/me/domains/:name/logs?type=error|access&lines=100
 app.get('/api/me/domains/:name/logs', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
-  if (!user || !user.ftpAccounts || !user.ftpAccounts.length)
+  const user    = USERS.find(u => u.id === parseInt(req.user.id, 10));
+  const isAdmin = req.user.role === 'admin';
+
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  if (!isAdmin && (!user.ftpAccounts || !user.ftpAccounts.length))
     return res.status(403).json({ error: 'Accès refusé' });
 
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
@@ -3232,11 +3792,13 @@ app.get('/api/me/domains/:name/logs', authMiddleware, (req, res) => {
 
   const conf = fs.readFileSync(confFile, 'utf8');
   const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
-  if (!userOwnsDocRoot(user, docRoot))
+
+  // Vérification propriété uniquement pour les non-admins
+  if (!isAdmin && !userOwnsDocRoot(user, docRoot))
     return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
 
   const type  = (req.query.type  === 'access') ? 'access' : 'error';
-  const lines = Math.min(Math.max(parseInt(req.query.lines) || 100, 10), 1000);
+  const lines = Math.min(Math.max(parseInt(req.query.lines, 10) || 100, 10), 1000);
 
   // Résoudre le chemin réel du log depuis la directive ErrorLog / CustomLog du .conf
   // Apache résout ${APACHE_LOG_DIR} → /var/log/apache2
@@ -3273,6 +3835,8 @@ app.get('/api/me/domains/:name/logs', authMiddleware, (req, res) => {
 // ─── ROUTE: LISTER LES DOMAINES (admin seulement) ────────────────────────────
 app.get('/api/domains', authMiddleware, adminOnly, (req, res) => {
   try {
+    const cached = cacheGet('domains');
+    if (cached) return res.json(cached);
     if (!fs.existsSync(CONFIG.APACHE_SITES_PATH)) return res.json({ domains: getDemoDomains() });
     const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
       .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'));
@@ -3312,6 +3876,7 @@ app.get('/api/domains', authMiddleware, adminOnly, (req, res) => {
         sslDaysLeft
       };
     });
+    cacheSet('domains', { domains }, CACHE_TTL.domains);
     res.json({ domains });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3341,6 +3906,7 @@ app.post('/api/domains', authMiddleware, adminOnly, async (req, res) => {
     await runCmd(`a2ensite ${safeDomain}.conf`);
     await runCmd('systemctl reload apache2');
     log('CREATE_DOMAIN', safeDomain, 'OK');
+    cacheInvalidate('domains');
     res.json({ success: true, message: `Domaine ${safeDomain} créé avec succès`, domain: safeDomain });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3583,6 +4149,7 @@ app.put('/api/domains/:name', authMiddleware, adminOnly, async (req, res) => {
     try { fs.unlinkSync(tmpConf); } catch {}
     await runCmd(`systemctl reload apache2`);
     log('UPDATE_DOMAIN', safeName, 'OK');
+    cacheInvalidate('domains');
     res.json({ success: true, message: `Domaine ${safeName} mis à jour` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3601,6 +4168,7 @@ app.delete('/api/domains/:name', authMiddleware, adminOnly, async (req, res) => 
     if (deleteFiles) await runCmd(`rm -rf "${CONFIG.WEB_ROOT}/${safeName}"`);
     await runCmd(`systemctl reload apache2`);
     log('DELETE_DOMAIN', safeName, 'OK');
+    cacheInvalidate('domains');
     res.json({ success: true, message: `Domaine ${safeName} supprimé` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3614,12 +4182,15 @@ app.post('/api/domains/:name/toggle', authMiddleware, adminOnly, async (req, res
     await runCmd(`${enable ? 'a2ensite' : 'a2dissite'} ${safeName}.conf`);
     await runCmd('systemctl reload apache2');
     log('TOGGLE_DOMAIN', `${safeName} → ${enable ? 'activé' : 'désactivé'}`, 'OK');
+    cacheInvalidate('domains');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── ROUTE: STATUT SERVEUR (admin seulement) ─────────────────────────────────
 app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
+  const cached = cacheGet('status');
+  if (cached) return res.json(cached);
   const s = {};
   try { await runCmd('systemctl is-active apache2'); s.apache = 'running'; } catch { s.apache = 'stopped'; }
   try { await runCmd(`systemctl is-active php${CONFIG.PHP_VERSION}-fpm`); s.php = 'running'; } catch { s.php = 'stopped'; }
@@ -3693,6 +4264,7 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   try { s.domains = fs.existsSync(CONFIG.APACHE_SITES_PATH) ? fs.readdirSync(CONFIG.APACHE_SITES_PATH).filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin')).length : 0; } catch { s.domains = 0; }
   s.users = USERS.length;
 
+  cacheSet('status', s, CACHE_TTL.status);
   res.json(s);
 });
 
@@ -3754,6 +4326,7 @@ app.post('/api/services/:service/:action', authMiddleware, adminOnly, async (req
     let newStatus = 'stopped';
     try { await runCmd(`systemctl is-active ${service}`); newStatus = 'running'; } catch {}
     log('SERVICE_CTRL', `${action} ${service} par ${req.user.username}`, 'OK');
+    cacheInvalidate('status');
     res.json({ success: true, message: `${allowed[service]} : ${action} effectué`, status: newStatus });
   } catch (err) {
     res.status(500).json({ error: `Erreur lors de ${action} sur ${service} : ${err.message}` });
@@ -3792,7 +4365,7 @@ app.post('/api/domains/:name/ssl', authMiddleware, adminOnly, async (req, res) =
 // Renouveler tous les certificats
 // ─── ROUTE: SSL UTILISATEUR ───────────────────────────────────────────────────
 app.post('/api/me/domains/:name/ssl', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
@@ -3939,7 +4512,7 @@ app.delete('/api/config/ssh-keys/:id', authMiddleware, adminOnly, async (req, re
     const content  = await runCmd(`sudo cat "${authFile}" 2>/dev/null`).catch(() => '');
     if (!content.trim()) return res.status(404).json({ error: 'Fichier introuvable ou vide' });
     const nonEmpty = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-    const idx = parseInt(req.params.id);
+    const idx = parseInt(req.params.id, 10);
     if (idx < 0 || idx >= nonEmpty.length) return res.status(404).json({ error: 'Clé introuvable' });
     nonEmpty.splice(idx, 1);
     const tmp = `/tmp/kp_ak_del_${Date.now()}`;
@@ -4100,16 +4673,54 @@ app.get('/api/config/ssl-status', authMiddleware, adminOnly, async (req, res) =>
     const out = await runCmd('certbot certificates 2>/dev/null').catch(() => '');
     const certs = [];
     const blocks = out.split('Certificate Name:').slice(1);
+
+    // Construire la liste des domaines ayant un vhost Apache réel
+    const knownDomains = new Set();
+    try {
+      if (fs.existsSync(CONFIG.APACHE_SITES_PATH)) {
+        fs.readdirSync(CONFIG.APACHE_SITES_PATH)
+          .filter(f => f.endsWith('.conf')
+            && !['000-default.conf', 'default-ssl.conf'].includes(f)
+            && !f.includes('-le-ssl.conf')
+            && !f.includes('phpmyadmin'))
+          .forEach(f => {
+            try {
+              const conf = fs.readFileSync(path.join(CONFIG.APACHE_SITES_PATH, f), 'utf8');
+              const sn = (conf.match(/ServerName\s+(\S+)/) || [])[1];
+              const sa = (conf.match(/ServerAlias\s+(.+)/) || [])[1];
+              if (sn) knownDomains.add(sn.trim().toLowerCase());
+              if (sa) sa.trim().split(/\s+/).forEach(d => knownDomains.add(d.toLowerCase()));
+            } catch {}
+          });
+      }
+    } catch {}
+
     for (const block of blocks) {
       const nameM   = block.match(/^\s*(\S+)/);
       const domsM   = block.match(/Domains:\s*(.+)/);
       const expiryM = block.match(/Expiry Date:\s*(\S+\s+\S+\s+\S+)/);
       const validM  = block.match(/VALID: (\d+) days/);
-      if (nameM) certs.push({
-        name:    nameM[1].trim(),
-        domains: domsM  ? domsM[1].trim()  : '',
-        expiry:  expiryM? expiryM[1].trim(): '',
-        daysLeft: validM ? parseInt(validM[1]) : null
+      if (!nameM) continue;
+
+      // Tous les domaines couverts par ce certificat
+      const allDomains = domsM
+        ? domsM[1].trim().split(/\s+/).map(d => d.toLowerCase())
+        : [];
+
+      // Ne garder que ceux qui ont un vhost réel
+      const filteredDomains = knownDomains.size > 0
+        ? allDomains.filter(d => knownDomains.has(d))
+        : allDomains;
+
+      // Si aucun domaine connu dans ce cert, afficher quand même tous
+      const displayDomains = filteredDomains.length > 0 ? filteredDomains : allDomains;
+
+      certs.push({
+        name:       nameM[1].trim(),
+        domains:    displayDomains.join('  '),
+        allDomains: allDomains.join('  '),
+        expiry:     expiryM ? expiryM[1].trim() : '',
+        daysLeft:   validM  ? parseInt(validM[1], 10) : null
       });
     }
     res.json({ certs });
@@ -4188,7 +4799,7 @@ app.get('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
 
   // Vérifier propriété si non admin
   if (!isAdmin) {
-    const user = USERS.find(u => u.id === parseInt(req.user.id));
+    const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
     if (!userOwnsDocRoot(user, docRoot))
       return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
   }
@@ -4213,7 +4824,7 @@ app.put('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
   if (!docRoot) return res.status(400).json({ error: 'DocumentRoot introuvable' });
 
   if (!isAdmin) {
-    const user = USERS.find(u => u.id === parseInt(req.user.id));
+    const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
     if (!userOwnsDocRoot(user, docRoot))
       return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
   }
@@ -4245,7 +4856,7 @@ app.delete('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
   const conf    = fs.readFileSync(confFile, 'utf8');
   const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim();
   if (!isAdmin) {
-    const user = USERS.find(u => u.id === parseInt(req.user.id));
+    const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
     if (!userOwnsDocRoot(user, docRoot))
       return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
   }
@@ -4381,6 +4992,9 @@ function generateVhostConfigSub(domain, docRoot, phpVersion) {
     ErrorLog \${APACHE_LOG_DIR}/${domain}-error.log
     CustomLog \${APACHE_LOG_DIR}/${domain}-access.log combined
 
+    # Masquer la version Apache dans les pages d'erreur
+    ServerSignature Off
+
     <Directory ${docRoot}>
         Options -Indexes +FollowSymLinks
         AllowOverride All
@@ -4394,6 +5008,8 @@ function generateVhostConfigSub(domain, docRoot, phpVersion) {
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set X-XSS-Protection "1; mode=block"
+    Header always unset X-Powered-By
+    Header always unset Server
 </VirtualHost>
 `;
 }
@@ -4406,6 +5022,9 @@ function generateVhostConfig(domain, docRoot, phpVersion, ssl) {
     ErrorLog \${APACHE_LOG_DIR}/${domain}-error.log
     CustomLog \${APACHE_LOG_DIR}/${domain}-access.log combined
 
+    # Masquer la version Apache dans les pages d'erreur
+    ServerSignature Off
+
     <Directory ${docRoot}>
         Options -Indexes +FollowSymLinks
         AllowOverride All
@@ -4419,6 +5038,8 @@ function generateVhostConfig(domain, docRoot, phpVersion, ssl) {
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set X-XSS-Protection "1; mode=block"
+    Header always unset X-Powered-By
+    Header always unset Server
 </VirtualHost>
 `;
 }
@@ -4432,7 +5053,6 @@ function getDemoDomains() {
 }
 
 // ─── DÉMARRAGE ────────────────────────────────────────────────────────────────
-// ─── ROUTE: SAUVEGARDE KAZYPANEL ────────────────────────────────────────────
 // ─── ROUTE: SAUVEGARDE KAZYPANEL ────────────────────────────────────────────
 const BACKUP_DIR = path.join(__dirname, 'backups');
 
@@ -4494,8 +5114,8 @@ app.post('/api/backup', authMiddleware, adminOnly, async (req, res) => {
 // Télécharger une sauvegarde
 app.get('/api/backup/:name', authMiddleware, adminOnly, (req, res) => {
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
-  const filePath = path.join(BACKUP_DIR, safeName);
-  if (!filePath.startsWith(BACKUP_DIR) || !fs.existsSync(filePath))
+  const filePath = path.resolve(BACKUP_DIR, safeName);
+  if (!filePath.startsWith(BACKUP_DIR + path.sep) || !fs.existsSync(filePath))
     return res.status(404).json({ error: 'Fichier introuvable' });
   res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
   res.download(filePath);
@@ -4504,8 +5124,8 @@ app.get('/api/backup/:name', authMiddleware, adminOnly, (req, res) => {
 // Supprimer une sauvegarde
 app.delete('/api/backup/:name', authMiddleware, adminOnly, (req, res) => {
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
-  const filePath = path.join(BACKUP_DIR, safeName);
-  if (!filePath.startsWith(BACKUP_DIR) || !fs.existsSync(filePath))
+  const filePath = path.resolve(BACKUP_DIR, safeName);
+  if (!filePath.startsWith(BACKUP_DIR + path.sep) || !fs.existsSync(filePath))
     return res.status(404).json({ error: 'Fichier introuvable' });
   fs.unlinkSync(filePath);
   log('BACKUP_DELETE', safeName, 'OK');
@@ -4627,8 +5247,8 @@ app.post('/api/ufw/rules', authMiddleware, adminOnly, async (req, res) => {
 // Supprimer une règle UFW par numéro
 app.delete('/api/ufw/rules/:num', authMiddleware, adminOnly, async (req, res) => {
   if (!await ufwAvailable()) return res.status(404).json({ error: 'UFW non installé' });
-  const num = parseInt(req.params.num);
-  if (!num || num < 1) return res.status(400).json({ error: 'Numéro de règle invalide' });
+  const num = parseInt(req.params.num, 10);
+  if (!num || num < 1 || !Number.isFinite(num)) return res.status(400).json({ error: 'Numéro de règle invalide' });
   try {
     await runCmd(`ufw --force delete ${num}`);
     log('UFW_DELETE', `règle #${num} par ${req.user.username}`, 'OK');
@@ -4647,16 +5267,6 @@ function fail2banAvailable() {
 async function f2bCmd(args) {
   const { stdout } = await runCmdOut(`fail2ban-client ${args}`);
   return stdout.trim();
-}
-
-async function runCmdOut(cmd, opts = {}) {
-  const finalCmd = needsSudo(cmd) ? `sudo ${cmd}` : cmd;
-  try {
-    const { stdout, stderr } = await execAsync(finalCmd, { timeout: opts.timeout || 30000, maxBuffer: opts.maxBuffer || 1024 * 1024 });
-    return { stdout, stderr };
-  } catch (err) {
-    throw new Error(err.stderr?.trim() || err.message, { cause: err });
-  }
 }
 
 // GET /api/fail2ban/status — état global + liste des jails avec stats
@@ -4817,41 +5427,63 @@ app.post('/api/security/ban', authMiddleware, adminOnly, async (req, res) => {
 // GET /api/security/ssh-audit — audit des connexions SSH
 app.get('/api/security/ssh-audit', authMiddleware, adminOnly, async (req, res) => {
   try {
+    let raw = '';
+    let source = '';
+
+    // Debian 12+ : pas de /var/log/auth.log par défaut → lire via journalctl
     const authLog = ['/var/log/auth.log', '/var/log/secure'].find(f => fs.existsSync(f));
-    if (!authLog) return res.json({ attempts: [], topIps: [], sshVersion: '' });
+    if (authLog) {
+      raw    = await runCmd(`tail -5000 "${authLog}" 2>/dev/null`);
+      source = authLog;
+    } else {
+      // Fallback journald — dernières 5000 lignes SSH
+      try {
+        raw    = await runCmd('journalctl _SYSTEMD_UNIT=ssh.service -n 5000 --no-pager --output=short-iso 2>/dev/null || journalctl _SYSTEMD_UNIT=sshd.service -n 5000 --no-pager --output=short-iso 2>/dev/null');
+        source = 'journald';
+      } catch {
+        raw = '';
+      }
+    }
 
-    // Lire les 5000 dernières lignes
-    const raw = await runCmd(`tail -5000 "${authLog}" 2>/dev/null`);
+    if (!raw.trim()) {
+      let sshVersion = '';
+      try { sshVersion = await runCmd('ssh -V 2>&1 | head -1').catch(() => ''); } catch {}
+      return res.json({ attempts: [], topIps: [], sshVersion, total: 0, source: 'none',
+        info: 'Aucun log SSH trouvé. Installez rsyslog (apt install rsyslog) pour activer /var/log/auth.log.' });
+    }
+
     const lines = raw.split('\n');
-
     const attempts = [];
-    const ipCount = {};
+    const ipCount  = {};
 
     for (const line of lines) {
-      const failMatch = line.match(/Failed password for (?:invalid user )?(\S+) from ([\d.a-fA-F:]+) port/);
-      const acceptMatch = line.match(/Accepted (?:password|publickey) for (\S+) from ([\d.a-fA-F:]+) port/);
+      const failMatch    = line.match(/Failed password for (?:invalid user )?(\S+) from ([\d.a-fA-F:]+) port/);
+      const acceptMatch  = line.match(/Accepted (?:password|publickey) for (\S+) from ([\d.a-fA-F:]+) port/);
       const invalidMatch = line.match(/Invalid user (\S+) from ([\d.a-fA-F:]+)/);
 
       if (failMatch || acceptMatch || invalidMatch) {
-        const m = failMatch || acceptMatch || invalidMatch;
+        const m    = failMatch || acceptMatch || invalidMatch;
         const type = acceptMatch ? 'OK' : 'FAIL';
-        const user = m[1]; const ip = m[2];
-        // Extraire date depuis le début de la ligne
-        const dateStr = line.slice(0, 15);
-        attempts.push({ date: dateStr, type, user, ip: ip.replace('::ffff:','') });
+        const user = m[1];
+        const ip   = m[2];
+        // Date : ISO (journald) ou syslog classique (auth.log)
+        const dateStr = source === 'journald'
+          ? (line.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/) || [])[1] || line.slice(0, 24)
+          : line.slice(0, 15);
+        attempts.push({ date: dateStr, type, user, ip: ip.replace('::ffff:', '') });
         if (type === 'FAIL') ipCount[ip] = (ipCount[ip] || 0) + 1;
       }
     }
 
     const topIps = Object.entries(ipCount)
-      .sort((a,b) => b[1]-a[1]).slice(0,10)
+      .sort((a, b) => b[1] - a[1]).slice(0, 10)
       .map(([ip, count]) => ({ ip, count }));
 
     // Version OpenSSH
     let sshVersion = '';
-    try { sshVersion = await runCmd('sshd -V 2>&1 | head -1').catch(() => ''); } catch {}
+    try { sshVersion = await runCmd('ssh -V 2>&1 | head -1').catch(() => ''); } catch {}
 
-    res.json({ attempts: attempts.slice(-200).reverse(), topIps, sshVersion, total: attempts.length });
+    res.json({ attempts: attempts.slice(-200).reverse(), topIps, sshVersion, total: attempts.length, source });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4880,6 +5512,109 @@ app.get('/api/security/logins/stats', authMiddleware, adminOnly, async (req, res
     }
     res.json({ days });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── ROUTES: MISES À JOUR SYSTÈME (apt) ──────────────────────────────────────
+
+let _aptCache          = null;   // { updatedAt, packages, securityCount, total }
+let _aptUpgradeLog     = [];     // lignes du dernier upgrade
+let _aptUpgradeRunning = false;
+
+// GET /api/system/updates/check — apt-get update + liste paquets upgradables
+app.get('/api/system/updates/check', authMiddleware, adminOnly, async (req, res) => {
+  const force = req.query.force === '1';
+  if (!force && _aptCache && (Date.now() - _aptCache.updatedAt) < 5 * 60 * 1000)
+    return res.json({ ..._aptCache, cached: true });
+  try {
+    await runCmd('apt-get update -qq 2>/dev/null', { timeout: 120000 });
+    const raw  = await runCmd('apt list --upgradable 2>/dev/null').catch(() => '');
+    const lines = raw.split('\n').filter(l => l.includes('/') && !l.startsWith('Listing'));
+    const packages = lines.map(line => {
+      const m = line.match(/^([^/]+)\/([^\s]+)\s+(\S+)\s+(\S+)(?:\s+\[upgradable from:\s+([^\]]+)\])?/);
+      if (!m) return null;
+      return { name: m[1].trim(), suite: m[2].trim(), newVersion: m[3].trim(), oldVersion: m[5]?.trim() || '—', isSecurity: m[2].includes('security') };
+    }).filter(Boolean);
+    const securityCount = packages.filter(p => p.isSecurity).length;
+    _aptCache = { updatedAt: Date.now(), packages, securityCount, total: packages.length };
+    log('APT_CHECK', `${packages.length} màj disponible(s) (${securityCount} sécurité)`, 'OK');
+    res.json({ ..._aptCache, cached: false });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/system/updates/upgradable — cache rapide sans relancer apt-get update
+app.get('/api/system/updates/upgradable', authMiddleware, adminOnly, (req, res) => {
+  if (_aptCache) return res.json({ ..._aptCache, cached: true });
+  res.json({ packages: [], total: 0, securityCount: 0, updatedAt: null, cached: false });
+});
+
+// GET /api/system/updates/upgrade/stream — SSE streaming apt-get upgrade
+app.get('/api/system/updates/upgrade/stream', authMiddleware, adminOnly, async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (type, msg) => {
+    _aptUpgradeLog.push({ type, msg, ts: Date.now() });
+    try { res.write('data: ' + JSON.stringify({ type, msg }) + '\n\n'); } catch {}
+  };
+
+  if (_aptUpgradeRunning) {
+    send('error', 'Une mise à jour est déjà en cours.');
+    res.end();
+    return;
+  }
+
+  const mode = ['upgrade','security'].includes(req.query.mode) ? req.query.mode : 'upgrade';
+  _aptUpgradeRunning = true;
+  _aptUpgradeLog     = [];
+
+  try {
+    send('info', 'Démarrage de la mise à jour système (mode: ' + mode + ')…');
+    let cmd;
+    if (mode === 'security') {
+      cmd = 'apt-get install --only-upgrade -y $(apt list --upgradable 2>/dev/null | grep security | cut -d/ -f1 | tr "\n" " ") 2>&1';
+    } else {
+      cmd = 'apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" 2>&1';
+    }
+    const env = { ...process.env, DEBIAN_FRONTEND: 'noninteractive', LANG: 'C' };
+    await new Promise((resolve, reject) => {
+      const proc = spawn('sudo', ['bash', '-c', cmd], { env, timeout: 600000 });
+      let buffer = '';
+      const flush = (force) => {
+        const lines = buffer.split('\n');
+        buffer = force ? '' : lines.pop();
+        for (const l of lines) {
+          const t = l.trim(); if (!t) continue;
+          const type = t.startsWith('Err') || t.startsWith('E:') ? 'error'
+                     : t.startsWith('W:') ? 'warn'
+                     : t.startsWith('Get:') || t.startsWith('Fetched') ? 'fetch'
+                     : t.startsWith('Unpacking') || t.startsWith('Setting up') ? 'install'
+                     : 'info';
+          send(type, t);
+        }
+      };
+      proc.stdout.on('data', d => { buffer += d.toString(); flush(false); });
+      proc.stderr.on('data', d => { buffer += d.toString(); flush(false); });
+      proc.on('close', code => { flush(true); code === 0 || code === null ? resolve() : reject(new Error('apt-get exit code ' + code)); });
+      proc.on('error', reject);
+    });
+    _aptCache = null;
+    send('success', '✅ Mise à jour terminée avec succès.');
+    log('APT_UPGRADE', 'mode=' + mode, 'OK');
+  } catch (err) {
+    send('error', '❌ Erreur : ' + err.message);
+    log('APT_UPGRADE', err.message, 'FAIL');
+  } finally {
+    _aptUpgradeRunning = false;
+    try { res.write('data: {"type":"done"}\n\n'); res.end(); } catch {}
+  }
+});
+
+// GET /api/system/updates/status — état upgrade en cours
+app.get('/api/system/updates/status', authMiddleware, adminOnly, (req, res) => {
+  res.json({ running: _aptUpgradeRunning, logLines: _aptUpgradeLog.slice(-100) });
 });
 
 // ─── BIND9 DNS MANAGEMENT ─────────────────────────────────────────────────────
@@ -5270,7 +6005,7 @@ app.post('/api/config/setup-https', authMiddleware, adminOnly, async (req, res) 
 
 // Lister les zones DNS de l'utilisateur
 app.get('/api/me/dns', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const zones = [];
@@ -5287,7 +6022,7 @@ app.get('/api/me/dns', authMiddleware, (req, res) => {
 
 // Créer une zone DNS pour un domaine de l'utilisateur
 app.post('/api/me/dns', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const { domain } = req.body;
@@ -5346,7 +6081,7 @@ app.post('/api/me/dns', authMiddleware, async (req, res) => {
 
 // Lire les records d'une zone utilisateur
 app.get('/api/me/dns/:domain', authMiddleware, (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
 
@@ -5360,7 +6095,7 @@ app.get('/api/me/dns/:domain', authMiddleware, (req, res) => {
 
 // Ajouter un record dans une zone
 app.post('/api/me/dns/:domain/records', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
   if (!userOwnsDnsZone(user, domain)) return res.status(403).json({ error: 'Accès refusé' });
@@ -5385,7 +6120,7 @@ app.post('/api/me/dns/:domain/records', authMiddleware, async (req, res) => {
 
 // Supprimer un record d'une zone
 app.delete('/api/me/dns/:domain/records/:id', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
   if (!userOwnsDnsZone(user, domain)) return res.status(403).json({ error: 'Accès refusé' });
@@ -5400,7 +6135,7 @@ app.delete('/api/me/dns/:domain/records/:id', authMiddleware, async (req, res) =
 
 // Appliquer les NS par défaut (remplace les NS dans le fichier de zone et recharge)
 app.post('/api/me/dns/:domain/apply-ns', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
   if (!userOwnsDnsZone(user, domain)) return res.status(403).json({ error: 'Accès refusé' });
@@ -5417,7 +6152,7 @@ app.post('/api/me/dns/:domain/apply-ns', authMiddleware, async (req, res) => {
 
 // Supprimer une zone entière
 app.delete('/api/me/dns/:domain', authMiddleware, async (req, res) => {
-  const user = USERS.find(u => u.id === parseInt(req.user.id));
+  const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
   if (!userOwnsDnsZone(user, domain)) return res.status(403).json({ error: 'Accès refusé' });
@@ -5618,7 +6353,8 @@ app.post('/api/v1/users', apiKeyAuth, async (req, res) => {
           .replace(/\{\{role\}\}/g, 'user')
           .replace(/\{\{panelUrl\}\}/g, PANEL_CONFIG.panelPublicUrl || '')
           .replace(/\{\{date\}\}/g, new Date().toLocaleDateString('fr-FR'));
-        await sendSmtpEmail({ to: email, subject: tpl.subject.replace(/\{\{username\}\}/g, username), body });
+        const smtp = PANEL_CONFIG.smtp;
+        await sendSmtpMail({ host: smtp.host, port: smtp.port || 587, user: smtp.user, password: smtp.password, from: smtp.from || smtp.user, tls: smtp.tls !== false, to: email, subject: tpl.subject.replace(/\{\{username\}\}/g, username), body });
       } catch {}
     }
 
@@ -5710,7 +6446,8 @@ app.post('/api/v1/webhook/stripe', express.raw({ type: 'application/json' }), as
             try {
               const t = PANEL_CONFIG.emailTemplate || DEFAULT_EMAIL_TEMPLATE;
               const body = t.body.replace(/\{\{username\}\}/g, username).replace(/\{\{password\}\}/g, password).replace(/\{\{role\}\}/g, 'user').replace(/\{\{panelUrl\}\}/g, PANEL_CONFIG.panelPublicUrl||'').replace(/\{\{date\}\}/g, new Date().toLocaleDateString('fr-FR'));
-              await sendSmtpEmail({ to: email, subject: t.subject.replace(/\{\{username\}\}/g, username), body });
+              const smtp = PANEL_CONFIG.smtp;
+              await sendSmtpMail({ host: smtp.host, port: smtp.port || 587, user: smtp.user, password: smtp.password, from: smtp.from || smtp.user, tls: smtp.tls !== false, to: email, subject: t.subject.replace(/\{\{username\}\}/g, username), body });
             } catch {}
           }
           log('STRIPE_WEBHOOK', `Compte créé: ${username} (${email||'no email'}) — ${event.type}`, 'OK');
@@ -5892,6 +6629,134 @@ app.post('/api/terminal/:id/exec', authMiddleware, adminOnly, async (req, res) =
 app.delete('/api/terminal/:id', authMiddleware, adminOnly, (req, res) => {
   termSessions.delete(req.params.id);
   res.json({ ok: true });
+});
+
+
+// ─── ROUTE: LOGS EN TEMPS RÉEL (SSE) ─────────────────────────────────────────
+// Garde les connexions SSE actives par fichier de log
+const _liveLogWatchers = new Map(); // filePath → { clients: Set, watcher, tail }
+
+function getLiveLogClients(filePath) {
+  if (!_liveLogWatchers.has(filePath)) {
+    _liveLogWatchers.set(filePath, { clients: new Set(), watcher: null, lastSize: 0 });
+  }
+  return _liveLogWatchers.get(filePath);
+}
+
+function startLiveLogWatcher(filePath) {
+  const entry = getLiveLogClients(filePath);
+  if (entry.watcher) return; // déjà actif
+
+  // Initialiser la taille de fichier courante
+  try { entry.lastSize = fs.statSync(filePath).size; } catch { entry.lastSize = 0; }
+
+  entry.watcher = fs.watch(filePath, { persistent: false }, () => {
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.size <= entry.lastSize) { entry.lastSize = stat.size; return; }
+      // Lire uniquement les nouveaux octets
+      const fd  = fs.openSync(filePath, 'r');
+      const len = stat.size - entry.lastSize;
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, entry.lastSize);
+      fs.closeSync(fd);
+      entry.lastSize = stat.size;
+
+      const lines = buf.toString('utf8').split('\n').filter(l => l.trim());
+      if (!lines.length) return;
+
+      const payload = `data: ${JSON.stringify({ lines })}\n\n`;
+      entry.clients.forEach(client => {
+        try { client.write(payload); } catch {}
+      });
+    } catch {}
+  });
+
+  entry.watcher.on('error', () => stopLiveLogWatcher(filePath));
+}
+
+function stopLiveLogWatcher(filePath) {
+  const entry = _liveLogWatchers.get(filePath);
+  if (!entry) return;
+  try { entry.watcher?.close(); } catch {}
+  _liveLogWatchers.delete(filePath);
+}
+
+// GET /api/logs/live?file=panel|error|apache:domain — stream SSE
+app.get('/api/logs/live', authMiddleware, adminOnly, (req, res) => {
+  const { file = 'panel', domain } = req.query;
+
+  let filePath;
+  if (file === 'panel') {
+    filePath = CONFIG.LOG_FILE;
+  } else if (file === 'error') {
+    filePath = '/var/log/kazypanel-error.log';
+  } else if (file === 'apache-error' && domain) {
+    const safe = domain.replace(/[^a-zA-Z0-9._-]/g, '');
+    filePath = `/var/log/apache2/${safe}-error.log`;
+  } else if (file === 'apache-access' && domain) {
+    const safe = domain.replace(/[^a-zA-Z0-9._-]/g, '');
+    filePath = `/var/log/apache2/${safe}-access.log`;
+  } else {
+    return res.status(400).json({ error: 'Paramètre file invalide' });
+  }
+
+  // Sécurité : chemin autorisé uniquement dans /var/log
+  if (!filePath.startsWith('/var/log/')) {
+    return res.status(403).json({ error: 'Chemin non autorisé' });
+  }
+
+  // Headers SSE
+  res.setHeader('Content-Type',  'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection',    'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  // Envoyer les 50 dernières lignes existantes immédiatement
+  try {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      const last50  = content.split('\n').filter(l => l.trim()).slice(-50);
+      res.write(`data: ${JSON.stringify({ lines: last50, init: true })}\n\n`);
+    } else {
+      res.write(`data: ${JSON.stringify({ lines: [], init: true, empty: true })}\n\n`);
+    }
+  } catch {}
+
+  // Abonner ce client au watcher
+  const entry = getLiveLogClients(filePath);
+  entry.clients.add(res);
+  startLiveLogWatcher(filePath);
+
+  // Heartbeat toutes les 15s pour maintenir la connexion
+  const heartbeat = setInterval(() => {
+    try { res.write(': heartbeat\n\n'); } catch {}
+  }, 15000);
+
+  // Nettoyage à la déconnexion
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    entry.clients.delete(res);
+    if (entry.clients.size === 0) stopLiveLogWatcher(filePath);
+  });
+});
+
+// GET /api/logs/live/domains — liste des domaines avec leurs fichiers de log disponibles
+app.get('/api/logs/live/domains', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const logDir = '/var/log/apache2';
+    if (!fs.existsSync(CONFIG.APACHE_SITES_PATH)) return res.json({ domains: [] });
+    const confs = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
+      .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin'))
+      .map(f => {
+        const name = f.replace('.conf', '');
+        const hasError  = fs.existsSync(`${logDir}/${name}-error.log`);
+        const hasAccess = fs.existsSync(`${logDir}/${name}-access.log`);
+        return { name, hasError, hasAccess };
+      });
+    res.json({ domains: confs });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // eslint-disable-next-line no-unused-vars
