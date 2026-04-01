@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 #  KazyPanel — Script d'installation complet
-#  Version : 1.4.0
+#  Version : 1.7.0
 #  OS cible : Ubuntu 20.04 / 22.04 / 24.04 — Debian 11 / 12 / 13
 #  Auteur   : kazylax.fr
 # ============================================================
@@ -28,7 +28,7 @@ cat << 'EOF'
   ██║  ██╗██║  ██║   ██║     ██║   ██║     ██║  ██║██║ ╚████║███████╗███████╗
   ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝     ╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 EOF
-echo -e "${NC}${BOLD}                     Panel d'hébergement — v1.4.0${NC}"
+echo -e "${NC}${BOLD}                     Panel d'hébergement — v1.7.0${NC}"
 echo -e "${CYAN}                        github.com/kazypanel/kazypanel${NC}\n"
 echo -e "  ${YELLOW}Ce script va installer et configurer :${NC}"
 echo -e "  Node.js 24, Apache2, PHP 8.4, MariaDB, vsftpd,"
@@ -502,7 +502,31 @@ cat > /etc/logrotate.d/kazypanel << 'LOGROTATE'
 LOGROTATE
 ok "Logrotate configuré"
 
-# ── Répertoires web ──────────────────────────────────────────
+# ── rsyslog (Debian 12+) ──────────────────────────────────────
+# Sur Debian 12+, /var/log/auth.log n'existe pas par défaut (journald uniquement).
+# KazyPanel lit journald en fallback, mais rsyslog active auth.log pour une
+# compatibilité maximale et permet à Fail2ban de lire les logs SSH via fichier.
+step "Vérification rsyslog (logs SSH)"
+if [[ "$OS_NAME" == "debian" ]] && [[ "${OS_VERSION%%.*}" -ge 12 ]]; then
+  if ! command -v rsyslogd &>/dev/null && ! dpkg -l rsyslog &>/dev/null 2>&1; then
+    read -rp "  $(echo -e "${CYAN}Installer rsyslog${NC} pour activer /var/log/auth.log ? [O/n] : ")" INSTALL_RSYSLOG
+    if [[ "${INSTALL_RSYSLOG,,}" != "n" ]]; then
+      apt-get install -y -qq rsyslog
+      systemctl enable rsyslog
+      systemctl start rsyslog
+      ok "rsyslog installé — /var/log/auth.log activé"
+    else
+      warn "rsyslog ignoré — l'audit SSH utilisera journald (fonctionnel mais moins de détails)"
+    fi
+  else
+    ok "rsyslog déjà présent"
+  fi
+else
+  # Ubuntu et Debian < 12 ont rsyslog par défaut
+  if command -v rsyslogd &>/dev/null; then
+    ok "rsyslog présent — /var/log/auth.log disponible"
+  fi
+fi
 step "Création des répertoires"
 mkdir -p /var/www/admin
 mkdir -p /var/www/html
@@ -703,7 +727,13 @@ $SERVICE_USER ALL=(root) NOPASSWD: \\
     /bin/bash, \\
     /usr/bin/passwd, \\
     /usr/bin/tee, \\
-    /bin/tee
+    /bin/tee, \\
+    /usr/sbin/a2enconf, \\
+    /usr/sbin/a2disconf, \\
+    /usr/bin/ln, \\
+    /bin/ln, \\
+    /usr/bin/apt-get, \\
+    /usr/bin/apt
 SUDOERS
   chmod 440 /etc/sudoers.d/kazypanel
   # Valider la syntaxe sudoers
