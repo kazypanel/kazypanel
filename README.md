@@ -30,6 +30,7 @@
 - [Explorateur de fichiers](#-explorateur-de-fichiers)
 - [Templates de ressources](#-templates-de-ressources)
 - [Sécurité](#-sécurité)
+- [Multi-PHP par domaine](#multi-php-par-domaine)
 - [Mise à jour](#-mise-à-jour)
 - [Dépannage](#-dépannage)
 - [Logs & Monitoring](#-logs--monitoring)
@@ -49,10 +50,11 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 ## ✨ Fonctionnalités
 
 ### Administration
-- 📊 **Statut serveur** — jauges circulaires CPU/RAM/Disque/Serveur, graphique historique Canvas, auto-refresh 30s
+- 📊 **Statut serveur** — 3 jauges circulaires CPU/RAM/Disque, graphique historique Canvas, auto-refresh 30s configurable, détection multi-PHP installés, IP publique, connexions TCP actives, alertes seuils critiques (CPU/RAM/Disque > 85%)
 - 🌐 **Domaines & sous-domaines** — création, activation/désactivation, configuration Apache
 - 🔒 **SSL Let's Encrypt** — génération et renouvellement de certificats en 1 clic
-- ⚙️ **Configuration PHP** — par domaine (version, mémoire, upload, etc.)
+- ⚙️ **Configuration PHP** — par domaine (mémoire, upload, exécution, erreurs, session)
+- 🐘 **Multi-PHP par domaine** — PHP 8.1 / 8.2 / 8.3 / 8.4 sélectionnable indépendamment pour chaque domaine, sans affecter les autres
 - 🛡️ **Pare-feu UFW** — gestion des règles depuis l'interface + profils prédéfinis
 - 🚫 **Fail2ban** — surveillance, débannissement, activation/désactivation des jails
 - 🗄️ **Bases de données MariaDB** — création, suppression, quotas
@@ -472,7 +474,10 @@ curl -X POST "https://panel.kazylax.fr/api/v1/users" \
 | DELETE | `/api/domains/:name` | Supprimer un domaine |
 | POST | `/api/domains/:name/toggle` | Activer/désactiver |
 | POST | `/api/domains/:name/ssl` | Générer un certificat SSL |
-| GET | `/api/domains/:name/phpconfig` | Config PHP du domaine |
+| GET | `/api/domains/:name/phpconfig` | Config PHP du domaine (.user.ini) |
+| GET | `/api/system/php-versions` | Versions PHP-FPM installées sur le serveur |
+| GET | `/api/status` | Statut serveur enrichi : IP publique, TCP actifs, PHP installés, disques extra |
+| POST | `/api/domains/:name/php-version` | Changer la version PHP d'un domaine |
 | PUT | `/api/domains/:name/phpconfig` | Modifier la config PHP |
 
 ### Espace utilisateur
@@ -649,6 +654,82 @@ ADMIN_PASSWORD=VotreMotDePasseTresSécurisé!123
 - Activer **Fail2ban** pour protéger les accès SSH et Apache
 - Configurer **ServerTokens Prod** et **ServerSignature Off** depuis Configuration > Réseau > Sécurité Apache
 
+### Multi-PHP par domaine
+
+KazyPanel supporte plusieurs versions PHP-FPM en parallèle sur le même serveur. Chaque domaine peut utiliser sa propre version indépendamment.
+
+#### Installer plusieurs versions PHP sur Debian/Ubuntu
+
+Sur **Debian 12**, ajoutez d'abord le dépôt sury.org :
+
+```bash
+curl -fsSL https://packages.sury.org/php/apt.gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/php.gpg
+echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/php.list
+sudo apt-get update
+```
+
+Sur **Ubuntu**, le dépôt ondrej/php est utilisé (ajouté automatiquement par l'install) :
+
+```bash
+sudo add-apt-repository ppa:ondrej/php
+sudo apt-get update
+```
+
+Installez ensuite les versions souhaitées :
+
+```bash
+# PHP 8.1
+sudo apt install -y php8.1-fpm php8.1-mysql php8.1-curl php8.1-gd php8.1-mbstring php8.1-xml php8.1-zip php8.1-intl php8.1-bcmath php8.1-opcache
+
+# PHP 8.2
+sudo apt install -y php8.2-fpm php8.2-mysql php8.2-curl php8.2-gd php8.2-mbstring php8.2-xml php8.2-zip php8.2-intl php8.2-bcmath php8.2-opcache
+
+# PHP 8.3
+sudo apt install -y php8.3-fpm php8.3-mysql php8.3-curl php8.3-gd php8.3-mbstring php8.3-xml php8.3-zip php8.3-intl php8.3-bcmath php8.3-opcache
+```
+
+Vérifier que toutes les versions sont actives :
+
+```bash
+systemctl status php8.1-fpm php8.2-fpm php8.3-fpm php8.4-fpm --no-pager
+ls /run/php/    # doit lister php8.1-fpm.sock, php8.2-fpm.sock, etc.
+```
+
+#### Changer la version PHP d'un domaine depuis le panel
+
+Dans **Domaines** → bouton **🐘 PHP** → onglet **Version** :
+
+- Les versions installées et actives apparaissent automatiquement sous forme de cartes
+- Cliquez sur la version souhaitée → bouton **Appliquer cette version**
+- KazyPanel modifie le vhost Apache du domaine (HTTP + SSL), vérifie la syntaxe et recharge Apache
+- **Les autres domaines ne sont pas affectés**
+
+#### Fonctionnement technique
+
+Chaque version PHP-FPM expose son propre socket Unix :
+
+```
+/run/php/php8.1-fpm.sock  → domaine-a.fr
+/run/php/php8.2-fpm.sock  → domaine-b.fr
+/run/php/php8.4-fpm.sock  → domaine-c.fr  (version par défaut)
+```
+
+Apache redirige vers le bon socket grâce à la directive `SetHandler` dans chaque vhost :
+
+```apache
+<FilesMatch \.php$>
+    SetHandler "proxy:unix:/run/php/php8.2-fpm.sock|fcgi://localhost"
+</FilesMatch>
+```
+
+#### Vérifier la version active d'un domaine
+
+```bash
+grep -r "php.*fpm.sock" /etc/apache2/sites-enabled/mondomaine.fr.conf
+```
+
+---
+
 ### Reverse proxy Apache (recommandé)
 
 ```apache
@@ -727,6 +808,19 @@ Depuis **Sécurité > Mises à jour** :
 ```bash
 sudo systemctl restart kazypanel
 ```
+
+**Changer la version PHP d'un domaine ne fonctionne pas**
+→ Vérifiez que la version PHP-FPM cible est installée et active :
+```bash
+systemctl status php8.1-fpm
+ls /run/php/php8.1-fpm.sock
+```
+→ Si le socket est absent, démarrez le service :
+```bash
+sudo systemctl start php8.1-fpm
+sudo systemctl enable php8.1-fpm
+```
+→ Sur Debian 12, installez d'abord le dépôt sury.org (voir section [Multi-PHP par domaine](#multi-php-par-domaine))
 
 **BIND9 ne démarre pas**
 → Vérifier la syntaxe du fichier de configuration :
@@ -943,7 +1037,7 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ---
 
-*KazyPanel v1.7.0 — Dernière mise à jour : 31 Mars 2026*
+*KazyPanel v1.8.0 — Dernière mise à jour : 03 Avril 2026*
 
 ---
 
@@ -951,9 +1045,50 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ### v1.8.0 — 2026-04-03
 
-### v1.7.0 — 2026-04-03
+#### 🐘 Multi-PHP par domaine
+- ✨ **Sélecteur de version PHP** par domaine — PHP 8.1 / 8.2 / 8.3 / 8.4 indépendants
+  - Nouvel onglet **🐘 Version** dans le modal PHP de chaque domaine
+  - Cartes visuelles cliquables avec statut actif/arrêté par version
+  - Version actuelle du domaine affichée avec badge **✓ Actuel**
+  - Bouton **Appliquer cette version** — modifie le vhost HTTP + SSL, vérifie syntaxe Apache, recharge
+  - Les autres domaines ne sont pas affectés
+  - Commande d'installation affichée pour les versions manquantes
+- ✨ **Route `GET /api/system/php-versions`** — détecte automatiquement toutes les versions PHP-FPM installées via `systemctl` et `/etc/php/`
+- ✨ **Route `POST /api/domains/:name/php-version`** — change le socket PHP dans le vhost du domaine (HTTP + SSL), démarre PHP-FPM si arrêté, recharge Apache
 
-### v1.7.0 — 2026-04-03
+#### 🌐 Site vitrine kazylax.fr
+- ✨ **Section Screenshots** — 3 aperçus simulés de l'interface (Dashboard, Domaines/SSL, Score de sécurité)
+- ✨ **Section Comparaison** — tableau 10 critères KazyPanel vs cPanel vs Plesk vs ISPConfig
+- ✨ **Section FAQ** — 7 questions accordéon avec animation + Schema.org `FAQPage` pour Google Rich Results
+- ✨ **Section Roadmap** — 4 fonctionnalités en cours/planifiées + 4 idées avec badges colorés
+- ✨ **CTA Hero** — bouton "Installer maintenant" + GitHub Stars temps réel via l'API
+- ✨ **Bouton retour en haut** flottant (↑), visible après 400px de scroll
+- ✨ **Version cliquable** → section Changelog dans la sidebar et la stat card
+- ✨ **4 nouveaux liens** dans la sidebar : Aperçu, Comparaison, FAQ, Roadmap
+- 🐛 Fix : `secPane_updates` absent de `hideAllMainSections()` — le panneau Mises à jour restait visible en naviguant vers une autre section
+
+#### 🔍 SEO
+- ✨ `meta name="keywords"` ajouté
+- ✨ Schema.org `FAQPage` dans le `<head>`
+- ✨ `robots.txt` créé avec référence au `sitemap.xml`
+- ✨ `sitemap.xml` mis à jour avec 9 URLs (nouvelles sections incluses)
+- ✨ Apple Touch Icon — `kazypanel-apple-touch-icon.png` 180×180 pour iOS/Android
+
+#### 📊 Statut serveur — améliorations
+- ✨ **IP publique** — affichée dans les informations système (via ipify ou hostname)
+- ✨ **Connexions TCP actives** — nombre de connexions ESTABLISHED en temps réel (`ss -s`)
+- ✨ **Multi-PHP dans les services** — toutes les versions PHP-FPM installées apparaissent comme cartes individuelles avec statut actif/arrêté
+- ✨ **Auto-refresh 30s** — bouton toggle avec indicateur visuel (point vert animé), se désactive automatiquement si on quitte la section
+- ✨ **Bannière d'alerte critique** — apparaît en rouge si CPU > 85%, RAM > 85% ou Disque > 85% avec détail des ressources concernées
+- ✨ **Disques supplémentaires** — partitions `/var`, `/home`, `/tmp` affichées dans les stats rapides si montées séparément
+- ✨ **Versions Apache et MariaDB** — récupérées et affichées dans les cards services
+- ✨ **Grille 3 colonnes** — 3 jauges (CPU/RAM/Disque) en layout équilibré, bloc Serveur supprimé (infos déplacées dans la table "Informations système")
+- ✨ **Boutons services compacts** — `▶ Start` / `↺ Restart` / `■ Stop` sur une ligne par carte, sans débordement
+- 🐛 Fix : `secPane_updates` absent de `hideAllMainSections()` — panneau Mises à jour restait visible en naviguant
+- 🐛 Fix : SyntaxError server.js — apostrophes dans `awk '{print $1}'` dans la chaîne JS publicIp
+- 🐛 Fix : `try` orphelin double dans le bloc `extraDisks`
+
+---
 
 ### v1.7.0 — 2026-03-31
 
