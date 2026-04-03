@@ -2529,7 +2529,12 @@
             <div class="page-title">Statut serveur</div>
             <div class="page-subtitle" id="statusLastUpdate">Chargement…</div>
           </div>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <!-- Auto-refresh toggle -->
+            <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);font-size:11px;color:var(--muted);cursor:pointer" onclick="toggleStatusAutoRefresh()" id="autoRefreshToggle" title="Auto-refresh 30s">
+              <span id="autoRefreshDot" style="width:7px;height:7px;border-radius:50%;background:var(--muted)"></span>
+              <span id="autoRefreshLabel">Auto</span>
+            </div>
             <button class="btn btn-ghost btn-sm" style="color:#f59e0b;border-color:rgba(245,158,11,.3)" onclick="renewAllSSL()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               Renouveler SSL
@@ -2540,9 +2545,14 @@
             </button>
           </div>
         </div>
+        <!-- Bannière alerte seuil -->
+        <div class="status-alert-banner" id="statusAlertBanner">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span id="statusAlertText">Ressources critiques détectées</span>
+        </div>
 
         <!-- ── GAUGES CIRCULAIRES ── -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px">
           <!-- CPU -->
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;position:relative;overflow:hidden">
             <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#6366f1,#8b5cf6)"></div>
@@ -2591,29 +2601,7 @@
             </div>
             <div id="gaugeDiskDetail" style="font-family:var(--mono);font-size:10px;color:var(--muted)">— / —</div>
           </div>
-          <!-- SERVEUR -->
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;position:relative;overflow:hidden">
-            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#3b82f6,#0ea5e9)"></div>
-            <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:14px">Serveur</div>
-            <div style="margin-bottom:10px">
-              <div style="font-size:11px;font-weight:700;color:var(--text);font-family:var(--mono)" id="gaugeHostname">—</div>
-              <div style="font-size:10px;color:var(--muted);margin-top:3px" id="gaugeOs">—</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:6px">
-                <span style="font-size:10px;color:var(--muted)">⏱ Uptime</span>
-                <span id="gaugeUptime" style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)">—</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:6px">
-                <span style="font-size:10px;color:var(--muted)">📦 Node</span>
-                <span id="gaugeNode" style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)">—</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:6px">
-                <span style="font-size:10px;color:var(--muted)">🌐 Domaines</span>
-                <span id="gaugeDomains" style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)">—</span>
-              </div>
-            </div>
-          </div>
+
         </div>
 
         <!-- ── GRAPHIQUE HISTORIQUE CPU/RAM ── -->
@@ -4488,13 +4476,14 @@
         <div class="modal-title">🐘 PHP ini — <span id="phpConfigDomain" style="color:var(--accent)"></span></div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px">Fichier : <code id="phpConfigIniPath" style="font-size:10px"></code></div>
       </div>
-      <button class="modal-close" onclick="document.getElementById('phpConfigModal').classList.remove('open')">✕</button>
+      <button class="modal-close" onclick="document.getElementById('phpConfigModal').classList.remove('open');const ab=document.getElementById('applyPhpVerBtn');if(ab)ab.remove();_selectedPhpVersion=null;">✕</button>
     </div>
     <div class="modal-body" style="padding:0">
 
       <!-- Onglets -->
-      <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface2)">
-        <button class="php-tab active" data-tab="memory"   onclick="switchPhpTab('memory')">📦 Mémoire</button>
+      <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface2);flex-wrap:wrap">
+        <button class="php-tab active" data-tab="version"  onclick="switchPhpTab('version')">🐘 Version</button>
+        <button class="php-tab"        data-tab="memory"   onclick="switchPhpTab('memory')">📦 Mémoire</button>
         <button class="php-tab"        data-tab="upload"   onclick="switchPhpTab('upload')">📤 Upload</button>
         <button class="php-tab"        data-tab="exec"     onclick="switchPhpTab('exec')">⏱ Exécution</button>
         <button class="php-tab"        data-tab="errors"   onclick="switchPhpTab('errors')">🐛 Erreurs</button>
@@ -5654,6 +5643,46 @@ function drawResHistoryChart() {
   });
 }
 
+// ── Auto-refresh statut serveur ───────────────────────────────
+let _statusAutoRefreshTimer = null;
+let _statusAutoRefreshActive = false;
+
+function toggleStatusAutoRefresh() {
+  _statusAutoRefreshActive = !_statusAutoRefreshActive;
+  const dot   = document.getElementById('autoRefreshDot');
+  const label = document.getElementById('autoRefreshLabel');
+  if (_statusAutoRefreshActive) {
+    dot.style.background = 'var(--green)';
+    dot.style.boxShadow  = '0 0 5px var(--green)';
+    label.textContent    = 'Auto (30s)';
+    _statusAutoRefreshTimer = setInterval(() => {
+      if (document.getElementById('statusSection')?.style.display !== 'none') {
+        loadStatusSection();
+      }
+    }, 30000);
+  } else {
+    dot.style.background = 'var(--muted)';
+    dot.style.boxShadow  = 'none';
+    label.textContent    = 'Auto';
+    clearInterval(_statusAutoRefreshTimer);
+    _statusAutoRefreshTimer = null;
+  }
+}
+
+// ── Menu ⋯ services ───────────────────────────────────────────
+function toggleSvcMenu(svc, e) {
+  e.stopPropagation();
+  closeSvcMenus(svc);
+  const menu = document.getElementById(`svc-menu-${svc}`);
+  if (menu) menu.classList.toggle('open');
+}
+function closeSvcMenus(except) {
+  document.querySelectorAll('.svc-dropdown.open').forEach(m => {
+    if (!except || m.id !== `svc-menu-${except}`) m.classList.remove('open');
+  });
+}
+document.addEventListener('click', () => closeSvcMenus());
+
 async function loadStatusSection() {
   try {
     document.getElementById('statusLastUpdate').textContent = 'Chargement…';
@@ -5673,11 +5702,30 @@ async function loadStatusSection() {
     if (el('gaugeCpuLoad'))    el('gaugeCpuLoad').textContent    = `load ${d.load||'—'}`;
     if (el('gaugeRamDetail'))  el('gaugeRamDetail').textContent  = d.memory||'—';
     if (el('gaugeDiskDetail')) el('gaugeDiskDetail').textContent = d.disk||'—';
-    if (el('gaugeHostname'))   el('gaugeHostname').textContent   = d.hostname||'—';
-    if (el('gaugeOs'))         el('gaugeOs').textContent         = d.os||'—';
-    if (el('gaugeUptime'))     el('gaugeUptime').textContent     = d.uptime||'—';
-    if (el('gaugeNode'))       el('gaugeNode').textContent       = d.nodeVersion||'—';
-    if (el('gaugeDomains'))    el('gaugeDomains').textContent    = `${d.domains??0} / ${d.users??0} users`;
+
+
+
+
+
+
+
+
+
+
+    // ── Alertes seuils critiques ──────────────────────────
+    const alerts = [];
+    if (cpuPct  > 85) alerts.push(`CPU ${Math.round(cpuPct)}%`);
+    if (ramPct  > 85) alerts.push(`RAM ${Math.round(ramPct)}%`);
+    if (diskPct > 85) alerts.push(`Disque ${Math.round(diskPct)}%`);
+    const alertBanner = el('statusAlertBanner');
+    if (alertBanner) {
+      if (alerts.length > 0) {
+        alertBanner.classList.add('visible');
+        el('statusAlertText').textContent = `⚠ Ressources critiques : ${alerts.join(' · ')} — vérifiez vos processus`;
+      } else {
+        alertBanner.classList.remove('visible');
+      }
+    }
 
     // Historique graphique
     _resHistory.cpu.push(cpuPct); _resHistory.ram.push(ramPct);
@@ -5685,51 +5733,71 @@ async function loadStatusSection() {
     drawResHistoryChart();
 
     // Services
+    // Construire la liste des services avec multi-PHP
+    const phpSvcs = (d.phpInstalled||[]).map(p => ({
+      key: `php${p.version}`,
+      svc: `php${p.version}-fpm`,
+      label: `PHP ${p.version}-FPM`,
+      icon: '🐘',
+      ver: p.version,
+      phpStatus: p.active ? 'running' : 'stopped'
+    }));
+    // Si phpInstalled vide, fallback version par défaut
+    const phpList = phpSvcs.length > 0 ? phpSvcs : [
+      { key:'php', svc:`php${d.phpVersion||'8.4'}-fpm`, label:`PHP ${d.phpVersion||'8.4'}`, icon:'🐘', ver:d.phpVersion }
+    ];
     const services = [
-      { key:'kazypanel', svc:'kazypanel',                      label:'KazyPanel',       icon:'⚡', kazy:true },
-      { key:'apache',    svc:'apache2',                        label:'Apache',          icon:'🌐', ver:d.apacheVersion },
-      { key:'php',       svc:`php${d.phpVersion||'8.4'}-fpm`, label:`PHP ${d.phpVersion||'8.4'}`, icon:'🐘', ver:d.phpVersion },
-      { key:'vsftpd',    svc:'vsftpd',                         label:'vsftpd (FTP)',    icon:'📂' },
-      { key:'mariadb',   svc:'mariadb',                        label:'MariaDB',         icon:'🗄️', ver:d.mariadbVersion },
-      { key:'ufw',       svc:'ufw',                            label:'UFW',             icon:'🛡️', noRestart:true },
-      { key:'fail2ban',  svc:'fail2ban',                       label:'Fail2ban',        icon:'🚫' },
-      { key:'bind9',     svc:'bind9',                          label:'BIND9 (DNS)',     icon:'🔗' },
+      { key:'kazypanel', svc:'kazypanel',  label:'KazyPanel',     icon:'⚡', kazy:true },
+      { key:'apache',    svc:'apache2',    label:'Apache',        icon:'🌐', ver:d.apacheVersion },
+      ...phpList,
+      { key:'vsftpd',    svc:'vsftpd',     label:'vsftpd (FTP)',  icon:'📂' },
+      { key:'mariadb',   svc:'mariadb',    label:'MariaDB',       icon:'🗄️', ver:d.mariadbVersion },
+      { key:'ufw',       svc:'ufw',        label:'UFW',           icon:'🛡️', noRestart:true },
+      { key:'fail2ban',  svc:'fail2ban',   label:'Fail2ban',      icon:'🚫' },
+      { key:'bind9',     svc:'bind9',      label:'BIND9 (DNS)',   icon:'🔗' },
     ];
     let running = 0;
     const cards = services.map(sv => {
-      const st = d[sv.key];
+      // Pour PHP multi-version, utiliser phpStatus si présent
+      const st = sv.phpStatus || d[sv.key];
       const on = st==='running'||st==='active'||st==='enabled';
       const unknown = !st||st==='unknown';
       if (on) running++;
-      const badgeCls = unknown ? '' : (on ? 'badge-green' : '');
-      const badgeSt  = unknown ? 'background:rgba(100,116,139,.08);color:var(--muted);border-color:var(--border)' : on ? '' : 'background:rgba(220,38,38,.1);color:var(--red);border-color:rgba(220,38,38,.2)';
+      const badgeSt  = unknown
+        ? 'background:rgba(100,116,139,.08);color:var(--muted);border-color:var(--border)'
+        : on ? 'background:rgba(5,150,105,.1);color:var(--green);border-color:rgba(5,150,105,.2)'
+             : 'background:rgba(220,38,38,.1);color:var(--red);border-color:rgba(220,38,38,.2)';
       const badgeTxt = unknown ? '—' : (on ? '● Actif' : '● Arrêté');
       const dotColor = unknown ? 'var(--muted)' : (on ? 'var(--green)' : 'var(--red)');
       const svcUptime = d.uptimes&&d.uptimes[sv.svc]&&on ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px">⏱ ${d.uptimes[sv.svc]}</div>` : '';
-      const btns = sv.noRestart
-        ? `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','start')">Enable</button>
-           <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','stop')">Disable</button>`
-        : sv.kazy
-        ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','restart')">
-             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-             Restart KazyPanel</button>`
-        : `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','start')">Start</button>
-           <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','stop')">Stop</button>
-           <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:11px" onclick="serviceAction('${sv.svc}','restart')">Restart</button>`;
-      return `<div class="stat-card" style="padding:14px 16px${sv.kazy?';border-color:rgba(79,110,247,.2);background:rgba(79,110,247,.04)':''}" id="svc-card-${sv.svc}">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};box-shadow:${on?`0 0 6px ${dotColor}`:'none'};flex-shrink:0"></div>
-            <span style="font-size:12px">${sv.icon}</span>
-            <div>
-              <div style="font-weight:700;font-size:12px;line-height:1.2">${sv.label}</div>
+
+      // Boutons d'action compacts
+      let btns = '';
+      if (sv.kazy) {
+        btns = `<button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:10px;padding:4px 6px" onclick="serviceAction('${sv.svc}','restart')">↺ Restart</button>`;
+      } else if (sv.noRestart) {
+        btns = `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:10px;padding:4px 6px" onclick="serviceAction('${sv.svc}','start')">▶ Enable</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:10px;padding:4px 6px" onclick="serviceAction('${sv.svc}','stop')">■ Disable</button>`;
+      } else {
+        btns = `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(5,150,105,.25);flex:1;font-size:10px;padding:4px 6px" onclick="serviceAction('${sv.svc}','start')">▶ Start</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,110,247,.25);flex:1;font-size:10px;padding:4px 6px" onclick="serviceAction('${sv.svc}','restart')">↺ Restart</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(220,38,38,.25);flex:1;font-size:10px;padding:4px 6px" onclick="serviceAction('${sv.svc}','stop')">■ Stop</button>`;
+      }
+
+      return `<div class="stat-card" style="padding:12px 14px${sv.kazy?';border-color:rgba(79,110,247,.2);background:rgba(79,110,247,.04)':''}" id="svc-card-${sv.svc}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:7px;min-width:0;flex:1">
+            <div style="width:7px;height:7px;border-radius:50%;background:${dotColor};box-shadow:${on?`0 0 5px ${dotColor}`:'none'};flex-shrink:0"></div>
+            <span style="font-size:11px;flex-shrink:0">${sv.icon}</span>
+            <div style="min-width:0;flex:1">
+              <div style="font-weight:700;font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sv.label}</div>
               ${sv.ver?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px">${sv.ver}</div>`:''}
               ${svcUptime}
             </div>
           </div>
-          <span id="svc-badge-${sv.svc}" class="badge ${badgeCls}" style="${badgeSt};font-size:9px">${badgeTxt}</span>
+          <span id="svc-badge-${sv.svc}" class="badge" style="${badgeSt};font-size:9px;flex-shrink:0;margin-left:6px">${badgeTxt}</span>
         </div>
-        <div style="display:flex;gap:5px">${btns}</div>
+        <div style="display:flex;gap:4px">${btns}</div>
       </div>`;
     });
     document.getElementById('statusCards').innerHTML = cards.join('');
@@ -5737,10 +5805,18 @@ async function loadStatusSection() {
 
     // Infos système
     const rows = [
-      ['🖥️ Hostname', d.hostname||'—'], ['🐧 OS', d.os||'—'],
-      ['⏱️ Uptime', d.uptime||'—'], ['💾 RAM totale', d.memory||'—'],
-      ['💿 Disque (/)', d.disk||'—'], ['⚙️ Charge', d.load||'—'],
-      ['📦 Node.js', d.nodeVersion||'—'],
+      ['🖥️ Hostname',   d.hostname||'—'],
+      ['🐧 OS',         d.os||'—'],
+      ['🌐 IP publique',d.publicIp||'—'],
+      ['⏱️ Uptime',     d.uptime||'—'],
+      ['💾 RAM',        d.memory||'—'],
+      ['💿 Disque (/)', d.disk||'—'],
+      ...(d.extraDisks||[]).map(x => [`💿 Disque (${x.mount})`, `${x.used} — ${x.pct}%`]),
+      ['⚙️ Charge',     d.load||'—'],
+      ['🔗 TCP actifs', d.tcpEstab!=null ? String(d.tcpEstab) : '—'],
+
+      ['📦 Node.js',    d.nodeVersion||'—'],
+      ['🐘 PHP actif',  (d.phpInstalled||[]).filter(p=>p.active).map(p=>p.version).join(' · ')||CONFIG.PHP_VERSION||'—'],
     ];
     document.getElementById('statusInfoTable').innerHTML = rows.map(([k,v],i) =>
       `<tr style="${i<rows.length-1?'border-bottom:1px solid var(--border)':''}">
@@ -5763,6 +5839,7 @@ async function loadStatusSection() {
       makeBar('CPU',    cpuPct,  cpuPct>85?'#ef4444':'#6366f1') +
       makeBar('RAM',    ramPct,  ramPct>85?'#ef4444':'#10b981') +
       makeBar('Disque', diskPct, diskPct>85?'#ef4444':'#f59e0b') +
+      + (d.extraDisks||[]).map(x => makeBar(`💿 ${x.mount}`, x.pct, x.pct>85?'#ef4444':'#f59e0b')).join('') +
       `<div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
         <span style="font-size:12px;color:var(--muted)">👤 Utilisateurs</span>
         <span style="font-family:var(--mono);font-size:12px;font-weight:700">${d.users??0}</span>
@@ -8342,6 +8419,7 @@ const PHP_SCHEMA = {
 
 async function openPhpConfigModal(name, domain) {
   _phpConfigDomain = name;
+  switchPhpTab('version');
   _phpCurrentTab   = 'memory';
   document.getElementById('phpConfigDomain').textContent = domain;
   document.getElementById('phpConfigIniPath').textContent = '…';
@@ -8363,10 +8441,17 @@ async function openPhpConfigModal(name, domain) {
 }
 
 function switchPhpTab(tab) {
-  if (!_phpConfigData && tab !== 'memory') return;
+  if (!_phpConfigData && tab !== 'memory' && tab !== 'version') return;
   _phpCurrentTab = tab;
   document.querySelectorAll('.php-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   const content = document.getElementById('phpTabContent');
+
+  // Onglet Version PHP — indépendant de _phpConfigData
+  if (tab === 'version') {
+    renderPhpVersionTab(content);
+    return;
+  }
+
   if (!_phpConfigData) { content.innerHTML = '<div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto 8px"></div></div>'; return; }
 
   if (tab === 'raw') {
@@ -8397,6 +8482,122 @@ function switchPhpTab(tab) {
         ${f.hint ? `<span class="hint">${f.hint}</span>` : ''}
       </div>`;
     }).join('') + `</div>`;
+}
+
+async function renderPhpVersionTab(container) {
+  container.innerHTML = '<div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto 8px"></div><div style="font-size:11px;color:var(--muted)">Détection des versions PHP installées…</div></div>';
+  try {
+    const res  = await fetch(`${API}/api/system/php-versions`, { headers:{ Authorization:'Bearer '+token } });
+    const data = await res.json();
+
+    // Version actuelle dans le vhost
+    let currentVersion = '?';
+    if (_phpConfigDomain) {
+      try {
+        const cr = await fetch(`${API}/api/domains/${encodeURIComponent(_phpConfigDomain)}/config`, { headers:{ Authorization:'Bearer '+token } });
+        const cd = await cr.json();
+        const m  = (cd.config || '').match(/php([\d.]+)-fpm\.sock/);
+        if (m) currentVersion = m[1];
+      } catch {}
+    }
+
+    const versions = data.versions || [];
+    container.innerHTML = `
+      <div style="margin-bottom:18px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">Version PHP active pour <strong>${_phpConfigDomain}</strong></div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:16px">
+          Chaque domaine peut utiliser une version PHP différente, indépendamment des autres.
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:18px">
+          ${versions.map(v => {
+            const isCurrent = v.version === currentVersion;
+            const isActive  = v.active;
+            return `<div onclick="selectPhpVersion('${v.version}', this)" data-version="${v.version}"
+              style="padding:14px;border-radius:10px;border:2px solid ${isCurrent ? 'var(--accent2)' : 'var(--border)'};
+                background:${isCurrent ? 'rgba(41,128,185,.08)' : 'var(--surface2)'};
+                cursor:pointer;text-align:center;transition:all .15s;position:relative"
+              class="php-ver-card ${isCurrent ? 'selected' : ''}">
+              <div style="font-size:18px;font-weight:800;color:${isCurrent ? 'var(--accent2)' : 'var(--text)'}">PHP ${v.version}</div>
+              <div style="font-family:var(--mono);font-size:9px;margin-top:4px">
+                <span style="color:${isActive ? 'var(--green)' : 'var(--muted)'}">
+                  ${isActive ? '● Actif' : '● Arrêté'}
+                </span>
+              </div>
+              ${isCurrent ? '<div style="position:absolute;top:6px;right:8px;font-size:9px;font-weight:700;color:var(--accent2)">✓ Actuel</div>' : ''}
+            </div>`;
+          }).join('')}
+          ${versions.length === 0 ? '<div style="color:var(--muted);font-size:12px;padding:20px">Aucune version PHP-FPM détectée.</div>' : ''}
+        </div>
+        <div id="phpVerInfo" style="background:rgba(41,128,185,.06);border:1px solid rgba(41,128,185,.15);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px">
+          💡 Sélectionnez une version pour l'appliquer à ce domaine. Les autres domaines ne sont pas affectés.
+        </div>
+        <div style="font-size:10px;color:var(--muted);padding:8px;background:var(--surface2);border-radius:6px">
+          <strong style="color:var(--text)">Installer une nouvelle version :</strong>
+          <code style="color:var(--accent2)">sudo apt install php8.X-fpm php8.X-mysql php8.X-curl php8.X-mbstring php8.X-xml php8.X-zip</code>
+        </div>
+      </div>
+    `;
+
+    // Ajouter le CSS des cards
+    if (!document.getElementById('phpVerCardStyle')) {
+      const s = document.createElement('style');
+      s.id = 'phpVerCardStyle';
+      s.textContent = '.php-ver-card:hover{border-color:var(--accent2)!important;background:rgba(41,128,185,.06)!important}.php-ver-card.selected{border-color:var(--accent2)!important}';
+      document.head.appendChild(s);
+    }
+
+    // Bouton Appliquer dans le footer
+    const footer = document.querySelector('#phpConfigModal .modal-footer');
+    if (footer && !document.getElementById('applyPhpVerBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'applyPhpVerBtn';
+      btn.className = 'btn btn-primary';
+      btn.textContent = '🐘 Appliquer cette version';
+      btn.style.display = 'none';
+      btn.onclick = applyPhpVersion;
+      footer.insertBefore(btn, footer.querySelector('.btn-ghost'));
+    }
+
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--red);padding:20px;font-size:12px">${e.message}</div>`;
+  }
+}
+
+let _selectedPhpVersion = null;
+function selectPhpVersion(version, card) {
+  _selectedPhpVersion = version;
+  document.querySelectorAll('.php-ver-card').forEach(c => {
+    c.style.borderColor = c.dataset.version === version ? 'var(--accent2)' : 'var(--border)';
+    c.style.background  = c.dataset.version === version ? 'rgba(41,128,185,.08)' : 'var(--surface2)';
+  });
+  const infoEl = document.getElementById('phpVerInfo');
+  if (infoEl) infoEl.innerHTML = `🐘 PHP <strong>${version}</strong> sera appliqué à <strong>${_phpConfigDomain}</strong> — les autres domaines ne sont pas affectés.`;
+  const applyBtn = document.getElementById('applyPhpVerBtn');
+  if (applyBtn) applyBtn.style.display = 'flex';
+}
+
+async function applyPhpVersion() {
+  if (!_selectedPhpVersion || !_phpConfigDomain) return;
+  const btn = document.getElementById('applyPhpVerBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Application…'; }
+  try {
+    const res  = await fetch(`${API}/api/domains/${encodeURIComponent(_phpConfigDomain)}/php-version`, {
+      method: 'POST',
+      headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ phpVersion: _selectedPhpVersion })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(`PHP ${_selectedPhpVersion} appliqué à ${_phpConfigDomain} ✓`, 'success');
+    // Rafraîchir la liste des domaines
+    await loadDomains().catch(() => {});
+    // Recharger l'onglet
+    renderPhpVersionTab(document.getElementById('phpTabContent'));
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🐘 Appliquer cette version'; }
+  }
 }
 
 function renderPhpRawTab(content) {

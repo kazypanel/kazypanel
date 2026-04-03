@@ -174,7 +174,7 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.7.0';
+const KAZYPANEL_VERSION = '1.8.0';
 
 // ─── MICRO-CACHE ──────────────────────────────────────────────────────────────
 // Cache en mémoire pour les routes coûteuses (shell commands).
@@ -4264,6 +4264,42 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   try { s.domains = fs.existsSync(CONFIG.APACHE_SITES_PATH) ? fs.readdirSync(CONFIG.APACHE_SITES_PATH).filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f) && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin')).length : 0; } catch { s.domains = 0; }
   s.users = USERS.length;
 
+  // ── PHP versions installées ─────────────────────────────
+  const phpVersions = ['8.0','8.1','8.2','8.3','8.4'];
+  s.phpInstalled = [];
+  for (const v of phpVersions) {
+    try { await runCmd(`systemctl is-active php${v}-fpm 2>/dev/null`); s.phpInstalled.push({ version: v, active: true }); }
+    catch { if (fs.existsSync(`/etc/php/${v}`)) s.phpInstalled.push({ version: v, active: false }); }
+  }
+
+  // ── IP publique ──────────────────────────────────────────
+  try { s.publicIp = await runCmd("curl -s --max-time 3 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}'"); } catch { s.publicIp = '—'; }
+
+  // ── Connexions TCP actives ───────────────────────────────
+  try {
+    const ssOut = await runCmd('ss -s 2>/dev/null | grep -i estab | head -1');
+    const m = ssOut.match(/estab\s+(\d+)/i);
+    s.tcpEstab = m ? parseInt(m[1], 10) : 0;
+  } catch { s.tcpEstab = 0; }
+
+
+
+  // ── Disque /var si partition séparée ─────────────────────
+  try {
+    const dfRaw = await runCmd("df -h 2>/dev/null | tail -n +2");
+    s.extraDisks = dfRaw.trim().split("\n").filter(function(l) {
+      const mp = l.trim().split(/\s+/).pop();
+      return mp === "/var" || mp === "/home" || mp === "/tmp";
+    }).map(function(l) {
+      const p = l.trim().split(/\s+/);
+      return { mount: p[5] || p[p.length-1], used: (p[2]||"")+"/"+(p[1]||""), pct: parseInt((p[4]||"0"), 10) || 0 };
+    });
+  } catch (e) { s.extraDisks = []; }
+
+  // ── Versions Apache et MariaDB ───────────────────────────
+  try { const av = await runCmd('apache2 -v 2>/dev/null | head -1'); s.apacheVersion = av.match(/Apache\/([\d.]+)/)?.[1] || ''; } catch {}
+  try { const mv = await runCmd('mariadb --version 2>/dev/null || mysql --version 2>/dev/null'); s.mariadbVersion = mv.match(/[\d]+\.[\d]+\.[\d]+/)?.[0] || ''; } catch {}
+
   cacheSet('status', s, CACHE_TTL.status);
   res.json(s);
 });
@@ -4787,6 +4823,98 @@ async function writeUserIni(docRoot, values) {
 }
 
 // GET config PHP d'un domaine (admin ou propriétaire)
+
+// GET /api/system/php-versions — liste les versions PHP-FPM installées
+app.get('/api/system/php-versions', authMiddleware, adminOnly, async (req, res) => {
+  const versions = ['8.1','8.2','8.3','8.4'];
+  const installed = [];
+  for (const v of versions) {
+    const sock = `/run/php/php${v}-fpm.sock`;
+    const bin  = `/usr/sbin/php-fpm${v}`;
+    const bin2 = `/usr/bin/php${v}`;
+    try {
+      await runCmd(`systemctl is-active php${v}-fpm 2>/dev/null`);
+      installed.push({ version: v, active: true, socket: sock });
+    } catch {
+      // Vérifier si installé même si arrêté
+      const exists = fs.existsSync(bin) || fs.existsSync(bin2) || fs.existsSync(`/etc/php/${v}`);
+      if (exists) installed.push({ version: v, active: false, socket: sock });
+    }
+  }
+  res.json({ versions: installed, default: CONFIG.PHP_VERSION });
+});
+
+// POST /api/domains/:name/php-version — changer la version PHP d'un domaine
+app.post('/api/domains/:name/php-version', authMiddleware, adminOnly, async (req, res) => {
+  const safeName  = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+  const { phpVersion } = req.body;
+
+  // Valider la version
+  const allowed = ['8.1','8.2','8.3','8.4','8.0','7.4'];
+  if (!allowed.includes(phpVersion))
+    return res.status(400).json({ error: `Version PHP invalide : ${phpVersion}` });
+
+  // Vérifier que PHP-FPM est installé pour cette version
+  try {
+    await runCmd(`systemctl is-active php${phpVersion}-fpm 2>/dev/null`);
+  } catch {
+    const exists = fs.existsSync(`/etc/php/${phpVersion}`) || fs.existsSync(`/usr/bin/php${phpVersion}`);
+    if (!exists)
+      return res.status(400).json({ error: `PHP ${phpVersion}-FPM n'est pas installé sur ce serveur. Installez-le avec : apt install php${phpVersion}-fpm` });
+  }
+
+  const confFile    = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
+  const confFileSsl = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}-le-ssl.conf`);
+
+  if (!fs.existsSync(confFile))
+    return res.status(404).json({ error: 'Domaine introuvable' });
+
+  try {
+    // Remplacer la version PHP dans le vhost HTTP
+    let conf = fs.readFileSync(confFile, 'utf8');
+    const oldSock = conf.match(/proxy:unix:\/run\/php\/php([\d.]+)-fpm\.sock/)?.[1];
+    conf = conf.replace(/proxy:unix:\/run\/php\/php[\d.]+-fpm\.sock/g,
+                        `proxy:unix:/run/php/php${phpVersion}-fpm.sock`);
+    const tmp = `/tmp/kp_php_${safeName}_${Date.now()}.conf`;
+    fs.writeFileSync(tmp, conf, 'utf8');
+    await runCmd(`sudo cp "${tmp}" "${confFile}" && sudo chmod 644 "${confFile}"`);
+    fs.unlinkSync(tmp);
+
+    // Faire pareil pour le vhost SSL s'il existe
+    if (fs.existsSync(confFileSsl)) {
+      let confSsl = fs.readFileSync(confFileSsl, 'utf8');
+      confSsl = confSsl.replace(/proxy:unix:\/run\/php\/php[\d.]+-fpm\.sock/g,
+                                `proxy:unix:/run/php/php${phpVersion}-fpm.sock`);
+      const tmpSsl = `/tmp/kp_php_ssl_${safeName}_${Date.now()}.conf`;
+      fs.writeFileSync(tmpSsl, confSsl, 'utf8');
+      await runCmd(`sudo cp "${tmpSsl}" "${confFileSsl}" && sudo chmod 644 "${confFileSsl}"`);
+      fs.unlinkSync(tmpSsl);
+    }
+
+    // Tester la syntaxe Apache
+    await runCmd('apache2ctl -t');
+
+    // Démarrer PHP-FPM si pas actif
+    try { await runCmd(`systemctl is-active php${phpVersion}-fpm`); }
+    catch { await runCmd(`systemctl start php${phpVersion}-fpm`); }
+
+    // Recharger Apache
+    await runCmd('systemctl reload apache2');
+
+    // Recharger les ancienne et nouvelle version FPM
+    if (oldSock && oldSock !== phpVersion) {
+      await runCmd(`systemctl reload php${oldSock}-fpm 2>/dev/null || true`).catch(() => {});
+    }
+    await runCmd(`systemctl reload php${phpVersion}-fpm 2>/dev/null || true`).catch(() => {});
+
+    log('PHP_VERSION_CHANGE', `${safeName}: ${oldSock || '?'} → ${phpVersion}`, 'OK');
+    res.json({ success: true, message: `PHP ${phpVersion} appliqué à ${safeName}`, previous: oldSock });
+  } catch (err) {
+    log('PHP_VERSION_CHANGE', err.message, 'ERROR');
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
   const isAdmin = req.user.role === 'admin';
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
