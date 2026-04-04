@@ -6992,7 +6992,247 @@ app.post('/api/v1/webhook/stripe', express.raw({ type: 'application/json' }), as
   res.json({ received: true });
 });
 
-// ─── ROUTE: KAZYDEBUG (admin + kazydebug: true uniquement) ───────────────────
+// ─── ROUTES API v1 ÉTENDUES ───────────────────────────────────────────────────
+
+// GET /api/v1/templates — lister les templates disponibles
+app.get('/api/v1/templates', apiKeyAuth, (req, res) => {
+  try {
+    const tplFile = path.join(__dirname, 'templates.json');
+    const templates = fs.existsSync(tplFile) ? JSON.parse(fs.readFileSync(tplFile, 'utf8')) : [];
+    res.json({ templates: templates.map(t => ({
+      id: t.id, name: t.name,
+      ftpLimit: t.ftpLimit, dbLimit: t.dbLimit,
+      domainLimit: t.domainLimit, subdomainLimit: t.subdomainLimit,
+      diskLimit: t.diskLimit, cronLimit: t.cronLimit
+    }))});
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/v1/domains — lister tous les domaines
+app.get('/api/v1/domains', apiKeyAuth, async (req, res) => {
+  try {
+    if (!fs.existsSync(CONFIG.APACHE_SITES_PATH)) return res.json({ domains: [] });
+    const files = fs.readdirSync(CONFIG.APACHE_SITES_PATH)
+      .filter(f => f.endsWith('.conf') && !['000-default.conf','default-ssl.conf'].includes(f)
+                && !f.includes('-le-ssl.conf') && !f.includes('phpmyadmin') && !f.includes('kazypanel-default'));
+    const domains = files.map(file => {
+      const name   = file.replace('.conf', '');
+      const conf   = fs.readFileSync(path.join(CONFIG.APACHE_SITES_PATH, file), 'utf8');
+      const domain = (conf.match(/ServerName\s+(.+)/) || [])[1]?.trim() || name;
+      const docRoot= (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
+      const phpVer = (conf.match(/php([\d.]+)-fpm\.sock/) || [])[1] || CONFIG.PHP_VERSION;
+      const hasSsl = fs.existsSync(path.join(CONFIG.APACHE_SITES_PATH, `${name}-le-ssl.conf`));
+      const enabled= fs.existsSync(path.join(CONFIG.APACHE_ENABLED_PATH, file));
+      const owner  = USERS.find(u => u.ftpAccounts?.some(f => docRoot.startsWith(f.dir || '')))?.username || null;
+      let sslDaysLeft = null;
+      if (hasSsl) {
+        const certPath = `/etc/letsencrypt/live/${domain}/fullchain.pem`;
+        if (fs.existsSync(certPath)) {
+          try {
+            const { execSync } = require('child_process');
+            const out = execSync(`openssl x509 -enddate -noout -in "${certPath}" 2>/dev/null`, { timeout: 5000 }).toString();
+            const m = out.match(/notAfter=(.+)/);
+            if (m) sslDaysLeft = Math.max(0, Math.ceil((new Date(m[1]).getTime() - Date.now()) / 86400000));
+          } catch {}
+        }
+      }
+      return { name, domain, docRoot, phpVersion: phpVer, hasSsl, sslDaysLeft, enabled, owner, isSubdomain: name.split('.').length > 2 };
+    });
+    log('API_V1', `Domaines listés via clé "${req.apiKey.name}"`, 'OK');
+    res.json({ domains, total: domains.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/v1/domains — créer un domaine pour un utilisateur
+app.post('/api/v1/domains', apiKeyAuth, async (req, res) => {
+  const { domain, username, phpVersion, enableSsl } = req.body;
+  if (!domain || !username) return res.status(400).json({ error: 'domain et username requis' });
+  const user = USERS.find(u => u.username === username);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const safeDomain = domain.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+  const webRoot = `${CONFIG.FTP_ROOT}/${username}/${safeDomain}/public_html`;
+  const php = phpVersion || CONFIG.PHP_VERSION;
+  try {
+    await runCmd(`sudo mkdir -p "${webRoot}" && sudo chown -R ${username}:${username} "${webRoot}"`);
+    const confContent = generateVhostConfig(safeDomain, webRoot, php, false);
+    const tmpConf = `/tmp/kp_api_domain_${Date.now()}.conf`;
+    fs.writeFileSync(tmpConf, confContent);
+    const confFile = path.join(CONFIG.APACHE_SITES_PATH, `${safeDomain}.conf`);
+    await runCmd(`sudo cp "${tmpConf}" "${confFile}" && sudo chmod 644 "${confFile}"`);
+    fs.unlinkSync(tmpConf);
+    await runCmd(`a2ensite ${safeDomain}.conf`);
+    await runCmd('apache2ctl -t');
+    await runCmd('systemctl reload apache2');
+    if (enableSsl) {
+      const sslResult = await generateSslCert(safeDomain);
+      log('API_V1', `Domaine créé: ${safeDomain} pour ${username} (SSL: ${sslResult.success})`, 'OK');
+      return res.json({ success: true, domain: safeDomain, docRoot: webRoot, ssl: sslResult });
+    }
+    log('API_V1', `Domaine créé: ${safeDomain} pour ${username}`, 'OK');
+    res.json({ success: true, domain: safeDomain, docRoot: webRoot });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/v1/domains/:domain — supprimer un domaine
+app.delete('/api/v1/domains/:domain', apiKeyAuth, async (req, res) => {
+  const safeName = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '');
+  const confFile = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
+  if (!fs.existsSync(confFile)) return res.status(404).json({ error: 'Domaine introuvable' });
+  try {
+    await runCmd(`a2dissite ${safeName}.conf 2>/dev/null || true`);
+    await runCmd(`sudo rm -f "${confFile}" "${path.join(CONFIG.APACHE_SITES_PATH, safeName + '-le-ssl.conf')}"`);
+    await runCmd('systemctl reload apache2');
+    log('API_V1', `Domaine supprimé: ${safeName} via clé "${req.apiKey.name}"`, 'OK');
+    res.json({ success: true, message: `Domaine ${safeName} supprimé` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/v1/domains/:domain/ssl — statut SSL d'un domaine
+app.get('/api/v1/domains/:domain/ssl', apiKeyAuth, async (req, res) => {
+  const domain = req.params.domain.replace(/[^a-zA-Z0-9._-]/g, '');
+  const certPath = `/etc/letsencrypt/live/${domain}/fullchain.pem`;
+  if (!fs.existsSync(certPath)) return res.json({ hasSsl: false, domain });
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync(`openssl x509 -enddate -noout -in "${certPath}" 2>/dev/null`, { timeout: 5000 }).toString();
+    const m = out.match(/notAfter=(.+)/);
+    const expiry = m ? new Date(m[1]) : null;
+    const daysLeft = expiry ? Math.max(0, Math.ceil((expiry.getTime() - Date.now()) / 86400000)) : null;
+    res.json({ hasSsl: true, domain, expiry: expiry?.toISOString(), daysLeft, certPath });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/v1/users/:username/databases — lister les BDD d'un utilisateur
+app.get('/api/v1/users/:username/databases', apiKeyAuth, async (req, res) => {
+  const user = USERS.find(u => u.username === req.params.username);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  try {
+    const dbPass = CONFIG.DB_ROOT_PASS ? `-p${CONFIG.DB_ROOT_PASS}` : '';
+    const out = await runCmd(`mysql -uroot ${dbPass} -e "SHOW DATABASES;" 2>/dev/null | grep "^${req.params.username}_"`).catch(() => '');
+    const databases = out.trim().split('\n').filter(Boolean);
+    res.json({ username: req.params.username, databases, total: databases.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/v1/users/:username/databases — créer une BDD
+app.post('/api/v1/users/:username/databases', apiKeyAuth, async (req, res) => {
+  const user = USERS.find(u => u.username === req.params.username);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const { dbname, dbpassword } = req.body;
+  if (!dbname || !dbpassword) return res.status(400).json({ error: 'dbname et dbpassword requis' });
+  const safeDb   = `${req.params.username}_${dbname.replace(/[^a-zA-Z0-9_]/g, '')}`;
+  const dbPass   = CONFIG.DB_ROOT_PASS ? `-p${CONFIG.DB_ROOT_PASS}` : '';
+  try {
+    await runCmd(`mysql -uroot ${dbPass} -e "CREATE DATABASE IF NOT EXISTS \`${safeDb}\`; CREATE USER IF NOT EXISTS '${safeDb}'@'localhost' IDENTIFIED BY '${dbpassword}'; GRANT ALL PRIVILEGES ON \`${safeDb}\`.* TO '${safeDb}'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null`);
+    log('API_V1', `BDD créée: ${safeDb} pour ${req.params.username}`, 'OK');
+    res.json({ success: true, database: safeDb, user: safeDb });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/v1/users/:username/databases/:dbname — supprimer une BDD
+app.delete('/api/v1/users/:username/databases/:dbname', apiKeyAuth, async (req, res) => {
+  const safeDb = req.params.dbname.replace(/[^a-zA-Z0-9_]/g, '');
+  if (!safeDb.startsWith(req.params.username + '_')) return res.status(403).json({ error: 'Accès refusé — la BDD doit appartenir à cet utilisateur' });
+  const dbPass = CONFIG.DB_ROOT_PASS ? `-p${CONFIG.DB_ROOT_PASS}` : '';
+  try {
+    await runCmd(`mysql -uroot ${dbPass} -e "DROP DATABASE IF EXISTS \`${safeDb}\`; DROP USER IF EXISTS '${safeDb}'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null`);
+    log('API_V1', `BDD supprimée: ${safeDb}`, 'OK');
+    res.json({ success: true, message: `Base ${safeDb} supprimée` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/v1/status/services — statut détaillé des services
+app.get('/api/v1/status/services', apiKeyAuth, async (req, res) => {
+  const svcs = ['apache2', 'mariadb', 'vsftpd', 'fail2ban', 'kazypanel', 'named', 'ufw'];
+  const result = {};
+  await Promise.all(svcs.map(async s => {
+    try { await runCmd(`systemctl is-active ${s} 2>/dev/null`); result[s] = 'running'; }
+    catch { result[s] = s === 'ufw' ? 'inactive' : 'stopped'; }
+  }));
+  // UFW via commande dédiée
+  try { const u = await runCmd('ufw status 2>/dev/null | head -1'); result.ufw = u.includes('active') ? 'active' : 'inactive'; } catch {}
+  res.json({ services: result });
+});
+
+// GET /api/v1/status/disk — utilisation disque globale + par utilisateur
+app.get('/api/v1/status/disk', apiKeyAuth, async (req, res) => {
+  try {
+    const diskGlobal = await runCmd("df -h / | awk 'NR==2{printf \"%s/%s (%s)\", $3,$2,$5}'").catch(() => '?');
+    const diskPct    = await runCmd("df / | awk 'NR==2{gsub(/%/,\"\",$5); print $5}'").catch(() => '0');
+    const perUser = [];
+    for (const u of USERS) {
+      const userDir = `${CONFIG.FTP_ROOT}/${u.username}`;
+      if (fs.existsSync(userDir)) {
+        try {
+          const out = await runCmd(`sudo du -sm "${userDir}" 2>/dev/null | awk '{print $1}'`);
+          perUser.push({ username: u.username, usedMb: parseInt(out.trim(), 10) || 0 });
+        } catch { perUser.push({ username: u.username, usedMb: 0 }); }
+      }
+    }
+    res.json({ global: diskGlobal, percent: parseInt(diskPct, 10) || 0, perUser });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/v1/users/:username/diskusage — quota disque d'un utilisateur
+app.get('/api/v1/users/:username/diskusage', apiKeyAuth, async (req, res) => {
+  const user = USERS.find(u => u.username === req.params.username);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const userDir = `${CONFIG.FTP_ROOT}/${req.params.username}`;
+  try {
+    let usedMb = 0;
+    if (fs.existsSync(userDir)) {
+      const out = await runCmd(`sudo du -sm "${userDir}" 2>/dev/null | awk '{print $1}'`);
+      usedMb = parseInt(out.trim(), 10) || 0;
+    }
+    const limitMb = user.diskLimit || 0;
+    res.json({ username: req.params.username, usedMb, limitMb, limitGb: limitMb ? (limitMb/1024).toFixed(1) : null, unlimited: limitMb === 0, percent: limitMb > 0 ? Math.round(usedMb / limitMb * 100) : null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/v1/security/banned — liste des IPs bannies
+app.get('/api/v1/security/banned', apiKeyAuth, async (req, res) => {
+  try {
+    const out = await runCmd('fail2ban-client status 2>/dev/null | grep "Jail list" | sed "s/.*Jail list:\\s*//"').catch(() => '');
+    const jails = out.split(',').map(j => j.trim()).filter(Boolean);
+    const banned = {};
+    let total = 0;
+    for (const jail of jails) {
+      try {
+        const ips = await runCmd(`fail2ban-client status ${jail} 2>/dev/null | grep "Banned IP" | sed "s/.*Banned IP list:\\s*//"`);
+        const list = ips.trim().split(/\s+/).filter(Boolean);
+        banned[jail] = list;
+        total += list.length;
+      } catch { banned[jail] = []; }
+    }
+    res.json({ banned, total, jails });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/v1/security/ban — bannir une IP
+app.post('/api/v1/security/ban', apiKeyAuth, async (req, res) => {
+  const { ip, jail = 'sshd' } = req.body;
+  if (!ip) return res.status(400).json({ error: 'ip requis' });
+  if (!/^[\d.a-fA-F:]+$/.test(ip)) return res.status(400).json({ error: 'IP invalide' });
+  try {
+    await runCmd(`fail2ban-client set ${jail} banip ${ip} 2>/dev/null`);
+    log('API_V1', `IP bannie: ${ip} jail=${jail} via clé "${req.apiKey.name}"`, 'OK');
+    res.json({ success: true, message: `${ip} banni dans ${jail}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/v1/security/ban/:ip — débannir une IP
+app.delete('/api/v1/security/ban/:ip', apiKeyAuth, async (req, res) => {
+  const ip   = req.params.ip;
+  const jail = req.query.jail || 'sshd';
+  if (!/^[\d.a-fA-F:.]+$/.test(ip)) return res.status(400).json({ error: 'IP invalide' });
+  try {
+    await runCmd(`fail2ban-client set ${jail} unbanip ${ip} 2>/dev/null`);
+    log('API_V1', `IP débannie: ${ip} jail=${jail} via clé "${req.apiKey.name}"`, 'OK');
+    res.json({ success: true, message: `${ip} débanni de ${jail}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
 
 const debugOnly = (req, res, next) => {
   if (!CONFIG.KAZY_DEBUG) return res.status(403).json({ error: 'KazyDebug désactivé — ajoutez KAZY_DEBUG=true dans .env' });

@@ -3136,16 +3136,15 @@
               </div>
               <div class="cfg-card-body" style="padding-top:0">
                 <!-- Endpoints -->
-                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px;font-family:var(--mono);font-size:11px;line-height:2">
-                  <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Endpoints disponibles</div>
-                  <div><span style="color:#22c55e;font-weight:700">GET</span>    <span style="color:#8aadf4">/api/v1/status</span> <span style="color:var(--muted)">— Statut serveur</span></div>
-                  <div><span style="color:#22c55e;font-weight:700">GET</span>    <span style="color:#8aadf4">/api/v1/users</span> <span style="color:var(--muted)">— Lister les utilisateurs</span></div>
-                  <div><span style="color:#f59e0b;font-weight:700">POST</span>   <span style="color:#8aadf4">/api/v1/users</span> <span style="color:var(--muted)">— Créer un utilisateur</span></div>
-                  <div><span style="color:#22c55e;font-weight:700">GET</span>    <span style="color:#8aadf4">/api/v1/users/:username</span> <span style="color:var(--muted)">— Détails</span></div>
-                  <div><span style="color:#ef4444;font-weight:700">DELETE</span> <span style="color:#8aadf4">/api/v1/users/:username</span> <span style="color:var(--muted)">— Supprimer</span></div>
-                  <div><span style="color:#6366f1;font-weight:700">PATCH</span>  <span style="color:#8aadf4">/api/v1/users/:username/suspend</span> <span style="color:var(--muted)">— Suspendre</span></div>
-                  <div><span style="color:#6366f1;font-weight:700">PATCH</span>  <span style="color:#8aadf4">/api/v1/users/:username/unsuspend</span> <span style="color:var(--muted)">— Réactiver</span></div>
-                  <div><span style="color:#f59e0b;font-weight:700">POST</span>   <span style="color:#8aadf4">/api/v1/webhook/stripe</span> <span style="color:var(--muted)">— Webhook Stripe</span></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:14px">
+                  <div>
+                    <div style="font-size:12px;font-weight:700;color:var(--text)">22 endpoints disponibles</div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:2px">Utilisateurs · Domaines · Monitoring · Sécurité · Divers</div>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" onclick="document.getElementById('apiEndpointsModal').classList.add('open')">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                    Voir les endpoints
+                  </button>
                 </div>
                 <!-- Exemple -->
                 <div style="background:#1e1e2e;border:1px solid #313244;border-radius:8px;padding:12px 16px;font-family:var(--mono);font-size:11px;line-height:1.8;color:#cad3f5">
@@ -13247,5 +13246,149 @@ function copyUserTemplate() {
     </div>
   </div>
 </div>
+<!-- ══ MODAL : ENDPOINTS API ══ -->
+<div class="modal-overlay" id="apiEndpointsModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="max-width:700px;width:100%;max-height:88vh;display:flex;flex-direction:column;border-radius:14px;overflow:hidden">
+
+    <!-- ── Header ── -->
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#6c47ff);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+        </div>
+        <div>
+          <div style="font-size:15px;font-weight:800;color:var(--text)">API REST v1 — Endpoints</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:var(--mono)">22 routes · <code style="color:var(--accent2)">X-Api-Key</code> requis</div>
+        </div>
+      </div>
+      <button onclick="document.getElementById('apiEndpointsModal').classList.remove('open')" class="btn btn-ghost btn-sm" style="width:32px;height:32px;padding:0;font-size:18px;border-radius:8px">×</button>
+    </div>
+
+    <!-- ── Corps ── -->
+    <div style="overflow-y:auto;flex:1;padding:20px 24px;display:flex;flex-direction:column;gap:16px;background:var(--bg)">
+
+      <!-- Section : Utilisateurs -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.08em">Utilisateurs</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:1px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">10</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <thead><tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;width:70px">Méthode</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Endpoint</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Description</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Lister les utilisateurs</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge post">POST</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Créer un utilisateur</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users/:username</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Détails d'un utilisateur</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge delete">DEL</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users/:username</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Supprimer un utilisateur</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge patch">PATCH</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users/:username/suspend</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Suspendre le compte</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge patch">PATCH</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users/:username/unsuspend</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Réactiver le compte</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users/:username/databases</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Lister les bases de données</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge post">POST</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users/:username/databases</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Créer une base de données</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge delete">DEL</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users/:username/databases/:db</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Supprimer une BDD</td></tr>
+            <tr><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/users/:username/diskusage</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Quota disque</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Section : Domaines -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.08em">Domaines</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:1px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">4</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <thead><tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;width:70px">Méthode</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Endpoint</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Description</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/domains</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Lister tous les domaines</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge post">POST</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/domains</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Créer un domaine</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge delete">DEL</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/domains/:domain</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Supprimer un domaine</td></tr>
+            <tr><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/domains/:domain/ssl</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Statut SSL + jours restants</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Section : Monitoring -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.08em">Monitoring</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:1px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">3</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <thead><tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;width:70px">Méthode</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Endpoint</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Description</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/status</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">CPU, RAM, disque, users, domaines</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/status/services</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Statut de chaque service</td></tr>
+            <tr><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/status/disk</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Disque global + par utilisateur</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Section : Sécurité -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.08em">Sécurité</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:1px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">3</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <thead><tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;width:70px">Méthode</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Endpoint</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Description</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/security/banned</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">IPs bannies Fail2ban</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge post">POST</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/security/ban</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Bannir une IP</td></tr>
+            <tr><td style="padding:9px 14px"><span class="api-ep-badge delete">DEL</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/security/ban/:ip</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Débannir une IP</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Section : Divers -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.08em">Divers</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:1px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">2</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <thead><tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;width:70px">Méthode</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Endpoint</th>
+            <th style="padding:8px 14px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Description</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 14px"><span class="api-ep-badge get">GET</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/templates</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Templates disponibles</td></tr>
+            <tr><td style="padding:9px 14px"><span class="api-ep-badge post">POST</span></td><td style="padding:9px 14px;font-family:var(--mono);font-size:11px;color:var(--accent2)">/api/v1/webhook/stripe</td><td style="padding:9px 14px;font-size:11px;color:var(--muted)">Webhook Stripe — HMAC SHA256</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- ── Footer ── -->
+    <div style="padding:12px 24px;border-top:1px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">Base URL : <code style="color:var(--accent2)">/api/v1</code> · Auth : <code style="color:var(--accent2)">X-Api-Key</code></span>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('apiEndpointsModal').classList.remove('open')">Fermer</button>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>
