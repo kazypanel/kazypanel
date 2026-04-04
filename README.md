@@ -75,7 +75,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 - 📱 **Bot Telegram intégré** — alertes automatiques + 7 commandes de contrôle (`/status`, `/services`, `/restart`, `/users`, `/logs`, `/disk`, `/help`)
 - 🛡️ **Sécurité Apache** — configuration `ServerTokens` / `ServerSignature` depuis l'interface, fichier dédié `kazypanel-security.conf`
 - 👤 **Gestion utilisateurs** — template email bienvenue personnalisable, envoi automatique à la création
-- 🔌 **API REST publique v1** — 8 endpoints, clés API, webhook Stripe, intégration WHMCS/n8n/Zapier
+- 🔌 **API REST publique v1** — 22 endpoints, clés API, webhook Stripe, intégration WHMCS/n8n/Zapier
 - 🛠️ **KazyDebug** — éditeur `index.html` / `server.js` en direct, CodeMirror, backup auto, activable depuis la config
 - 💻 **Terminal SSH professionnel** — thème Catppuccin Macchiato, historique, Ctrl+C/D/L/U, commandes rapides
 
@@ -409,18 +409,54 @@ Accessible depuis n'importe quel site ou service externe. Authentification par h
 X-Api-Key: kp_live_xxxxxxxxxxxxxxxx
 ```
 
-Les clés se gèrent dans **Configuration > API**.
+Les clés se gèrent dans **Configuration → API**. La liste complète des endpoints est accessible depuis le panel via **Configuration → API → Voir les endpoints**.
+
+#### Utilisateurs (10 routes)
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/api/v1/status` | Statut serveur (CPU, RAM, disque) |
 | GET | `/api/v1/users` | Lister les utilisateurs |
 | POST | `/api/v1/users` | Créer un utilisateur |
 | GET | `/api/v1/users/:username` | Détails d'un utilisateur |
 | DELETE | `/api/v1/users/:username` | Supprimer un utilisateur |
-| PATCH | `/api/v1/users/:username/suspend` | Suspendre |
-| PATCH | `/api/v1/users/:username/unsuspend` | Réactiver |
-| POST | `/api/v1/webhook/stripe` | Webhook Stripe (HMAC SHA256) |
+| PATCH | `/api/v1/users/:username/suspend` | Suspendre le compte |
+| PATCH | `/api/v1/users/:username/unsuspend` | Réactiver le compte |
+| GET | `/api/v1/users/:username/databases` | Lister les bases de données |
+| POST | `/api/v1/users/:username/databases` | Créer une base de données MariaDB |
+| DELETE | `/api/v1/users/:username/databases/:dbname` | Supprimer une base de données |
+| GET | `/api/v1/users/:username/diskusage` | Quota disque (utilisé / limite / %) |
+
+#### Domaines (4 routes)
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/v1/domains` | Lister tous les domaines |
+| POST | `/api/v1/domains` | Créer un domaine (SSL optionnel) |
+| DELETE | `/api/v1/domains/:domain` | Supprimer un domaine |
+| GET | `/api/v1/domains/:domain/ssl` | Statut SSL + jours restants |
+
+#### Monitoring (3 routes)
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/v1/status` | Statut serveur (CPU, RAM, disque) |
+| GET | `/api/v1/status/services` | Statut détaillé de chaque service |
+| GET | `/api/v1/status/disk` | Disque global + répartition par utilisateur |
+
+#### Sécurité (3 routes)
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/v1/security/banned` | IPs bannies par Fail2ban (toutes jails) |
+| POST | `/api/v1/security/ban` | Bannir une IP dans une jail |
+| DELETE | `/api/v1/security/ban/:ip` | Débannir une IP (`?jail=sshd` optionnel) |
+
+#### Divers (2 routes)
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/v1/templates` | Templates de ressources disponibles |
+| POST | `/api/v1/webhook/stripe` | Webhook Stripe — vérification HMAC SHA256 |
 
 **Exemple — créer un utilisateur :**
 ```bash
@@ -1158,6 +1194,14 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 - ✨ **Sécurité** — seul le Chat ID configuré peut envoyer des commandes
 - ✨ **Déduplication SSH** — un Set en mémoire évite les alertes dupliquées entre deux checks
 - 🗑️ Onglet "Sauvegardes" retiré de Configuration (fonctionnalité déplacée dans Sécurité)
+- ✨ **API REST v1 étendue — 22 routes** (14 nouvelles routes ajoutées) :
+  - Domaines : `GET/POST /api/v1/domains`, `DELETE /api/v1/domains/:domain`, `GET /api/v1/domains/:domain/ssl`
+  - BDD : `GET/POST /api/v1/users/:username/databases`, `DELETE /api/v1/users/:username/databases/:dbname`
+  - Monitoring : `GET /api/v1/status/services`, `GET /api/v1/status/disk`, `GET /api/v1/users/:username/diskusage`
+  - Sécurité : `GET /api/v1/security/banned`, `POST /api/v1/security/ban`, `DELETE /api/v1/security/ban/:ip`
+  - Divers : `GET /api/v1/templates`
+- ✨ **Modal "Endpoints" dans Configuration → API** — tableaux par catégorie avec badges de méthode colorés
+- ✨ **Route utilisateur `POST /api/me/domains/:name/php-version`** — changement de version PHP accessible aux utilisateurs non-admin
 - 🐛 Fix : SSL domaine utilisateur affichait "Aucun" même avec certificat valide — vérification croisée avec fichier `-le-ssl.conf`
 - 🐛 Fix : `api/system/php-versions` inaccessible aux utilisateurs — `adminOnly` retiré
 - 🐛 Fix : `cfgLoadDomains` non défini dans `applyPhpVersion` — remplacé par `loadDomains()`
@@ -1246,7 +1290,7 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 ### v1.6.0 — 2026-03-29
 
 #### 🌐 API REST publique v1
-- ✨ **8 endpoints API** authentifiés par clé `X-Api-Key`
+- ✨ **8 endpoints API** authentifiés par clé `X-Api-Key` (étendu à 22 routes en v1.8.0)
 - 🔑 Gestion des clés API dans Configuration > API
 - 💳 Intégration Stripe — secret webhook configurable, URL auto-générée
 - 📄 Page de commande `order.php` pour kazylax.fr
