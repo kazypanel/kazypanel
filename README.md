@@ -1,7 +1,5 @@
 # 🖥️ KazyPanel
 
-[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/donate/?token=gi6SgOn_AzcGLU01Q-iFGzhVF7a-CAl-U9tQJpBUzKzy2yL3d-ZBoWgWvlq5ZGe3doaif-XCcGgiATtE&locale.x=fr_FR)
-
 ![image](https://github.com/kazypanel/kazypanel/blob/main/accueil.png)
 ![image](https://github.com/kazypanel/kazypanel/blob/main/domaine.png)
 ![image](https://github.com/kazypanel/kazypanel/blob/main/templates.png)
@@ -12,6 +10,7 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D24.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/donate/?token=gi6SgOn_AzcGLU01Q-iFGzhVF7a-CAl-U9tQJpBUzKzy2yL3d-ZBoWgWvlq5ZGe3doaif-XCcGgiATtE&locale.x=fr_FR)
 
 ---
 
