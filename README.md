@@ -35,6 +35,7 @@
 - [Dépannage](#-dépannage)
 - [Logs & Monitoring](#-logs--monitoring)
 - [Sécurité avancée](#-sécurité-avancée)
+- [Bot Telegram](#-bot-telegram)
 - [FAQ](#-faq)
 
 ---
@@ -71,6 +72,7 @@ Il fonctionne sur un serveur **Node.js** et expose une API REST consommée par u
 - 📜 **Logs du panel** — consultation `kazypanel.log` / `kazypanel-error.log` avec filtres
 - 🔒 **Sécurité avancée** — score /100, IPs bloquées, audit SSH professionnel, bannir/débannir en 1 clic
 - 🔄 **Mises à jour système** — vérification apt, liste des paquets, installation en streaming avec terminal temps réel
+- 📱 **Bot Telegram intégré** — alertes automatiques + 7 commandes de contrôle (`/status`, `/services`, `/restart`, `/users`, `/logs`, `/disk`, `/help`)
 - 🛡️ **Sécurité Apache** — configuration `ServerTokens` / `ServerSignature` depuis l'interface, fichier dédié `kazypanel-security.conf`
 - 👤 **Gestion utilisateurs** — template email bienvenue personnalisable, envoi automatique à la création
 - 🔌 **API REST publique v1** — 8 endpoints, clés API, webhook Stripe, intégration WHMCS/n8n/Zapier
@@ -476,6 +478,9 @@ curl -X POST "https://panel.kazylax.fr/api/v1/users" \
 | POST | `/api/domains/:name/ssl` | Générer un certificat SSL |
 | GET | `/api/domains/:name/phpconfig` | Config PHP du domaine (.user.ini) |
 | GET | `/api/system/php-versions` | Versions PHP-FPM installées sur le serveur |
+| GET | `/api/config/telegram` | Configuration du bot Telegram |
+| PUT | `/api/config/telegram` | Sauvegarder la configuration Telegram |
+| POST | `/api/config/telegram/test` | Envoyer un message de test Telegram |
 | GET | `/api/status` | Statut serveur enrichi : IP publique, TCP actifs, PHP installés, disques extra |
 | POST | `/api/domains/:name/php-version` | Changer la version PHP d'un domaine |
 | PUT | `/api/domains/:name/phpconfig` | Modifier la config PHP |
@@ -809,6 +814,12 @@ Depuis **Sécurité > Mises à jour** :
 sudo systemctl restart kazypanel
 ```
 
+**Le bot Telegram ne reçoit pas les alertes**
+→ Vérifiez que le Bot Token et le Chat ID sont corrects dans Configuration → Telegram
+→ Cliquez sur "Tester" pour envoyer un message de test
+→ Vérifiez que le service KazyPanel tourne : `journalctl -u kazypanel -f`
+→ Sur Debian 12, vérifiez que journald retourne les logs SSH : `journalctl _SYSTEMD_UNIT=ssh.service -n 5`
+
 **Changer la version PHP d'un domaine ne fonctionne pas**
 → Vérifiez que la version PHP-FPM cible est installée et active :
 ```bash
@@ -978,6 +989,50 @@ Le fichier `/etc/fail2ban/filter.d/kazypanel.conf` est créé automatiquement. I
 
 ---
 
+## 📱 Bot Telegram
+
+KazyPanel intègre un bot Telegram natif — aucune dépendance externe, tout fonctionne via l'API Telegram et le long-polling intégré dans `server.js`.
+
+### Configuration
+
+1. Créer un bot : ouvrir Telegram → **@BotFather** → `/newbot` → copier le **token**
+2. Obtenir votre Chat ID : envoyer un message à **@userinfobot**
+3. Dans KazyPanel : **Configuration → Telegram** → coller Token + Chat ID → Enregistrer → Tester
+
+### Commandes disponibles
+
+| Commande | Description |
+|----------|-------------|
+| `/help` | Liste de toutes les commandes |
+| `/status` | CPU, RAM, Disque, Load, Uptime |
+| `/services` | État des services système |
+| `/restart apache2` | Redémarrer un service |
+| `/users` | Liste des utilisateurs |
+| `/logs` | 15 dernières lignes du log |
+| `/disk` | Espace disque par partition |
+
+Services redémarrables : `apache2`, `mariadb`, `fail2ban`, `vsftpd`, `kazypanel`, `named`, `bind9`
+
+### Alertes automatiques
+
+| Événement | Déclencheur |
+|-----------|-------------|
+| Connexion panel échouée | Immédiat |
+| Brute-force détecté | 5 tentatives / 1 minute |
+| Nouveau domaine créé | Immédiat |
+| Sauvegarde terminée | Immédiat + taille |
+| Service arrêté | Immédiat |
+| Mises à jour apt disponibles | Après vérification |
+| SSL expirant ≤ 14 jours | Quotidien |
+| Connexion SSH (réussie/échouée) | Toutes les 30s via journald |
+| UFW désactivé / réactivé | Toutes les 60s |
+
+### Sécurité
+
+Seul le **Chat ID** configuré peut envoyer des commandes au bot. Tout message provenant d'un autre chat est silencieusement ignoré.
+
+---
+
 ## ❓ FAQ
 
 **Le panel ne démarre pas**
@@ -1043,8 +1098,6 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ## Changelog
 
-### v1.8.0 — 2026-04-04
-
 ### v1.8.0 — 2026-04-03
 
 #### 🐘 Multi-PHP par domaine
@@ -1075,6 +1128,39 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 - ✨ `robots.txt` créé avec référence au `sitemap.xml`
 - ✨ `sitemap.xml` mis à jour avec 9 URLs (nouvelles sections incluses)
 - ✨ Apple Touch Icon — `kazypanel-apple-touch-icon.png` 180×180 pour iOS/Android
+
+#### 📱 Bot Telegram
+- ✨ **Bot Telegram natif** — aucune dépendance externe, long-polling intégré dans server.js
+- ✨ **7 commandes disponibles** :
+  - `/status` — CPU, RAM, Disque, Load, Uptime, nb utilisateurs avec barres visuelles
+  - `/services` — état de Apache, MariaDB, KazyPanel, Fail2ban, vsftpd
+  - `/restart apache2` — redémarrer un service (apache2, mariadb, fail2ban, vsftpd, kazypanel, named, bind9)
+  - `/users` — liste des utilisateurs avec rôle et statut de suspension
+  - `/logs` — 15 dernières lignes du log KazyPanel
+  - `/disk` — espace disque par partition `/dev`
+  - `/help` — liste de toutes les commandes
+- ✨ **8 alertes automatiques** :
+  - 🔐 Connexion échouée au panel (IP + utilisateur)
+  - 🚨 Brute-force détecté (5 tentatives en moins d'1 minute)
+  - 🌐 Nouveau domaine créé (domaine + créateur)
+  - 💾 Sauvegarde terminée (nom + taille en Mo)
+  - ❌ Service arrêté (quel service + qui)
+  - 🔄 Mises à jour apt disponibles (nb paquets dont sécurité)
+  - 🔒 Certificats SSL expirant ≤ 14 jours (check quotidien automatique)
+  - 🔓 Connexions SSH réussies et échouées (via journald, check toutes les 30s)
+  - 🚨 UFW désactivé / réactivé (check toutes les 60s)
+- ✨ **Configuration dans Configuration → Telegram** :
+  - Bot Token + Chat ID
+  - Seuils d'alerte CPU/RAM/Disque configurables
+  - Checkboxes pour activer/désactiver chaque type d'alerte
+  - Bouton "Tester" — envoie un message de confirmation immédiat
+  - Bouton "Désactiver" — vide les champs et arrête le bot
+- ✨ **Sécurité** — seul le Chat ID configuré peut envoyer des commandes
+- ✨ **Déduplication SSH** — un Set en mémoire évite les alertes dupliquées entre deux checks
+- 🗑️ Onglet "Sauvegardes" retiré de Configuration (fonctionnalité déplacée dans Sécurité)
+- 🐛 Fix : SSL domaine utilisateur affichait "Aucun" même avec certificat valide — vérification croisée avec fichier `-le-ssl.conf`
+- 🐛 Fix : `api/system/php-versions` inaccessible aux utilisateurs — `adminOnly` retiré
+- 🐛 Fix : `cfgLoadDomains` non défini dans `applyPhpVersion` — remplacé par `loadDomains()`
 
 #### 📊 Statut serveur — améliorations
 - ✨ **IP publique** — affichée dans les informations système (via ipify ou hostname)
