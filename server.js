@@ -538,6 +538,7 @@ function trackLoginFail(ip) {
   if (recentFromIp >= 5) {
     _alertBadge++;
     const alertEntry = `[${logTimestamp()}] [ALERT] BRUTE_FORCE: ${recentFromIp} tentatives depuis ${ip} en moins d'1 minute`;
+    tgAlert('🚨 Brute-force détecté !\n\n' + recentFromIp + ' tentatives depuis <code>' + ip + '</code> en moins d\'1 minute').catch(() => {});
     console.warn(alertEntry);
     fsp.appendFile(ERROR_LOG_FILE, alertEntry + '\n').catch(() => {});
   }
@@ -733,6 +734,9 @@ app.post('/api/login', async (req, res) => {
     recordFailedAttempt(ip);
     trackLoginFail(ip);
     log('LOGIN', `${username} ua:${ua.slice(0,120)}`, 'FAIL', ip);
+    if (PANEL_CONFIG.telegramAlertLogin !== false) {
+      tgAlert('🔒 Connexion échouée au panel\n\n👤 Utilisateur : <code>' + username + '</code>\n🌐 IP : <code>' + ip + '</code>').catch(() => {});
+    }
     return res.status(401).json({ error: 'Identifiants incorrects' });
   }
 
@@ -3539,13 +3543,20 @@ app.get('/api/me/domains', authMiddleware, (req, res) => {
         const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim() || '';
         const isEnabled = fs.existsSync(path.join(CONFIG.APACHE_ENABLED_PATH, file));
         const ports = [...conf.matchAll(/<VirtualHost\s+[^:>]+:(\d+)/gi)].map(m => parseInt(m[1]));
-        const hasSsl = ports.includes(443);
+        // Le vhost SSL est dans un fichier séparé -le-ssl.conf — vérifier son existence
+        const sslConfFile = path.join(CONFIG.APACHE_SITES_PATH, `${name}-le-ssl.conf`);
+        const hasSsl = ports.includes(443) || fs.existsSync(sslConfFile);
 
-        // Jours SSL restants
+        // Jours SSL restants — chercher le cert par nom de domaine puis par nom de fichier
         let sslDaysLeft = null;
         if (hasSsl) {
-          const sslCertPath = `/etc/letsencrypt/live/${name}/fullchain.pem`;
-          if (fs.existsSync(sslCertPath)) {
+          const domainName = (conf.match(/ServerName\s+(.+)/) || [])[1]?.trim() || name;
+          const certPaths = [
+            `/etc/letsencrypt/live/${domainName}/fullchain.pem`,
+            `/etc/letsencrypt/live/${name}/fullchain.pem`,
+          ];
+          const sslCertPath = certPaths.find(p => fs.existsSync(p));
+          if (sslCertPath) {
             try {
               const { execSync } = require('child_process');
               const out = execSync(`openssl x509 -enddate -noout -in "${sslCertPath}" 2>/dev/null`, { timeout: 5000 }).toString().trim();
@@ -3906,6 +3917,7 @@ app.post('/api/domains', authMiddleware, adminOnly, async (req, res) => {
     await runCmd(`a2ensite ${safeDomain}.conf`);
     await runCmd('systemctl reload apache2');
     log('CREATE_DOMAIN', safeDomain, 'OK');
+    tgSend('🌐 <b>Nouveau domaine créé</b>\n\nDomaine : <code>' + safeDomain + '</code>\nCréé par : <code>' + req.user.username + '</code>').catch(() => {});
     cacheInvalidate('domains');
     res.json({ success: true, message: `Domaine ${safeDomain} créé avec succès`, domain: safeDomain });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -4248,7 +4260,7 @@ app.get('/api/status', authMiddleware, adminOnly, async (req, res) => {
   } catch { s.uptime = 'N/A'; }
   try {
     s.memory = await runCmd("free -m | awk 'NR==2{used=$3; total=$2; if(total>=1024) printf \"%.1f/%.1f Go\", used/1024, total/1024; else printf \"%d/%d Mo\", used, total}'");
-    s.ramPercent = await runCmd("free | awk 'NR==2{printf \"%.0f\", $3*100/$2}'");
+      const ram  = await runCmd("free | awk 'NR==2{printf \"%.0f\", $3*100/$2}'").catch(() => '?');
   } catch { s.memory = 'N/A'; s.ramPercent = 0; }
   try {
     s.disk = await runCmd("df -h / | awk 'NR==2{printf \"%s/%s\", $3,$2}'");
@@ -4363,6 +4375,9 @@ app.post('/api/services/:service/:action', authMiddleware, adminOnly, async (req
     try { await runCmd(`systemctl is-active ${service}`); newStatus = 'running'; } catch {}
     log('SERVICE_CTRL', `${action} ${service} par ${req.user.username}`, 'OK');
     cacheInvalidate('status');
+    if (newStatus === 'stopped' && PANEL_CONFIG.telegramAlertService !== false) {
+      tgAlert('❌ <b>Service arrêté</b>\n\nService : <code>' + service + '</code>\nAction : ' + action + '\nPar : <code>' + req.user.username + '</code>').catch(() => {});
+    }
     res.json({ success: true, message: `${allowed[service]} : ${action} effectué`, status: newStatus });
   } catch (err) {
     res.status(500).json({ error: `Erreur lors de ${action} sur ${service} : ${err.message}` });
@@ -4400,6 +4415,68 @@ app.post('/api/domains/:name/ssl', authMiddleware, adminOnly, async (req, res) =
 
 // Renouveler tous les certificats
 // ─── ROUTE: SSL UTILISATEUR ───────────────────────────────────────────────────
+// POST /api/me/domains/:name/php-version — changer la version PHP (utilisateur)
+app.post('/api/me/domains/:name/php-version', authMiddleware, async (req, res) => {
+  const user     = USERS.find(u => u.id === parseInt(req.user.id, 10));
+  const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+  const { phpVersion } = req.body;
+
+  // Valider la version
+  const allowed = ['8.0','8.1','8.2','8.3','8.4'];
+  if (!allowed.includes(phpVersion))
+    return res.status(400).json({ error: `Version PHP invalide : ${phpVersion}` });
+
+  // Vérifier que le domaine appartient à l'utilisateur
+  const confFile = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
+  if (!fs.existsSync(confFile)) return res.status(404).json({ error: 'Domaine introuvable' });
+  const conf    = fs.readFileSync(confFile, 'utf8');
+  const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim();
+  if (!userOwnsDocRoot(user, docRoot))
+    return res.status(403).json({ error: 'Ce domaine ne vous appartient pas' });
+
+  // Vérifier que PHP-FPM est installé pour cette version
+  try { await runCmd(`systemctl is-active php${phpVersion}-fpm 2>/dev/null`); }
+  catch {
+    const exists = fs.existsSync(`/etc/php/${phpVersion}`);
+    if (!exists) return res.status(400).json({ error: `PHP ${phpVersion}-FPM n'est pas installé sur ce serveur` });
+  }
+
+  try {
+    const confFileSsl = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}-le-ssl.conf`);
+    const oldVersion  = (conf.match(/php([\d.]+)-fpm\.sock/) || [])[1] || CONFIG.PHP_VERSION;
+
+    // Mettre à jour le vhost HTTP
+    const newConf = conf.replace(/proxy:unix:\/run\/php\/php[\d.]+-fpm\.sock/g,
+                                 `proxy:unix:/run/php/php${phpVersion}-fpm.sock`);
+    const tmp = `/tmp/kp_userphp_${safeName}_${Date.now()}.conf`;
+    fs.writeFileSync(tmp, newConf, 'utf8');
+    await runCmd(`sudo cp "${tmp}" "${confFile}" && sudo chmod 644 "${confFile}"`);
+    fs.unlinkSync(tmp);
+
+    // Mettre à jour le vhost SSL si existant
+    if (fs.existsSync(confFileSsl)) {
+      const confSsl    = fs.readFileSync(confFileSsl, 'utf8');
+      const newConfSsl = confSsl.replace(/proxy:unix:\/run\/php\/php[\d.]+-fpm\.sock/g,
+                                         `proxy:unix:/run/php/php${phpVersion}-fpm.sock`);
+      const tmpSsl = `/tmp/kp_userphp_ssl_${safeName}_${Date.now()}.conf`;
+      fs.writeFileSync(tmpSsl, newConfSsl, 'utf8');
+      await runCmd(`sudo cp "${tmpSsl}" "${confFileSsl}" && sudo chmod 644 "${confFileSsl}"`);
+      fs.unlinkSync(tmpSsl);
+    }
+
+    await runCmd('apache2ctl -t');
+    try { await runCmd(`systemctl is-active php${phpVersion}-fpm`); }
+    catch { await runCmd(`systemctl start php${phpVersion}-fpm`); }
+    await runCmd('systemctl reload apache2');
+    await runCmd(`systemctl reload php${phpVersion}-fpm 2>/dev/null || true`).catch(() => {});
+
+    log('USER_PHP_VERSION', `${req.user.username} : ${safeName} ${oldVersion}→${phpVersion}`, 'OK');
+    res.json({ success: true, message: `PHP ${phpVersion} appliqué à ${safeName}`, previous: oldVersion });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/me/domains/:name/ssl', authMiddleware, async (req, res) => {
   const user = USERS.find(u => u.id === parseInt(req.user.id, 10));
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
@@ -4442,6 +4519,319 @@ if (fs.existsSync(PANEL_CONFIG_FILE)) {
 function savePanelConfig() {
   fs.writeFileSync(PANEL_CONFIG_FILE, JSON.stringify(PANEL_CONFIG, null, 2));
 }
+
+// ─── MODULE TELEGRAM ──────────────────────────────────────────────────────────
+
+async function tgSend(text) {
+  const token  = PANEL_CONFIG.telegramBotToken;
+  const chatId = PANEL_CONFIG.telegramChatId;
+  if (!token || !chatId) return;
+  try {
+    await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true })
+    });
+  } catch {}
+}
+
+let _tgOffset = 0, _tgPolling = false, _tgTimer = null;
+
+async function tgPoll() {
+  const token  = PANEL_CONFIG.telegramBotToken;
+  const chatId = PANEL_CONFIG.telegramChatId;
+  if (!token || !chatId || _tgPolling) return;
+  _tgPolling = true;
+  try {
+    const res  = await fetch('https://api.telegram.org/bot' + token + '/getUpdates?offset=' + _tgOffset + '&timeout=20&limit=5');
+    const data = await res.json();
+    if (!data.ok) { _tgPolling = false; return; }
+    for (const update of (data.result || [])) {
+      _tgOffset = update.update_id + 1;
+      const msg = update.message;
+      if (!msg || !msg.text) continue;
+      if (String(msg.chat.id) !== String(chatId)) continue;
+      await tgHandleCommand(msg.text.trim(), msg);
+    }
+  } catch {}
+  _tgPolling = false;
+}
+
+async function tgHandleCommand(text, msg) {
+  const parts = text.split(' ');
+  const cmd   = parts[0].toLowerCase().split('@')[0];
+  const arg   = parts.slice(1).join(' ').trim();
+  try {
+    if (cmd === '/status' || cmd === '/s') {
+      let cpu = '0', ram = '0', disk = '0', load = '?', uptime = '?';
+      try { cpu  = (await runCmd("cat /proc/stat | awk 'NR==1{idle=$5;total=0;for(i=2;i<=NF;i++)total+=$i;print int((1-idle/total)*100)}'")).trim(); } catch {}
+      try { ram  = (await runCmd("free | awk 'NR==2{printf \"%.0f\", $3*100/$2}'")).trim().replace(/[^0-9]/g,''); } catch {}
+      try { disk = (await runCmd("df / | awk 'NR==2{print $5}'" )).trim().replace(/[^0-9]/g,''); } catch {}
+      try { load = (await runCmd("awk '{print $1,$2,$3}' /proc/loadavg")).trim(); } catch {}
+      try {
+        let s = Math.floor(parseFloat(fs.readFileSync('/proc/uptime','utf8').split(' ')[0]));
+        const d=Math.floor(s/86400); s%=86400; const h=Math.floor(s/3600); s%=3600; const m=Math.floor(s/60);
+        uptime = d+'j '+h+'h '+m+'min';
+      } catch {}
+      const bar = function(p) { const n=parseInt(p,10)||0; const f=Math.min(10,Math.round(n/10)); return '\u2588'.repeat(f)+'\u2591'.repeat(10-f)+' '+n+'%'; };
+      const warn = function(p) { const n=parseInt(p,10)||0; return n>85?' \u26a0\ufe0f':n>65?' \U0001F7E0':' \u2705'; };
+      await tgSend(
+        '\u26a1 <b>KazyPanel - Statut</b>\n\n'+
+        'CPU    '+bar(cpu)+warn(cpu)+'\n'+
+        'RAM    '+bar(ram)+warn(ram)+'\n'+
+        'Disque '+bar(disk)+warn(disk)+'\n\n'+
+        'Load   : <code>'+load+'</code>\n'+
+        'Uptime : <code>'+uptime+'</code>\n'+
+        'Users  : '+USERS.length
+      );
+    } else if (cmd === '/services' || cmd === '/svc') {
+      const svcs = ['apache2','mariadb','kazypanel','fail2ban','vsftpd'];
+      const rows = await Promise.all(svcs.map(async function(s) {
+        try { await runCmd('systemctl is-active '+s+' 2>/dev/null'); return '\u2705 '+s; }
+        catch { return '\u274c '+s; }
+      }));
+      await tgSend('\U0001F527 <b>Services</b>\n\n'+rows.join('\n'));
+    } else if (cmd === '/restart' && arg) {
+      const allowed = ['apache2','mariadb','fail2ban','vsftpd','kazypanel','named','bind9'];
+      if (!allowed.includes(arg)) { await tgSend('\u274c Non autoris\u00e9 : '+arg+'\nDisponibles : '+allowed.join(', ')); return; }
+      await tgSend('\U0001F504 Red\u00e9marrage de <code>'+arg+'</code>...');
+      try { await runCmd('systemctl restart '+arg); await tgSend('\u2705 <code>'+arg+'</code> red\u00e9marr\u00e9'); log('TG_RESTART',arg,'OK'); }
+      catch (e) { await tgSend('\u274c Erreur : '+e.message); }
+    } else if (cmd === '/logs' || cmd === '/log') {
+      const out = await runCmd('tail -15 '+CONFIG.LOG_FILE+' 2>/dev/null').catch(function(){return 'Aucun log';});
+      await tgSend('\U0001F4CB <b>Derniers logs</b>\n\n<code>'+out.slice(-3000)+'</code>');
+    } else if (cmd === '/users') {
+      const list = USERS.map(function(u){return (u.suspended?'\u23f8':'\u2705')+' <b>'+u.username+'</b> ('+u.role+')';}).join('\n');
+      await tgSend('\U0001F465 <b>Utilisateurs ('+USERS.length+')</b>\n\n'+(list||'Aucun'));
+    } else if (cmd === '/disk') {
+      const df = await runCmd("df -h | grep -E '^/dev'").catch(function(){return '?';});
+      await tgSend('\U0001F4BF <b>Espace disque</b>\n\n<code>'+df+'</code>');
+    } else if (cmd === '/start' || cmd === '/help') {
+      await tgSend('\u26a1 <b>KazyPanel Bot</b>\n\n'+
+        '/status - CPU / RAM / Disque\n'+
+        '/services - Etat des services\n'+
+        '/restart apache2 - Redemarrer un service\n'+
+        '/users - Liste des utilisateurs\n'+
+        '/logs - Derniers logs\n'+
+        '/disk - Espace disque\n'+
+        '/help - Cette aide');
+    } else {
+      await tgSend('\u2753 Commande inconnue. Tapez /help');
+    }
+  } catch (err) { await tgSend('\u274c Erreur : '+err.message); }
+}
+
+function tgStart() {
+  if (_tgTimer) { clearInterval(_tgTimer); _tgTimer = null; }
+  if (!PANEL_CONFIG.telegramBotToken || !PANEL_CONFIG.telegramChatId) return;
+  log('TELEGRAM', 'Bot démarré — polling actif', 'OK');
+  tgSend('⚡ <b>KazyPanel démarré</b> — Bot connecté. Tapez /help');
+  _tgTimer = setInterval(tgPoll, 3000);
+}
+
+async function tgAlert(message) { await tgSend('\U0001F6A8 <b>ALERTE KazyPanel</b>\n\n' + message); }
+
+setTimeout(function() {
+  if (PANEL_CONFIG.telegramBotToken && PANEL_CONFIG.telegramChatId) tgStart();
+}, 3000);
+
+// ── Vérification SSL quotidienne ──────────────────────────────
+async function tgCheckSslExpiry() {
+  if (!PANEL_CONFIG.telegramBotToken || !PANEL_CONFIG.telegramChatId) return;
+  try {
+    const sitesPath = '/etc/apache2/sites-enabled';
+    if (!fs.existsSync(sitesPath)) return;
+    const files = fs.readdirSync(sitesPath).filter(function(f) { return f.endsWith('-le-ssl.conf'); });
+    const expiring = [];
+    const { execSync } = require('child_process');
+    for (const file of files) {
+      const domain = file.replace('-le-ssl.conf', '');
+      const certPath = '/etc/letsencrypt/live/' + domain + '/fullchain.pem';
+      if (!fs.existsSync(certPath)) continue;
+      try {
+        const out = execSync('openssl x509 -enddate -noout -in "' + certPath + '" 2>/dev/null', { timeout: 5000 }).toString();
+        const m = out.match(/notAfter=(.+)/);
+        if (!m) continue;
+        const days = Math.ceil((new Date(m[1]).getTime() - Date.now()) / 86400000);
+        if (days <= 14) expiring.push({ domain, days });
+      } catch {}
+    }
+    if (expiring.length > 0) {
+      const rows = expiring.map(function(e) {
+        return (e.days <= 7 ? '⚠️' : '🟡') + ' <code>' + e.domain + '</code> — ' + e.days + ' jour(s)';
+      }).join('\n');
+      await tgAlert('🔒 Certificats SSL expirant bient\u00f4t !\n\n' + rows + '\n\n\u2192 Renouvelez depuis Configuration \u2192 R\u00e9seau \u2192 SSL');
+    }
+  } catch {}
+}
+
+setInterval(tgCheckSslExpiry, 24 * 60 * 60 * 1000);
+setTimeout(tgCheckSslExpiry, 30000);
+
+// ── Monitoring SSH — détection connexions en temps réel ──────────────────────
+let _tgSshSeenLines = new Set(); // évite les doublons entre les checks
+
+async function tgCheckSshConnections() {
+  if (!PANEL_CONFIG.telegramBotToken || !PANEL_CONFIG.telegramChatId) return;
+  if (PANEL_CONFIG.telegramAlertSsh === false) return;
+  try {
+    // Lire les 50 dernières lignes SSH — format journalctl Debian 12
+    const out = await runCmd(
+      'journalctl _SYSTEMD_UNIT=ssh.service -n 50 --no-pager --output=short-iso 2>/dev/null || ' +
+      'journalctl _SYSTEMD_UNIT=sshd.service -n 50 --no-pager --output=short-iso 2>/dev/null || ' +
+      'tail -n 50 /var/log/auth.log 2>/dev/null'
+    ).catch(() => '');
+
+    if (!out.trim()) return;
+
+    const lines = out.split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      // Déduplication — ignorer les lignes déjà traitées
+      if (_tgSshSeenLines.has(line)) continue;
+      _tgSshSeenLines.add(line);
+      // Limiter la taille du Set
+      if (_tgSshSeenLines.size > 500) {
+        const arr = [..._tgSshSeenLines];
+        _tgSshSeenLines = new Set(arr.slice(arr.length - 200));
+      }
+      const acceptMatch = line.match(/Accepted (password|publickey) for (\S+) from ([\d.a-fA-F:]+) port (\d+)/);
+      if (acceptMatch) {
+        const method = acceptMatch[1];
+        const user   = acceptMatch[2];
+        const ip     = acceptMatch[3].replace('::ffff:', '');
+        const port   = acceptMatch[4];
+        await tgSend(
+          '\U0001F513 <b>Connexion SSH r\u00e9ussie</b>\n\n' +
+          '\U0001F464 Utilisateur : <code>' + user + '</code>\n' +
+          '\U0001F310 IP : <code>' + ip + '</code>\n' +
+          '\U0001F511 M\u00e9thode : <code>' + method + '</code>\n' +
+          '\U0001F4BB Port : <code>' + port + '</code>'
+        );
+      }
+
+      // Connexion SSH échouée
+      const failMatch = line.match(/Failed (password|publickey) for (?:invalid user )?(\S+) from ([\d.a-fA-F:]+) port (\d+)/);
+      if (failMatch && PANEL_CONFIG.telegramAlertLogin !== false) {
+        const method = failMatch[1];
+        const user   = failMatch[2];
+        const ip     = failMatch[3].replace('::ffff:', '');
+        await tgSend(
+          '\U0001F6A8 <b>Connexion SSH \u00e9chou\u00e9e</b>\n\n' +
+          '\U0001F464 Utilisateur : <code>' + user + '</code>\n' +
+          '\U0001F310 IP : <code>' + ip + '</code>\n' +
+          '\U0001F511 M\u00e9thode : <code>' + method + '</code>'
+        );
+      }
+
+      // Déconnexion SSH
+      const discMatch = line.match(/Disconnected from (?:user )?(\S+)?\s*([\d.a-fA-F:]+) port (\d+)/);
+      if (discMatch && PANEL_CONFIG.telegramAlertSshDisconnect === true) {
+        const ip = discMatch[2].replace('::ffff:', '');
+        await tgSend('\U0001F5F2 Déconnexion SSH depuis <code>' + ip + '</code>');
+      }
+    }
+  } catch {}
+}
+
+// Vérifier SSH toutes les 30 secondes
+setInterval(tgCheckSshConnections, 30000);
+
+// ── Monitoring UFW — détection pare-feu hors service ─────────────────────────
+let _tgUfwWasActive = null; // null = état inconnu au démarrage
+
+async function tgCheckUfw() {
+  if (!PANEL_CONFIG.telegramBotToken || !PANEL_CONFIG.telegramChatId) return;
+  if (PANEL_CONFIG.telegramAlertService === false) return;
+  try {
+    const out    = await runCmd('ufw status 2>/dev/null | head -1').catch(() => '');
+    const active = out.toLowerCase().includes('active');
+
+    // Premier check — initialiser l'état sans alerter
+    if (_tgUfwWasActive === null) {
+      _tgUfwWasActive = active;
+      return;
+    }
+
+    // UFW vient de s'arrêter
+    if (_tgUfwWasActive && !active) {
+      await tgAlert(
+        '\U0001F6A8 <b>UFW (Pare-feu) d\u00e9sactiv\u00e9 !</b>\n\n' +
+        'Le pare-feu est hors service — le serveur n\'est plus prot\u00e9g\u00e9.\n' +
+        'R\u00e9activez-le avec : <code>ufw enable</code>\n' +
+        'Ou depuis KazyPanel \u2192 S\u00e9curit\u00e9 \u2192 Pare-feu'
+      );
+      log('TG_UFW_ALERT', 'UFW d\u00e9sactiv\u00e9 — alerte envoy\u00e9e', 'WARN');
+    }
+
+    // UFW vient de se réactiver
+    if (!_tgUfwWasActive && active) {
+      await tgSend(
+        '\u2705 <b>UFW (Pare-feu) r\u00e9activ\u00e9</b>\n\n' +
+        'Le pare-feu est de nouveau actif.'
+      );
+      log('TG_UFW_ALERT', 'UFW r\u00e9activ\u00e9 — notification envoy\u00e9e', 'OK');
+    }
+
+    _tgUfwWasActive = active;
+  } catch {}
+}
+
+// Vérifier UFW toutes les 60 secondes
+setInterval(tgCheckUfw, 60000);
+// Premier check après 10 secondes (initialisation de l'état)
+setTimeout(tgCheckUfw, 10000);
+
+app.get('/api/config/telegram', authMiddleware, adminOnly, function(req, res) {
+  res.json({
+    botToken:      PANEL_CONFIG.telegramBotToken      || '',
+    chatId:        PANEL_CONFIG.telegramChatId        || '',
+    enabled:       !!(PANEL_CONFIG.telegramBotToken && PANEL_CONFIG.telegramChatId),
+    alertCpu:      PANEL_CONFIG.telegramAlertCpu      ?? 85,
+    alertRam:      PANEL_CONFIG.telegramAlertRam      ?? 85,
+    alertDisk:     PANEL_CONFIG.telegramAlertDisk     ?? 85,
+    alertLogin:    PANEL_CONFIG.telegramAlertLogin    ?? true,
+    alertService:  PANEL_CONFIG.telegramAlertService  ?? true,
+    alertSsh:      PANEL_CONFIG.telegramAlertSsh      ?? true,
+  });
+});
+
+app.put('/api/config/telegram', authMiddleware, adminOnly, function(req, res) {
+  const { botToken, chatId, alertCpu, alertRam, alertDisk, alertLogin, alertService, alertSsh } = req.body;
+  PANEL_CONFIG.telegramBotToken     = (botToken  || '').trim();
+  PANEL_CONFIG.telegramChatId       = (chatId    || '').trim();
+  PANEL_CONFIG.telegramAlertCpu     = parseInt(alertCpu,  10) || 85;
+  PANEL_CONFIG.telegramAlertRam     = parseInt(alertRam,  10) || 85;
+  PANEL_CONFIG.telegramAlertDisk    = parseInt(alertDisk, 10) || 85;
+  PANEL_CONFIG.telegramAlertLogin   = alertLogin   !== false;
+  PANEL_CONFIG.telegramAlertService = alertService !== false;
+  PANEL_CONFIG.telegramAlertSsh     = alertSsh     !== false;
+  savePanelConfig();
+  if (PANEL_CONFIG.telegramBotToken && PANEL_CONFIG.telegramChatId) {
+    tgStart();
+    log('TELEGRAM_CONFIG', 'Bot configuré — chat ' + PANEL_CONFIG.telegramChatId, 'OK');
+    res.json({ success: true, message: 'Bot Telegram démarré avec succès' });
+  } else {
+    if (_tgTimer) { clearInterval(_tgTimer); _tgTimer = null; }
+    log('TELEGRAM_CONFIG', 'Bot désactivé', 'OK');
+    res.json({ success: true, message: 'Configuration sauvegardée (bot désactivé)' });
+  }
+});
+
+app.post('/api/config/telegram/test', authMiddleware, adminOnly, async function(req, res) {
+  if (!PANEL_CONFIG.telegramBotToken || !PANEL_CONFIG.telegramChatId)
+    return res.status(400).json({ error: 'Bot Token et Chat ID requis' });
+  try {
+    await tgSend('✅ <b>Test KazyPanel</b> — La connexion Telegram fonctionne !');
+    res.json({ success: true, message: 'Message de test envoyé' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
 
 app.get('/api/config/pma', authMiddleware, (req, res) => {
   res.json({ pmaUrl: PANEL_CONFIG.pmaUrl || '' });
@@ -4825,7 +5215,7 @@ async function writeUserIni(docRoot, values) {
 // GET config PHP d'un domaine (admin ou propriétaire)
 
 // GET /api/system/php-versions — liste les versions PHP-FPM installées
-app.get('/api/system/php-versions', authMiddleware, adminOnly, async (req, res) => {
+app.get('/api/system/php-versions', authMiddleware, async (req, res) => {
   const versions = ['8.1','8.2','8.3','8.4'];
   const installed = [];
   for (const v of versions) {
@@ -5236,6 +5626,8 @@ app.post('/api/backup', authMiddleware, adminOnly, async (req, res) => {
 
   const stat = fs.statSync(backupPath);
   log('BACKUP', backupName, 'OK');
+  const backupSizeMb = (stat.size / 1024 / 1024).toFixed(1);
+  tgSend('💾 <b>Sauvegarde terminée</b>\n\nFichier : <code>' + backupName + '</code>\nTaille : <code>' + backupSizeMb + ' Mo</code>').catch(() => {});
   res.json({ success: true, backup: { name: backupName, size: stat.size, createdAt: stat.mtime.toISOString() } });
 });
 
@@ -5665,6 +6057,10 @@ app.get('/api/system/updates/check', authMiddleware, adminOnly, async (req, res)
     const securityCount = packages.filter(p => p.isSecurity).length;
     _aptCache = { updatedAt: Date.now(), packages, securityCount, total: packages.length };
     log('APT_CHECK', `${packages.length} màj disponible(s) (${securityCount} sécurité)`, 'OK');
+    if (packages.length > 0 && (PANEL_CONFIG.telegramAlertService !== false)) {
+      const secMsg = securityCount > 0 ? ' dont <b>' + securityCount + ' de sécurité</b>' : '';
+      tgSend('🔄 <b>Mises à jour disponibles</b>\n\n' + packages.length + ' paquet(s)' + secMsg + ' à mettre à jour.\n→ Configuration → Sécurité → Mises à jour').catch(() => {});
+    }
     res.json({ ..._aptCache, cached: false });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -6414,7 +6810,7 @@ app.patch('/api/config/api-keys/:id/toggle', authMiddleware, adminOnly, (req, re
 app.get('/api/v1/status', apiKeyAuth, async (req, res) => {
   try {
     const cpu  = await runCmd("cat /proc/stat | awk 'NR==1{idle=$5;total=0;for(i=2;i<=NF;i++)total+=$i;print int((1-idle/total)*100)}'").catch(() => '0');
-    const ram  = await runCmd("free -m | awk 'NR==2{printf \"%.0f\", $3*100/$2}'").catch(() => '0');
+      const ram  = await runCmd("free | awk 'NR==2{printf \"%.0f\", $3*100/$2}'").catch(() => '?');
     const disk = await runCmd("df / | awk 'NR==2{gsub(/%/,\"\",$5);print $5}'").catch(() => '0');
     res.json({ status: 'ok', version: KAZYPANEL_VERSION, cpu: parseInt(cpu), ram: parseInt(ram), disk: parseInt(disk), users: USERS.length });
   } catch(e) { res.status(500).json({ error: e.message }); }

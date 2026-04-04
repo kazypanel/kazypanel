@@ -2765,10 +2765,6 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             Emails
           </button>
-          <button class="cfg-tab" data-tab="backup-sched" onclick="switchCfgTab('backup-sched')">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Sauvegardes
-          </button>
           <button class="cfg-tab" data-tab="network" onclick="switchCfgTab('network')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="6" height="6"/><rect x="16" y="2" width="6" height="6"/><rect x="9" y="16" width="6" height="6"/><path d="M5 8v4h14V8M12 12v4"/></svg>
             Réseau
@@ -2776,6 +2772,10 @@
           <button class="cfg-tab" data-tab="sshkeys" onclick="switchCfgTab('sshkeys')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
             Clés SSH
+          </button>
+          <button class="cfg-tab" data-tab="telegram" onclick="switchCfgTab('telegram')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Telegram
           </button>
         </div>
 
@@ -3449,48 +3449,6 @@
         </div>
 
         <!-- ═══ ONGLET : SAUVEGARDES PLANIFIÉES ═══ -->
-        <div id="cfgTab-backup-sched" class="cfg-tab-content" style="display:none">
-          <div style="max-width:700px;display:flex;flex-direction:column;gap:16px">
-            <div class="cfg-card">
-              <div class="cfg-card-head">
-                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                </div>
-                <div><div class="cfg-card-title">Sauvegardes automatiques</div><div class="cfg-card-sub">Planification via crontab root</div></div>
-              </div>
-              <div class="cfg-card-body">
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px">
-                  <span style="font-size:13px;font-weight:500">Activer les sauvegardes automatiques</span>
-                  <label style="position:relative;width:40px;height:22px;cursor:pointer">
-                    <input type="checkbox" id="backupEnabled" style="opacity:0;width:0;height:0" onchange="document.getElementById('backupTrack').style.background=this.checked?'var(--accent2)':'var(--border2)';document.getElementById('backupKnob').style.transform=this.checked?'translateX(18px)':'translateX(0)'">
-                    <span id="backupTrack" style="position:absolute;inset:0;border-radius:11px;background:var(--border2);transition:background .2s"></span>
-                    <span id="backupKnob" style="position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s"></span>
-                  </label>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                  <div class="form-group">
-                    <label class="form-label">Fréquence (cron)</label>
-                    <input class="form-input" id="backupCron" value="0 3 * * *" style="font-family:var(--mono)" placeholder="0 3 * * *">
-                    <div style="font-size:10px;color:var(--muted);margin-top:4px">Ex: <code>0 3 * * *</code> = chaque nuit à 3h</div>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Rétention (nombre)</label>
-                    <input class="form-input" id="backupRetain" type="number" value="7" min="1" max="90" style="font-family:var(--mono)">
-                    <div style="font-size:10px;color:var(--muted);margin-top:4px">Les sauvegardes plus anciennes sont supprimées</div>
-                  </div>
-                </div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-                  <button onclick="document.getElementById('backupCron').value='0 3 * * *'" class="btn btn-ghost btn-sm">Chaque nuit à 3h</button>
-                  <button onclick="document.getElementById('backupCron').value='0 3 * * 0'" class="btn btn-ghost btn-sm">Chaque dimanche</button>
-                  <button onclick="document.getElementById('backupCron').value='0 3 1 * *'" class="btn btn-ghost btn-sm">1er du mois</button>
-                </div>
-                <button class="btn btn-primary" onclick="cfgSaveBackupSchedule()" style="width:100%;justify-content:center;background:linear-gradient(135deg,#8b5cf6,#7c3aed)">Enregistrer la planification</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ═══ ONGLET : RÉSEAU ═══ -->
         <div id="cfgTab-network" class="cfg-tab-content" style="display:none">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
             <div class="cfg-card">
@@ -3622,6 +3580,132 @@
                     Ajouter la clé
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ ONGLET : TELEGRAM ══ -->
+        <div id="cfgTab-telegram" class="cfg-tab-content" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+            <!-- Configuration du bot -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#0088cc,#006aa3)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Bot Telegram</div>
+                  <div class="cfg-card-sub">Connectez KazyPanel à votre bot Telegram</div>
+                </div>
+                <span id="tgStatusBadge" class="badge" style="margin-left:auto">—</span>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label>Bot Token</label>
+                  <input type="password" id="tgBotToken" class="form-input" placeholder="123456789:ABCdef..." style="font-family:var(--mono)">
+                  <div class="form-hint">Obtenu depuis @BotFather sur Telegram</div>
+                </div>
+                <div class="form-group">
+                  <label>Chat ID</label>
+                  <input type="text" id="tgChatId" class="form-input" placeholder="-100123456789 ou votre ID utilisateur" style="font-family:var(--mono)">
+                  <div class="form-hint">Envoyez un message à @userinfobot pour obtenir votre ID.</div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:4px">
+                  <button class="btn btn-primary" onclick="saveTelegramConfig()">💾 Enregistrer</button>
+                  <button class="btn btn-ghost" onclick="testTelegram()">📤 Tester</button>
+                  <button class="btn btn-ghost" id="tgStopBtn" style="color:var(--red);border-color:rgba(239,68,68,.3);display:none" onclick="stopTelegram()">■ Désactiver</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Alertes automatiques -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Alertes automatiques</div>
+                  <div class="cfg-card-sub">Seuils de notification</div>
+                </div>
+              </div>
+              <div class="cfg-card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+                  <div class="form-group">
+                    <label>CPU (%)</label>
+                    <input type="number" id="tgAlertCpu" class="form-input" value="85" min="50" max="99">
+                  </div>
+                  <div class="form-group">
+                    <label>RAM (%)</label>
+                    <input type="number" id="tgAlertRam" class="form-input" value="85" min="50" max="99">
+                  </div>
+                  <div class="form-group">
+                    <label>Disque (%)</label>
+                    <input type="number" id="tgAlertDisk" class="form-input" value="85" min="50" max="99">
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+                    <input type="checkbox" id="tgAlertLogin" checked>
+                    <span>Alertes connexions échouées au panel</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+                    <input type="checkbox" id="tgAlertService" checked>
+                    <span>Alertes service arrêté</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+                    <input type="checkbox" id="tgAlertSsh" checked>
+                    <span>Alertes connexions SSH (réussies + échouées)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Commandes disponibles -->
+          <div class="cfg-card" style="margin-top:16px">
+            <div class="cfg-card-head">
+              <div class="cfg-card-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              </div>
+              <div>
+                <div class="cfg-card-title">Commandes du bot</div>
+                <div class="cfg-card-sub">Envoyez ces commandes à votre bot depuis Telegram</div>
+              </div>
+            </div>
+            <div class="cfg-card-body">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+                  <code style="color:var(--accent2);font-size:12px">/status</code>
+                  <div style="font-size:11px;color:var(--muted);margin-top:4px">CPU, RAM, Disque, Uptime</div>
+                </div>
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+                  <code style="color:var(--accent2);font-size:12px">/services</code>
+                  <div style="font-size:11px;color:var(--muted);margin-top:4px">État des services système</div>
+                </div>
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+                  <code style="color:var(--accent2);font-size:12px">/restart apache2</code>
+                  <div style="font-size:11px;color:var(--muted);margin-top:4px">Redémarrer un service</div>
+                </div>
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+                  <code style="color:var(--accent2);font-size:12px">/users</code>
+                  <div style="font-size:11px;color:var(--muted);margin-top:4px">Liste des utilisateurs</div>
+                </div>
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+                  <code style="color:var(--accent2);font-size:12px">/logs</code>
+                  <div style="font-size:11px;color:var(--muted);margin-top:4px">15 dernières lignes du log</div>
+                </div>
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+                  <code style="color:var(--accent2);font-size:12px">/disk</code>
+                  <div style="font-size:11px;color:var(--muted);margin-top:4px">Espace disque par partition</div>
+                </div>
+              </div>
+              <div style="margin-top:12px;padding:10px 14px;background:rgba(41,128,185,.06);border:1px solid rgba(41,128,185,.2);border-radius:8px;font-size:11px;color:var(--muted)">
+                💡 Créer votre bot : ouvrez Telegram → cherchez <b>@BotFather</b> → tapez <code>/newbot</code>.<br>
+                Chat ID : envoyez un message à <b>@userinfobot</b>.
               </div>
             </div>
           </div>
@@ -6378,6 +6462,7 @@ function renderUserDomains(domains) {
       <td>
         <div class="actions">
           <button class="btn btn-ghost btn-sm" onclick="viewDomainConfig('${d.name}', 'user')">⚙️ Config</button>
+          <button class="btn btn-ghost btn-sm" style="color:#8b5cf6;border-color:rgba(139,92,246,.3)" onclick="openPhpConfigModal('${d.name}', '${d.domain}')">🐘 PHP ${d.phpVersion}</button>
           <button class="btn btn-ghost btn-sm" style="${d.hasSsl ? 'color:var(--green);border-color:rgba(5,150,105,.3)' : 'color:#f59e0b;border-color:rgba(245,158,11,.3)'}" onclick="openUserSslModal('${d.name}', '${d.domain}', ${d.hasSsl})">
             ${d.hasSsl ? '🔒 SSL ✓' : '🔓 SSL'}
           </button>
@@ -8581,7 +8666,11 @@ async function applyPhpVersion() {
   const btn = document.getElementById('applyPhpVerBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Application…'; }
   try {
-    const res  = await fetch(`${API}/api/domains/${encodeURIComponent(_phpConfigDomain)}/php-version`, {
+    // Route selon le rôle — admin ou utilisateur
+    const phpRoute = currentRole === 'admin'
+      ? `${API}/api/domains/${encodeURIComponent(_phpConfigDomain)}/php-version`
+      : `${API}/api/me/domains/${encodeURIComponent(_phpConfigDomain)}/php-version`;
+    const res  = await fetch(phpRoute, {
       method: 'POST',
       headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
       body: JSON.stringify({ phpVersion: _selectedPhpVersion })
@@ -10418,9 +10507,9 @@ function switchCfgTab(tab) {
   if (tab === 'server')       { cfgLoadSshAllowUsers(); cfgLoadHostname(); initKazyDebug(); }
   if (tab === 'bashrc')       cfgLoadBashrc();
   if (tab === 'smtp')         { cfgLoadGeneral(); cfgLoadEmailTemplate(); }
-  if (tab === 'backup-sched') cfgLoadBackupSchedule();
   if (tab === 'network')      { cfgLoadNetwork(); cfgLoadSslStatus(); cfgLoadNtp(); cfgLoadApacheSecurity(); }
   if (tab === 'sshkeys')      loadSshKeys();
+  if (tab === 'telegram')     loadTelegramConfig();
   if (tab === 'api')          cfgLoadApiKeys();
 }
 
@@ -10808,31 +10897,9 @@ async function cfgTestWelcomeEmail() {
   const data = await res.json();
   res.ok ? showToast('📧 Mail de test envoyé à ' + to, 'success') : showToast(data.error, 'error');
 }
-async function cfgLoadBackupSchedule() {
-  try {
-    const res  = await fetch(`${API}/api/config/backup-schedule`, { headers:{ Authorization:'Bearer '+token } });
-    const data = await res.json();
-    if (data.schedule) {
-      const enabled = !!data.schedule.enabled;
-      document.getElementById('backupEnabled').checked = enabled;
-      document.getElementById('backupTrack').style.background = enabled ? 'var(--accent2)' : 'var(--border2)';
-      document.getElementById('backupKnob').style.transform   = enabled ? 'translateX(18px)' : 'translateX(0)';
-      document.getElementById('backupCron').value    = data.schedule.cron   || '0 3 * * *';
-      document.getElementById('backupRetain').value  = data.schedule.retain || 7;
-    }
-  } catch {}
-}
 
-async function cfgSaveBackupSchedule() {
-  const body = {
-    enabled: document.getElementById('backupEnabled').checked,
-    cron:    document.getElementById('backupCron').value.trim(),
-    retain:  parseInt(document.getElementById('backupRetain').value),
-  };
-  const res  = await fetch(`${API}/api/config/backup-schedule`, { method:'PUT', headers:{ Authorization:'Bearer '+token,'Content-Type':'application/json' }, body: JSON.stringify(body) });
-  const data = await res.json();
-  res.ok ? showToast('Planification enregistrée ✓', 'success') : showToast(data.error, 'error');
-}
+
+
 
 // ── Réseau (FTP passif + NTP + SSL status) ────────────────────────────────────
 async function cfgLoadNetwork() {
@@ -12021,6 +12088,76 @@ function openUpdateModal() {
 function closeUpdateModal() {
   document.getElementById('updateModal').classList.remove('open');
   document.body.style.overflow = '';
+}
+
+// ── Telegram Config ────────────────────────────────────────────────────────
+async function loadTelegramConfig() {
+  try {
+    const res  = await fetch(`${API}/api/config/telegram`, { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    const ti = id => document.getElementById(id);
+    if (ti('tgBotToken'))     ti('tgBotToken').value          = data.botToken  || '';
+    if (ti('tgChatId'))       ti('tgChatId').value            = data.chatId    || '';
+    if (ti('tgAlertCpu'))     ti('tgAlertCpu').value          = data.alertCpu  ?? 85;
+    if (ti('tgAlertRam'))     ti('tgAlertRam').value          = data.alertRam  ?? 85;
+    if (ti('tgAlertDisk'))    ti('tgAlertDisk').value         = data.alertDisk ?? 85;
+    if (ti('tgAlertLogin'))   ti('tgAlertLogin').checked      = data.alertLogin   !== false;
+    if (ti('tgAlertService')) ti('tgAlertService').checked    = data.alertService !== false;
+    if (ti('tgAlertSsh'))     ti('tgAlertSsh').checked         = data.alertSsh      !== false;
+    const badge   = ti('tgStatusBadge');
+    const stopBtn = ti('tgStopBtn');
+    if (data.enabled) {
+      if (badge)   { badge.textContent = '● Actif'; badge.className = 'badge badge-green'; }
+      if (stopBtn)   stopBtn.style.display = 'flex';
+    } else {
+      if (badge)   { badge.textContent = '○ Inactif'; badge.className = 'badge'; badge.style = 'background:var(--surface2);color:var(--muted);border-color:var(--border)'; }
+      if (stopBtn)   stopBtn.style.display = 'none';
+    }
+  } catch (e) { showToast('Erreur chargement config Telegram : ' + e.message, 'error'); }
+}
+
+async function saveTelegramConfig() {
+  const body = {
+    botToken:     (document.getElementById('tgBotToken')?.value  || '').trim(),
+    chatId:       (document.getElementById('tgChatId')?.value    || '').trim(),
+    alertCpu:     parseInt(document.getElementById('tgAlertCpu')?.value,  10) || 85,
+    alertRam:     parseInt(document.getElementById('tgAlertRam')?.value,  10) || 85,
+    alertDisk:    parseInt(document.getElementById('tgAlertDisk')?.value, 10) || 85,
+    alertLogin:   document.getElementById('tgAlertLogin')?.checked   ?? true,
+    alertService: document.getElementById('tgAlertService')?.checked ?? true,
+    alertSsh:     document.getElementById('tgAlertSsh')?.checked     ?? true,
+  };
+  try {
+    const res  = await fetch(`${API}/api/config/telegram`, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+    loadTelegramConfig();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function testTelegram() {
+  try {
+    const res  = await fetch(`${API}/api/config/telegram/test`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(data.message, 'success');
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function stopTelegram() {
+  const t = document.getElementById('tgBotToken');
+  const c = document.getElementById('tgChatId');
+  if (t) t.value = '';
+  if (c) c.value = '';
+  await saveTelegramConfig();
 }
 </script>
 <!-- ══════════════ MODAL CRÉATION ZONE DNS ══════════════ -->
