@@ -928,7 +928,7 @@
     <div class="login-header">
       <div class="login-logo-wrap">⚡</div>
       <div class="login-title">KazyPanel</div>
-      <div class="login-subtitle">Apache · PHP 8.4 · Manager</div>
+      <div class="login-subtitle" id="loginSiteInfo"><span id="loginSiteName" style="display:none"></span><span id="loginSiteNameFallback">KazyPanel Hosting</span></div>
       <div class="login-version-badge">
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         v<span id="loginVersion">…</span>
@@ -962,6 +962,13 @@
 
     <!-- Footer avec statut serveur -->
     <div class="login-footer">
+      <!-- Nom du site hébergeur configurable -->
+      <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--text)">
+        <span id="loginSiteDisplay">
+          <span id="loginSiteNameFooter" style="display:none"></span>
+          <span id="loginSiteNameFooterFallback">KazyPanel Hosting</span>
+        </span>
+      </div>
       <div id="loginServerStatus" style="display:flex;justify-content:center;gap:14px;margin-bottom:8px">
         <span id="lsApache"  style="display:flex;align-items:center;gap:4px;font-size:10px"><span style="width:6px;height:6px;border-radius:50%;background:var(--muted);display:inline-block"></span>Apache</span>
         <span id="lsMariadb" style="display:flex;align-items:center;gap:4px;font-size:10px"><span style="width:6px;height:6px;border-radius:50%;background:var(--muted);display:inline-block"></span>MariaDB</span>
@@ -1947,6 +1954,7 @@
             Mises à jour
             <span id="sysUpdateBadge" style="display:none;position:absolute;top:8px;right:8px;min-width:18px;height:18px;border-radius:9px;background:#f59e0b;color:#000;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--bg)"></span>
           </button>
+
         </div>
 
         <!-- Panneau UFW -->
@@ -2892,6 +2900,35 @@
                 <button class="btn btn-primary" onclick="cfgSaveSshPort()" style="width:100%;justify-content:center;margin-top:8px;background:linear-gradient(135deg,#f59e0b,#d97706)">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                   Appliquer
+                </button>
+              </div>
+            </div>
+
+            <!-- Site hébergeur (affiché sur la page login) -->
+            <div class="cfg-card">
+              <div class="cfg-card-head">
+                <div class="cfg-card-icon" style="background:linear-gradient(135deg,#4f6ef7,#6c47ff)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                </div>
+                <div>
+                  <div class="cfg-card-title">Site de l'hébergeur</div>
+                  <div class="cfg-card-sub">Affiché sur la page de connexion du panel</div>
+                </div>
+              </div>
+              <div class="cfg-card-body">
+                <div class="form-group">
+                  <label class="form-label">Nom du site</label>
+                  <input class="form-input" id="cfgSiteName" placeholder="Mon Hébergement" maxlength="80">
+                  <div style="font-size:10px;color:var(--muted);margin-top:4px">Remplace "KazyPanel Hosting" sous le logo sur la page login</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">URL du site (cliquable)</label>
+                  <input class="form-input" id="cfgSiteUrl" placeholder="https://monhebergeur.fr" style="font-family:var(--mono)">
+                  <div style="font-size:10px;color:var(--muted);margin-top:4px">Laissez vide pour désactiver le lien</div>
+                </div>
+                <button class="btn btn-primary" onclick="cfgSaveSiteInfo()" style="width:100%;justify-content:center">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Enregistrer
                 </button>
               </div>
             </div>
@@ -4840,6 +4877,38 @@ let _currentUsername = '';
 })();
 
 // ── AUTH ─────────────────────────────────────────────────────
+// ── Gestion brute-force côté client ──────────────────────────────────────────
+let _loginCountdown = null;
+
+function startLoginCountdown(seconds) {
+  const btn = document.getElementById('loginBtn');
+  if (!btn) return;
+  clearInterval(_loginCountdown);
+  let remaining = seconds;
+  btn.disabled = true;
+  btn.style.opacity = '.6';
+  btn.style.cursor = 'not-allowed';
+
+  const update = () => {
+    if (remaining <= 0) {
+      clearInterval(_loginCountdown);
+      btn.innerHTML = '<span id="loginBtnText">Se connecter</span>';
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      return;
+    }
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    btn.innerHTML = m > 0
+      ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Réessayez dans ${m}m${s.toString().padStart(2,'0')}s`
+      : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Réessayez dans ${s}s`;
+    remaining--;
+  };
+  update();
+  _loginCountdown = setInterval(update, 1000);
+}
+
 async function doLogin() {
   const username = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
@@ -4866,9 +4935,18 @@ async function doLogin() {
       body: JSON.stringify({ username, password })
     });
     const data = await res.json();
+
+    if (res.status === 429) {
+      // Blocage actif — démarrer le compte à rebours
+      const sec = data.retryAfterSec || 30;
+      showLoginError(data.error);
+      shakeLoginCard();
+      startLoginCountdown(sec);
+      return;
+    }
+
     if (!res.ok) {
       if (data.suspended) {
-        // Compte suspendu — afficher la page dédiée
         document.getElementById('loginPage').style.display = 'none';
         document.getElementById('suspendedUsername').textContent = username;
         document.getElementById('suspendedPage').style.display = 'flex';
@@ -4879,10 +4957,17 @@ async function doLogin() {
         err.style.display = 'block';
         shakeLoginCard();
       } else {
-        throw new Error(data.error || 'Erreur');
+        // Avertissement progressif avant blocage
+        let msg = data.error || 'Identifiants incorrects';
+        if (data.attemptsLeft === 2) msg += ' — ⚠️ Encore 2 tentatives avant blocage temporaire.';
+        if (data.attemptsLeft === 1) msg += ' — ⛔ Dernière tentative avant blocage.';
+        if (data.attemptsLeft === 0) msg += ' — ⛔ Compte temporairement bloqué.';
+        showLoginError(msg);
+        shakeLoginCard();
       }
       return;
     }
+
     token = data.token;
     currentRole = data.role;
     localStorage.setItem('hp_token', token);
@@ -4898,13 +4983,16 @@ async function doLogin() {
     if (sfName) sfName.textContent = data.username;
     const sfRole = document.getElementById('sfRole');
     if (sfRole) sfRole.textContent = data.role === 'admin' ? 'Administrateur' : 'Utilisateur';
+    clearInterval(_loginCountdown);
     showApp();
   } catch (e) {
     showLoginError(e.message);
     shakeLoginCard();
   } finally {
-    btn.innerHTML = '<span id="loginBtnText">Se connecter</span>';
-    btn.disabled = false;
+    if (!_loginCountdown) {
+      btn.innerHTML = '<span id="loginBtnText">Se connecter</span>';
+      btn.disabled = false;
+    }
   }
 }
 
@@ -6486,11 +6574,37 @@ function closeUserDomainModal() {
 // Charger la version sur la page de login
 (async function loadLoginVersion() {
   try {
-    const res = await fetch(`${API}/api/version`);
+    const res = await fetch(`${API}/api/version`, { signal: AbortSignal.timeout(4000) });
+    // Vérifier que la réponse est bien du JSON avant de parser
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) throw new Error('Réponse non-JSON');
     const data = await res.json();
-    const el = document.getElementById('loginVersion');
-    if (el && data.version) el.textContent = data.version;
-  } catch {}
+
+    // ── Version depuis version.json via l'API ──
+    const vEl = document.getElementById('loginVersion');
+    if (vEl && data.version) vEl.textContent = data.version;
+
+    // ── Nom du site + lien hébergeur ──
+    const applyName = (nameElId, fallElId) => {
+      const nameEl = document.getElementById(nameElId);
+      const fallEl = document.getElementById(fallElId);
+      if (!nameEl || !data.siteName) return;
+      nameEl.innerHTML = data.siteUrl
+        ? `<a href="${data.siteUrl}" target="_blank" rel="noopener"
+             style="color:inherit;text-decoration:underline;text-underline-offset:2px;opacity:.85;transition:opacity .15s"
+             onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.85'">${data.siteName}</a>`
+        : data.siteName;
+      nameEl.style.display = 'inline';
+      if (fallEl) fallEl.style.display = 'none';
+    };
+    applyName('loginSiteName', 'loginSiteNameFallback');
+    applyName('loginSiteNameFooter', 'loginSiteNameFooterFallback');
+
+  } catch {
+    // Fallback silencieux — afficher '…' ou la version depuis le HTML
+    const vEl = document.getElementById('loginVersion');
+    if (vEl && vEl.textContent === '…') vEl.textContent = '1.8.0';
+  }
 })();
 
 // Prévisualiser le répertoire en temps réel
@@ -8503,21 +8617,27 @@ const PHP_SCHEMA = {
 
 async function openPhpConfigModal(name, domain) {
   _phpConfigDomain = name;
-  switchPhpTab('version');
   _phpCurrentTab   = 'memory';
+  _phpConfigData   = null;
   document.getElementById('phpConfigDomain').textContent = domain;
   document.getElementById('phpConfigIniPath').textContent = '…';
   document.getElementById('phpTabContent').innerHTML =
     '<div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto 8px"></div>Chargement…</div>';
-  // Reset tabs
+  // Activer l'onglet memory visuellement
   document.querySelectorAll('.php-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'memory'));
   document.getElementById('phpConfigModal').classList.add('open');
+  // Supprimer l'ancien bouton Appliquer si présent
+  const oldBtn = document.getElementById('applyPhpVerBtn');
+  if (oldBtn) oldBtn.remove();
+  _selectedPhpVersion = null;
   try {
+    // La route /api/domains/:name/phpconfig gère déjà les droits admin ET utilisateur
     const res  = await fetch(`${API}/api/domains/${encodeURIComponent(name)}/phpconfig`, { headers: { Authorization: 'Bearer ' + token } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     _phpConfigData = data;
     document.getElementById('phpConfigIniPath').textContent = (data.docRoot || '') + '/.user.ini';
+    // Afficher le bon contenu pour l'onglet memory
     switchPhpTab('memory');
   } catch(e) {
     document.getElementById('phpTabContent').innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">${e.message}</div>`;
@@ -8615,7 +8735,7 @@ async function renderPhpVersionTab(container) {
         <div id="phpVerInfo" style="background:rgba(41,128,185,.06);border:1px solid rgba(41,128,185,.15);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px">
           💡 Sélectionnez une version pour l'appliquer à ce domaine. Les autres domaines ne sont pas affectés.
         </div>
-        <div style="font-size:10px;color:var(--muted);padding:8px;background:var(--surface2);border-radius:6px">
+        <div style="font-size:10px;color:var(--muted);padding:8px;background:var(--surface2);border-radius:6px;${currentRole !== 'admin' ? 'display:none' : ''}">
           <strong style="color:var(--text)">Installer une nouvelle version :</strong>
           <code style="color:var(--accent2)">sudo apt install php8.X-fpm php8.X-mysql php8.X-curl php8.X-mbstring php8.X-xml php8.X-zip</code>
         </div>
@@ -10503,7 +10623,7 @@ function switchCfgTab(tab) {
   document.getElementById(`cfgTab-${tab}`).style.display = '';
   if (tab === 'system')       loadPanelUsage();
   if (tab === 'https')        loadHttpsStatus();
-  if (tab === 'server')       { cfgLoadSshAllowUsers(); cfgLoadHostname(); initKazyDebug(); }
+  if (tab === 'server')       { cfgLoadSshAllowUsers(); cfgLoadHostname(); initKazyDebug(); cfgLoadGeneral(); }
   if (tab === 'bashrc')       cfgLoadBashrc();
   if (tab === 'smtp')         { cfgLoadGeneral(); cfgLoadEmailTemplate(); }
   if (tab === 'network')      { cfgLoadNetwork(); cfgLoadSslStatus(); cfgLoadNtp(); cfgLoadApacheSecurity(); }
@@ -10684,6 +10804,14 @@ async function cfgLoadGeneral() {
     if (data.panelPublicUrl !== undefined) {
       const el = document.getElementById('panelPublicUrl');
       if (el) el.value = data.panelPublicUrl || '';
+    }
+    if (data.siteName !== undefined) {
+      const el = document.getElementById('cfgSiteName');
+      if (el) el.value = data.siteName || '';
+    }
+    if (data.siteUrl !== undefined) {
+      const el = document.getElementById('cfgSiteUrl');
+      if (el) el.value = data.siteUrl || '';
     }
   } catch(e) { showToast(e.message, 'error'); }
 }
@@ -12090,6 +12218,23 @@ function closeUpdateModal() {
 }
 
 // ── Telegram Config ────────────────────────────────────────────────────────
+
+// ── Site hébergeur (page login) ───────────────────────────────────────────────
+async function cfgSaveSiteInfo() {
+  const siteName = document.getElementById('cfgSiteName')?.value.trim() || '';
+  const siteUrl  = document.getElementById('cfgSiteUrl')?.value.trim()  || '';
+  try {
+    const res = await fetch(`${API}/api/config/site-info`, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ siteName, siteUrl })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast('Informations du site sauvegardées ✓', 'success');
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
 async function loadTelegramConfig() {
   try {
     const res  = await fetch(`${API}/api/config/telegram`, { headers: { Authorization: 'Bearer ' + token } });

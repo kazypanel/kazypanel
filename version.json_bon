@@ -1,0 +1,88 @@
+{
+  "version": "1.8.0",
+  "date": "2026-04-05",
+  "changelog": "Bot Telegram, Multi-PHP, API REST v1 étendue (22 routes), Statut serveur enrichi, Alertes SSH/UFW",
+  "features": [
+    {
+      "category": "📱 Bot Telegram",
+      "items": [
+        "Bot natif intégré dans server.js — long-polling, aucune dépendance externe",
+        "7 commandes : /status, /services, /restart, /users, /logs, /disk, /help",
+        "9 alertes automatiques : connexion échouée, brute-force, nouveau domaine, sauvegarde, service arrêté, mises à jour apt, SSL expirant ≤14j, connexions SSH, UFW désactivé/réactivé",
+        "Onglet Telegram dans Configuration — Bot Token, Chat ID, seuils, checkboxes alertes",
+        "Monitoring SSH via journald toutes les 30s avec déduplication",
+        "Monitoring UFW toutes les 60s — alerte si pare-feu désactivé/réactivé",
+        "Seul le Chat ID configuré peut envoyer des commandes au bot"
+      ]
+    },
+    {
+      "category": "🐘 Multi-PHP par domaine",
+      "items": [
+        "Sélecteur de version PHP par domaine — 8.1 / 8.2 / 8.3 / 8.4 indépendants",
+        "Onglet Version dans le modal PHP avec cartes visuelles et badge Actuel",
+        "Route POST /api/domains/:name/php-version (admin)",
+        "Route POST /api/me/domains/:name/php-version (utilisateur)",
+        "Route GET /api/system/php-versions accessible à tous les rôles",
+        "Bouton PHP dans les actions domaine côté utilisateur",
+        "Masquage du bloc Installer une nouvelle version pour les non-admins",
+        "Fix bug onglet — modal s'ouvre maintenant sur l'onglet Memory par défaut"
+      ]
+    },
+    {
+      "category": "🔌 API REST v1 étendue — 22 routes",
+      "items": [
+        "GET/POST /api/v1/domains — lister et créer des domaines",
+        "DELETE /api/v1/domains/:domain — supprimer un domaine",
+        "GET /api/v1/domains/:domain/ssl — statut SSL + jours restants",
+        "GET/POST/DELETE /api/v1/users/:username/databases — gestion BDD MariaDB",
+        "GET /api/v1/users/:username/diskusage — quota disque",
+        "GET /api/v1/status/services — statut détaillé de chaque service",
+        "GET /api/v1/status/disk — disque global + par utilisateur",
+        "GET/POST/DELETE /api/v1/security/banned|ban|ban/:ip — Fail2ban",
+        "GET /api/v1/templates — templates disponibles",
+        "Modal Endpoints dans Configuration → API avec tableaux par catégorie"
+      ]
+    },
+    {
+      "category": "📊 Statut serveur",
+      "items": [
+        "IP publique, connexions TCP actives, versions PHP installées",
+        "Disques supplémentaires /var /home /tmp si montés séparément",
+        "Auto-refresh 30s avec toggle et indicateur visuel",
+        "Bannière alerte critique CPU/RAM/Disque > 85%",
+        "Multi-PHP dans les services — cartes par version",
+        "Grille 3 colonnes, boutons Start/Restart/Stop compacts"
+      ]
+    },
+    {
+      "category": "🔐 Sécurité renforcée",
+      "items": [
+        "Rate limiter login progressif : 3 échecs → 30s, 5 → 5min, 10 → 30min",
+        "Compte à rebours sur le bouton login avec décompte en temps réel",
+        "Avertissements progressifs avant blocage (2 tentatives, 1 tentative, bloqué)",
+        "Message d'erreur générique — empêche l'énumération des comptes",
+        "Scrypt configurable via SCRYPT_COST dans .env (16384/32768/65536)",
+        "Fix SSL domaine utilisateur — vérification croisée avec -le-ssl.conf"
+      ]
+    },
+    {
+      "category": "🌐 Page login",
+      "items": [
+        "Nom du site hébergeur configurable dans Configuration → Serveur",
+        "URL du site cliquable dans le footer login",
+        "Version lue depuis version.json — source de vérité unique",
+        "Vérification Content-Type avant parsing JSON"
+      ]
+    },
+    {
+      "category": "⚙️ Corrections",
+      "items": [
+        "Fix Cannot read properties of undefined reading memory_limit",
+        "Fix cfgLoadDomains non défini — remplacé par loadDomains()",
+        "Fix adminOnly retiré de /api/system/php-versions",
+        "Onglet Sauvegardes supprimé de Configuration",
+        "Bloc Serveur supprimé de la section Statut"
+      ]
+    }
+  ]
+}

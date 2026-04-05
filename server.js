@@ -48,12 +48,26 @@ function parseDuration(d) {
   return m[2] === 's' ? n : m[2] === 'm' ? n*60 : m[2] === 'h' ? n*3600 : n*86400;
 }
 
-// ─── BCRYPT NATIF (remplace bcryptjs — utilise scrypt de Node.js 24) ──────────
+// ─── SCRYPT NATIF — hachage des mots de passe ────────────────────────────────
+// Paramètre de coût configurable via SCRYPT_COST dans .env
+// 16384 = standard (recommandé pour VPS 1 cœur ~50ms)
+// 32768 = renforcé (recommandé pour serveurs dédiés ~100ms)
+// 65536 = très renforcé (serveurs puissants uniquement)
+const SCRYPT_N = (() => {
+  const n = parseInt(process.env.SCRYPT_COST || '16384', 10);
+  const valid = [16384, 32768, 65536];
+  if (!valid.includes(n)) {
+    console.warn(`⚠️  SCRYPT_COST=${n} invalide — valeurs acceptées : ${valid.join(', ')}. Utilisation de 16384.`);
+    return 16384;
+  }
+  return n;
+})();
+
 const bcrypt = {
   async hash(password, rounds = 12) {
     const salt = crypto.randomBytes(16);
     const key  = await new Promise((res, rej) =>
-      crypto.scrypt(password, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => e ? rej(e) : res(k))
+      crypto.scrypt(password, salt, 32, { N: SCRYPT_N, r: 8, p: 1 }, (e, k) => e ? rej(e) : res(k))
     );
     return `$scrypt$${rounds}$${salt.toString('base64')}$${key.toString('base64')}`;
   },
@@ -61,8 +75,6 @@ const bcrypt = {
     try {
       // Compatibilité ancien hash bcryptjs (commence par $2b$)
       if (hash.startsWith('$2b$') || hash.startsWith('$2a$')) {
-        // Fallback : comparer avec scrypt échoue — utiliser timing-safe compare via re-hash impossible
-        // On doit garder bcryptjs pour les anciens hashes → on l'appelle dynamiquement si présent
         try {
           const bc = require('bcryptjs');
           return await bc.compare(password, hash);
@@ -75,8 +87,9 @@ const bcrypt = {
       if (parts[1] !== 'scrypt') return false;
       const salt  = Buffer.from(parts[3], 'base64');
       const stored = Buffer.from(parts[4], 'base64');
+      // Utiliser le même N que lors du hash (rétrocompatibilité)
       const key = await new Promise((res, rej) =>
-        crypto.scrypt(password, salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => e ? rej(e) : res(k))
+        crypto.scrypt(password, salt, 32, { N: SCRYPT_N, r: 8, p: 1 }, (e, k) => e ? rej(e) : res(k))
       );
       return crypto.timingSafeEqual(key, stored);
     } catch { return false; }
@@ -174,7 +187,15 @@ const PORT = process.env.PORT || 8080;
 
 
 // ─── VERSION ──────────────────────────────────────────────────────────────────
-const KAZYPANEL_VERSION = '1.8.0';
+// Version lue depuis version.json — source de vérité unique
+let KAZYPANEL_VERSION = '1.8.0';
+try {
+  const vFile = path.join(__dirname, 'version.json');
+  if (fs.existsSync(vFile)) {
+    const vData = JSON.parse(fs.readFileSync(vFile, 'utf8'));
+    if (vData.version) KAZYPANEL_VERSION = vData.version;
+  }
+} catch {}
 
 // ─── MICRO-CACHE ──────────────────────────────────────────────────────────────
 // Cache en mémoire pour les routes coûteuses (shell commands).
@@ -666,19 +687,39 @@ function setSystemPassword(username, password) {
 
 // ─── ANTI BRUTE-FORCE ────────────────────────────────────────────────────────
 const loginAttempts = new Map();
+// Nettoyer les entrées expirées toutes les 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, e] of loginAttempts) {
+    if (e.blockedUntil < now && e.count === 0) loginAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000);
 
 function checkBruteForce(ip) {
-  const entry = loginAttempts.get(ip) || { count: 0, blockedUntil: 0 };
-  if (entry.blockedUntil > Date.now())
-    return { blocked: true, remaining: Math.ceil((entry.blockedUntil - Date.now()) / 60000) };
-  return { blocked: false };
+  const entry = loginAttempts.get(ip) || { count: 0, blockedUntil: 0, firstFail: 0 };
+  if (entry.blockedUntil > Date.now()) {
+    const remainingMs = entry.blockedUntil - Date.now();
+    return { blocked: true, remainingMs, remainingSec: Math.ceil(remainingMs / 1000) };
+  }
+  // Fenêtre glissante de 10 min — reset si la fenêtre est expirée
+  if (entry.firstFail && Date.now() - entry.firstFail > 10 * 60 * 1000) {
+    loginAttempts.delete(ip);
+    return { blocked: false, count: 0 };
+  }
+  return { blocked: false, count: entry.count };
 }
 
 function recordFailedAttempt(ip) {
-  const entry = loginAttempts.get(ip) || { count: 0, blockedUntil: 0 };
+  const now  = Date.now();
+  const entry = loginAttempts.get(ip) || { count: 0, blockedUntil: 0, firstFail: now };
+  if (!entry.firstFail) entry.firstFail = now;
   entry.count += 1;
-  if (entry.count >= 5) { entry.blockedUntil = Date.now() + 15 * 60 * 1000; entry.count = 0; }
+  // Blocage progressif : 3 → 30s, 5 → 5min, 10 → 30min
+  if (entry.count >= 10) { entry.blockedUntil = now + 30 * 60 * 1000; entry.count = 0; entry.firstFail = 0; }
+  else if (entry.count >= 5) { entry.blockedUntil = now +  5 * 60 * 1000; }
+  else if (entry.count >= 3) { entry.blockedUntil = now + 30 * 1000; }
   loginAttempts.set(ip, entry);
+  return { count: entry.count, blockedUntil: entry.blockedUntil };
 }
 
 // ─── AUTH MIDDLEWARE ──────────────────────────────────────────────────────────
@@ -727,17 +768,39 @@ app.post('/api/login', async (req, res) => {
 
   const bf = checkBruteForce(ip);
   if (bf.blocked)
-    return res.status(429).json({ error: `Trop de tentatives. Réessayez dans ${bf.remaining} minute(s).` });
+    return res.status(429).json({
+      error: `Trop de tentatives. Réessayez dans ${bf.remainingSec} seconde(s).`,
+      retryAfterMs: bf.remainingMs,
+      retryAfterSec: bf.remainingSec
+    });
+
+  // Message TOUJOURS générique — empêche l'énumération des comptes
+  const GENERIC_ERROR = 'Identifiants incorrects';
 
   const user = USERS.find(u => u.username === username);
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    recordFailedAttempt(ip);
+    const attempt = recordFailedAttempt(ip);
     trackLoginFail(ip);
     log('LOGIN', `${username} ua:${ua.slice(0,120)}`, 'FAIL', ip);
     if (PANEL_CONFIG.telegramAlertLogin !== false) {
-      tgAlert('🔒 Connexion échouée au panel\n\n👤 Utilisateur : <code>' + username + '</code>\n🌐 IP : <code>' + ip + '</code>').catch(() => {});
+      tgAlert('\U0001F512 Connexion \u00e9chou\u00e9e au panel\n\n\U0001F464 Utilisateur : <code>' + username + '</code>\n\U0001F310 IP : <code>' + ip + '</code>').catch(() => {});
     }
-    return res.status(401).json({ error: 'Identifiants incorrects' });
+    // Informer le client du nombre de tentatives restantes avant blocage
+    const attemptsLeft = attempt.count >= 3 ? 0 : 3 - attempt.count;
+    const res429 = attempt.blockedUntil > Date.now();
+    if (res429) {
+      const remainingMs = attempt.blockedUntil - Date.now();
+      return res.status(429).json({
+        error: `Trop de tentatives. Réessayez dans ${Math.ceil(remainingMs/1000)} seconde(s).`,
+        retryAfterMs: remainingMs,
+        retryAfterSec: Math.ceil(remainingMs / 1000)
+      });
+    }
+    return res.status(401).json({
+      error: GENERIC_ERROR,
+      attemptsLeft: Math.max(0, 3 - attempt.count),
+      willLockAt: 3
+    });
   }
 
   if (user.suspended) {
@@ -1620,7 +1683,12 @@ app.delete('/api/logins', authMiddleware, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/version', (req, res) => {
-  res.json({ version: KAZYPANEL_VERSION });
+  res.setHeader('Content-Type', 'application/json');
+  res.json({
+    version:  KAZYPANEL_VERSION,
+    siteName: PANEL_CONFIG.siteName || '',
+    siteUrl:  PANEL_CONFIG.siteUrl  || '',
+  });
 });
 
 // ─── ROUTES: TEMPLATES ──────────────────────────────────────────────────────
@@ -4856,6 +4924,8 @@ app.get('/api/config/general', authMiddleware, adminOnly, (req, res) => {
     backupSchedule: PANEL_CONFIG.backupSchedule || { enabled: false, cron: '0 3 * * *', retain: 7 },
     network:   PANEL_CONFIG.network  || { ftpPassiveMin: 40000, ftpPassiveMax: 50000 },
     panelPublicUrl: PANEL_CONFIG.panelPublicUrl || '',
+    siteName:       PANEL_CONFIG.siteName       || '',
+    siteUrl:        PANEL_CONFIG.siteUrl        || '',
   });
 });
 
@@ -4866,6 +4936,16 @@ app.put('/api/config/panel-url', authMiddleware, adminOnly, (req, res) => {
   savePanelConfig();
   log('CONFIG_PANEL_URL', PANEL_CONFIG.panelPublicUrl, 'OK');
   res.json({ success: true });
+});
+
+// PUT /api/config/site-info — Nom du site et URL de l'hébergeur
+app.put('/api/config/site-info', authMiddleware, adminOnly, (req, res) => {
+  const { siteName, siteUrl } = req.body;
+  PANEL_CONFIG.siteName = (siteName || '').trim().slice(0, 80);
+  PANEL_CONFIG.siteUrl  = (siteUrl  || '').trim().replace(/\/$/, '').slice(0, 200);
+  savePanelConfig();
+  log('CONFIG_SITE_INFO', `siteName=${PANEL_CONFIG.siteName}`, 'OK');
+  res.json({ success: true, siteName: PANEL_CONFIG.siteName, siteUrl: PANEL_CONFIG.siteUrl });
 });
 
 // PUT /api/config/defaults — limites par défaut nouveaux utilisateurs
@@ -5877,6 +5957,7 @@ app.post('/api/fail2ban/banall', authMiddleware, adminOnly, async (req, res) => 
 // ─── ROUTE: SÉCURITÉ — NOUVELLES ROUTES ──────────────────────────────────────
 
 // GET /api/security/score — score de sécurité global
+
 app.get('/api/security/score', authMiddleware, adminOnly, async (req, res) => {
   const checks = [];
   let score = 0;
