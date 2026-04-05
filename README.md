@@ -1136,6 +1136,26 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 ## Changelog
 
 ### v1.8.0 — 2026-04-05
+- • — Bot Telegram natif — long-polling intégré, 7 commandes (/status /services /restart /users /logs /disk /help)
+- • — Alertes Telegram automatiques : connexion échouée, brute-force, nouveau domaine, sauvegarde, service arrêté, mises à jour apt, SSL expirant, SSH, UFW
+- • — Multi-PHP par domaine — PHP 8.1 / 8.2 / 8.3 / 8.4 sélectionnable indépendamment, admin et utilisateur
+- • — API REST v1 étendue — 22 routes (domaines, bases de données, monitoring, sécurité Fail2ban, templates)
+- • — Monitoring SSH toutes les 30s via journald avec déduplication des alertes
+- • — Monitoring UFW toutes les 60s — alerte immédiate si pare-feu désactivé ou réactivé
+- • — Statut serveur enrichi — IP publique, TCP actifs, PHP installés, disques extra, auto-refresh 30s, bannière alerte seuils
+- • — Modal Endpoints API dans Configuration → API avec tableaux par catégorie et badges colorés
+- • — Page login — nom du site hébergeur configurable et cliquable, version depuis version.json
+- 🔒 Sécurité — Rate limiter login progressif : 3 échecs → 30s, 5 → 5min, 10 → 30min avec compte à rebours visuel
+- 🔒 Sécurité — Message d'erreur générique Identifiants incorrects — empêche l'énumération des comptes
+- 🔒 Sécurité — Scrypt configurable via SCRYPT_COST dans .env (16384 / 32768 / 65536)
+- 🐛 Fix — Fix Cannot read properties of undefined reading memory_limit — route phpconfig unifiée
+- 🐛 Fix — Fix SSL domaine utilisateur affichait Aucun — vérification croisée avec fichier -le-ssl.conf
+- 🐛 Fix — Fix cfgLoadDomains non défini dans applyPhpVersion — remplacé par loadDomains()
+- 🐛 Fix — Fix modal PHP — s'ouvre maintenant sur l'onglet Memory par défaut sans conflit
+- 🐛 Fix — Fix adminOnly retiré de /api/system/php-versions — accessible aux utilisateurs
+- 🐛 Fix — Onglet Sauvegardes supprimé de Configuration — fonctionnalité déplacée dans Sécurité
+
+### v1.8.0 — 2026-04-05
 
 ### v1.8.0 — 2026-04-03
 
