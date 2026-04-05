@@ -1135,6 +1135,8 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ## Changelog
 
+### v1.8.0 — 2026-04-05
+
 ### v1.8.0 — 2026-04-03
 
 #### 🐘 Multi-PHP par domaine
