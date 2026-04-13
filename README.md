@@ -1135,6 +1135,8 @@ Développé avec ❤️ — Node.js, Express, Apache2, PHP-FPM, MariaDB, vsftpd,
 
 ## Changelog
 
+### v1.8.0 — 2026-04-13
+
 ### v1.8.0 — 2026-04-05
 - • — Bot Telegram natif — long-polling intégré, 7 commandes (/status /services /restart /users /logs /disk /help)
 - • — Alertes Telegram automatiques : connexion échouée, brute-force, nouveau domaine, sauvegarde, service arrêté, mises à jour apt, SSL expirant, SSH, UFW

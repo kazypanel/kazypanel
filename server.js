@@ -5388,12 +5388,22 @@ app.post('/api/domains/:name/php-version', authMiddleware, adminOnly, async (req
 app.get('/api/domains/:name/phpconfig', authMiddleware, async (req, res) => {
   const isAdmin = req.user.role === 'admin';
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
-  const confFile = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
+  const confFile    = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}.conf`);
+  const confFileSsl = path.join(CONFIG.APACHE_SITES_PATH, `${safeName}-le-ssl.conf`);
+
   if (!fs.existsSync(confFile)) return res.status(404).json({ error: 'Domaine introuvable' });
 
-  const conf    = fs.readFileSync(confFile, 'utf8');
-  const docRoot = (conf.match(/DocumentRoot\s+(.+)/) || [])[1]?.trim();
-  if (!docRoot) return res.status(400).json({ error: 'DocumentRoot introuvable' });
+  const conf = fs.readFileSync(confFile, 'utf8');
+  // Chercher DocumentRoot dans le .conf HTTP, sinon dans le .conf SSL
+  let docRoot = (conf.match(/DocumentRoot\s+["']?([^"'\r\n]+)["']?/) || [])[1]?.trim();
+  if (!docRoot && fs.existsSync(confFileSsl)) {
+    const confSsl = fs.readFileSync(confFileSsl, 'utf8');
+    docRoot = (confSsl.match(/DocumentRoot\s+["']?([^"'\r\n]+)["']?/) || [])[1]?.trim();
+  }
+  // Fallback : construire le chemin depuis le nom du domaine
+  if (!docRoot) {
+    docRoot = `${CONFIG.FTP_ROOT}/${safeName}/public_html`;
+  }
 
   // Vérifier propriété si non admin
   if (!isAdmin) {
