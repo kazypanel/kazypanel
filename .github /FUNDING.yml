@@ -1,9 +1,0 @@
-# Voici les plateformes de financement supportées pour KazyPanel
-
-github: [kazypanel] # Si l'organisation a activé GitHub Sponsors
-patreon: kazypanel
-ko_fi: kazypanel
-open_collective: kazypanel
-
-# Contenu de .github/FUNDING.yml
-custom: ["https://www.paypal.com/donate/?hosted_button_id=KAA65PN74W6M6"]
